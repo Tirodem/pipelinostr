@@ -1,0 +1,89 @@
+# Configuration USB HID Handler
+usb_hid:
+  enabled: true
+
+  # Mapping des devices HID (optionnel)
+  # Utiliser lsusb (Linux) ou Device Manager (Windows) pour trouver VID/PID
+  # devices:
+  #   custom_controller:
+  #     vendor_id: 0x1234
+  #     product_id: 0x5678
+  #
+  #   led_display:
+  #     vendor_id: 0x0483
+  #     product_id: 0x5750
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Écrire des données
+#   - type: usb_hid
+#     params:
+#       vendor_id: 0x1234
+#       product_id: 0x5678
+#       action: write
+#       data: [0x00, 0x01, 0x02, 0x03]
+#       report_id: 0
+#
+#   # Écrire en hexadécimal
+#   - type: usb_hid
+#     params:
+#       vendor_id: 0x1234
+#       product_id: 0x5678
+#       action: write
+#       data: "00010203"
+#       report_id: 0
+#
+#   # Lire des données
+#   - type: usb_hid
+#     params:
+#       vendor_id: 0x1234
+#       product_id: 0x5678
+#       action: read
+#       read_timeout: 1000  # ms
+#       read_size: 64       # octets
+#
+#   # Get Feature Report
+#   - type: usb_hid
+#     params:
+#       vendor_id: 0x1234
+#       product_id: 0x5678
+#       action: get_feature
+#       report_id: 1
+#       read_size: 32
+#
+#   # Send Feature Report
+#   - type: usb_hid
+#     params:
+#       vendor_id: 0x1234
+#       product_id: 0x5678
+#       action: send_feature
+#       report_id: 1
+#       data: [0x01, 0x02, 0x03]
+#
+#   # Utiliser un device mappé
+#   - type: usb_hid
+#     params:
+#       device: "custom_controller"
+#       action: write
+#       data: [0x01, 0x00]
+
+# Actions disponibles:
+# - write: Écrire un output report
+# - read: Lire un input report
+# - get_feature: Lire un feature report
+# - send_feature: Envoyer un feature report
+
+# Notes:
+# - Les VID/PID sont en hexadécimal (0x1234)
+# - Les données peuvent être un tableau d'octets ou une chaîne hex
+# - report_id est souvent 0 pour les devices simples
+
+# Trouver VID/PID:
+# Linux: lsusb
+# Windows: Device Manager > Propriétés > Détails > IDs du matériel
+# macOS: Informations Système > USB
+
+# Permissions:
+# Linux: ajouter une règle udev ou exécuter en root
+# Windows: généralement pas de permissions nécessaires

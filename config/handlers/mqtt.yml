@@ -1,0 +1,85 @@
+# Configuration MQTT Handler
+mqtt:
+  enabled: true
+
+  # URL du broker MQTT
+  # Formats supportés:
+  # - mqtt://host:port (non chiffré)
+  # - mqtts://host:port (TLS)
+  # - ws://host:port (WebSocket)
+  # - wss://host:port (WebSocket TLS)
+  broker_url: "mqtt://localhost:1883"
+
+  # Authentification (optionnel)
+  # username: "user"
+  # password: ${MQTT_PASSWORD}
+
+  # Client ID (auto-généré si non spécifié)
+  # client_id: "pipelinostr"
+
+  # Options de connexion
+  # keepalive: 60           # Secondes
+  # clean: true             # Clean session
+  # reconnect_period: 5000  # ms
+  # connect_timeout: 30000  # ms
+
+  # TLS (pour mqtts://)
+  # ca: "/path/to/ca.crt"
+  # cert: "/path/to/client.crt"
+  # key: "/path/to/client.key"
+  # reject_unauthorized: true
+
+  # Topics par défaut
+  default_topic: "nostr/events"
+  # topic_prefix: "home"    # Préfixe ajouté à tous les topics
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Publication simple
+#   - type: mqtt
+#     params:
+#       topic: "nostr/events/kind1"
+#       payload: "{{content}}"
+#
+#   # Publication JSON
+#   - type: mqtt
+#     params:
+#       topic: "nostr/events"
+#       format: json
+#       qos: 1
+#       retain: false
+#
+#   # Payload personnalisé
+#   - type: mqtt
+#     params:
+#       topic: "home/notification"
+#       payload:
+#         message: "{{content}}"
+#         source: "nostr"
+#         event_id: "{{event_id}}"
+#
+#   # Pour Home Assistant
+#   - type: mqtt
+#     params:
+#       topic: "homeassistant/sensor/nostr_event/state"
+#       payload:
+#         state: "new_event"
+#         attributes:
+#           event_id: "{{event_id}}"
+#           pubkey: "{{pubkey}}"
+
+# QoS levels:
+# - 0: At most once (fire and forget)
+# - 1: At least once (acknowledged delivery)
+# - 2: Exactly once (assured delivery)
+
+# Retain flag:
+# - true: Le broker conserve le dernier message pour les nouveaux subscribers
+# - false: Message non retenu
+
+# Brokers MQTT populaires:
+# - Mosquitto (local): mqtt://localhost:1883
+# - HiveMQ Cloud: mqtts://broker.hivemq.com:8883
+# - CloudMQTT: mqtts://xxx.cloudmqtt.com:port
+# - AWS IoT: mqtts://xxx.iot.region.amazonaws.com:8883

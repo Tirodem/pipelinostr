@@ -38,6 +38,13 @@ Ce document détaille la configuration de tous les handlers sortants disponibles
 8. [Handlers DevOps](#handlers-devops)
    - [GitHub](#github)
    - [GitLab](#gitlab)
+9. [Handlers Hardware/IoT](#handlers-hardwareiot)
+   - [Serial (RS232/USB)](#serial-rs232usb)
+   - [GPIO](#gpio)
+   - [MQTT](#mqtt)
+   - [Bluetooth LE](#bluetooth-le)
+   - [USB HID](#usb-hid)
+   - [I2C](#i2c)
 
 ---
 
@@ -1495,6 +1502,488 @@ actions:
 - Le project peut être spécifié par son ID numérique ou son path "namespace/project"
 - Les labels sont séparés par des virgules (string, pas tableau)
 - `issue_iid` est l'ID interne au projet (pas l'ID global)
+
+---
+
+## Handlers Hardware/IoT
+
+> ⚠️ **Note** : Les handlers hardware nécessitent l'installation de modules optionnels et sont conçus pour fonctionner sur des plateformes supportant le hardware correspondant (Raspberry Pi, SBCs, etc.).
+
+### Serial (RS232/USB)
+
+Communication série avec des équipements RS232 ou USB série (Arduino, équipements industriels, etc.).
+
+**Installation** :
+```bash
+npm install serialport
+```
+
+**Fichier de config** : `config/handlers/serial.yml`
+
+```yaml
+serial:
+  enabled: true
+  port: "/dev/ttyUSB0"  # ou COM3 sous Windows
+  baudrate: 9600
+  databits: 8
+  stopbits: 1
+  parity: "none"  # none, even, odd, mark, space
+  rtscts: false
+  xon: false
+  xoff: false
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Envoyer du texte
+  - type: serial
+    params:
+      data: "{{content}}"
+      line_ending: "crlf"  # none, lf, crlf, cr
+
+  # Envoyer des données hexadécimales
+  - type: serial
+    params:
+      format: "hex"
+      data: "48454C4C4F"  # HELLO
+
+  # Envoyer et attendre une réponse
+  - type: serial
+    params:
+      data: "GET_STATUS"
+      line_ending: "crlf"
+      wait_response: true
+      response_timeout: 5000  # ms
+      response_delimiter: "\n"
+
+  # Envoyer un JSON formaté
+  - type: serial
+    params:
+      format: "json"
+```
+
+**Paramètres** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `data` | string | Non | Données à envoyer (défaut: content) |
+| `format` | string | Non | `text`, `hex`, `json` |
+| `encoding` | string | Non | Encodage (défaut: utf8) |
+| `line_ending` | string | Non | Terminateur de ligne |
+| `wait_response` | boolean | Non | Attendre une réponse |
+| `response_timeout` | number | Non | Timeout en ms (défaut: 5000) |
+| `response_delimiter` | string | Non | Délimiteur de réponse |
+
+---
+
+### GPIO
+
+Contrôle des GPIO sur Raspberry Pi et autres SBCs.
+
+**Installation** :
+```bash
+npm install onoff
+```
+
+**Fichier de config** : `config/handlers/gpio.yml`
+
+```yaml
+gpio:
+  enabled: true
+  pins:
+    led_rouge: 17
+    led_verte: 27
+    buzzer: 22
+  default_direction: "out"
+  active_low: false
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Allumer une LED
+  - type: gpio
+    params:
+      pin: "led_rouge"  # Nom défini dans la config
+      action: "set"
+
+  # Éteindre une LED
+  - type: gpio
+    params:
+      pin: 17  # Numéro de pin directement
+      action: "clear"
+
+  # Toggle (inverser l'état)
+  - type: gpio
+    params:
+      pin: "led_verte"
+      action: "toggle"
+
+  # Pulse (activer pendant X ms)
+  - type: gpio
+    params:
+      pin: "buzzer"
+      action: "pulse"
+      duration: 500  # ms
+
+  # Lire l'état d'un pin
+  - type: gpio
+    params:
+      pin: 18
+      action: "read"
+
+  # PWM logiciel
+  - type: gpio
+    params:
+      pin: "led_rouge"
+      action: "pwm"
+      duty_cycle: 50  # 0-100%
+      pwm_frequency: 100  # Hz
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `set` | Met le pin à HIGH |
+| `clear` | Met le pin à LOW |
+| `toggle` | Inverse l'état du pin |
+| `pulse` | Pulse HIGH pendant `duration` ms |
+| `read` | Lit l'état du pin |
+| `pwm` | PWM logiciel avec duty cycle |
+
+---
+
+### MQTT
+
+Publication de messages sur un broker MQTT (Home Assistant, Mosquitto, AWS IoT, etc.).
+
+**Installation** :
+```bash
+npm install mqtt
+```
+
+**Fichier de config** : `config/handlers/mqtt.yml`
+
+```yaml
+mqtt:
+  enabled: true
+  broker_url: "mqtt://localhost:1883"  # ou mqtts:// pour TLS
+  username: "user"
+  password: ${MQTT_PASSWORD}
+  client_id: "pipelinostr"
+  keepalive: 60
+  clean: true
+  reconnect_period: 5000
+  connect_timeout: 30000
+  default_topic: "nostr/events"
+  topic_prefix: "home"
+```
+
+**Variables d'environnement** :
+```bash
+MQTT_PASSWORD=xxxxx
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Publication simple
+  - type: mqtt
+    params:
+      topic: "nostr/notifications"
+      payload: "{{content}}"
+
+  # Publication JSON
+  - type: mqtt
+    params:
+      topic: "sensors/nostr"
+      format: "json"
+      qos: 1  # 0, 1, ou 2
+      retain: false
+
+  # Avec payload personnalisé
+  - type: mqtt
+    params:
+      topic: "alerts/nostr"
+      payload:
+        event_id: "{{event_id}}"
+        message: "{{content}}"
+        timestamp: "{{timestamp}}"
+```
+
+**Paramètres** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `topic` | string | Non | Topic MQTT (défaut: config) |
+| `payload` | string/object | Non | Message à publier |
+| `format` | string | Non | `text` ou `json` |
+| `qos` | number | Non | QoS 0, 1, ou 2 (défaut: 0) |
+| `retain` | boolean | Non | Message retenu (défaut: false) |
+
+---
+
+### Bluetooth LE
+
+Communication avec des périphériques Bluetooth Low Energy (beacons, capteurs, wearables).
+
+**Installation** :
+```bash
+npm install @abandonware/noble
+```
+
+> ⚠️ **Note** : Nécessite des permissions Bluetooth sur le système.
+
+**Fichier de config** : `config/handlers/ble.yml`
+
+```yaml
+ble:
+  enabled: true
+  devices:
+    capteur_temp:
+      address: "aa:bb:cc:dd:ee:ff"
+      service_uuid: "180a"
+      characteristic_uuid: "2a29"
+    led_strip:
+      address: "11:22:33:44:55:66"
+  scan_timeout: 10000
+  connect_timeout: 10000
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Écrire sur une caractéristique
+  - type: ble
+    params:
+      device: "led_strip"
+      service_uuid: "ffe0"
+      characteristic_uuid: "ffe1"
+      action: "write"
+      data: "{{content}}"
+
+  # Écrire en hexadécimal
+  - type: ble
+    params:
+      address: "aa:bb:cc:dd:ee:ff"
+      service_uuid: "ffe0"
+      characteristic_uuid: "ffe1"
+      action: "write"
+      data: "FF0000"  # Rouge en RGB
+      data_format: "hex"
+
+  # Écrire sans réponse (plus rapide)
+  - type: ble
+    params:
+      device: "led_strip"
+      service_uuid: "ffe0"
+      characteristic_uuid: "ffe1"
+      action: "write_without_response"
+      data: "00FF00"
+      data_format: "hex"
+
+  # Lire une caractéristique
+  - type: ble
+    params:
+      device: "capteur_temp"
+      service_uuid: "180a"
+      characteristic_uuid: "2a29"
+      action: "read"
+
+  # Écouter les notifications
+  - type: ble
+    params:
+      device: "capteur_temp"
+      service_uuid: "180f"
+      characteristic_uuid: "2a19"
+      action: "notify"
+      listen_duration: 5000  # ms
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `write` | Écriture avec réponse |
+| `write_without_response` | Écriture sans réponse |
+| `read` | Lecture de caractéristique |
+| `notify` | Écoute des notifications |
+
+---
+
+### USB HID
+
+Communication avec des périphériques USB HID (claviers programmables, contrôleurs, afficheurs).
+
+**Installation** :
+```bash
+npm install node-hid
+```
+
+**Fichier de config** : `config/handlers/usb-hid.yml`
+
+```yaml
+usb_hid:
+  enabled: true
+  devices:
+    stream_deck:
+      vendor_id: 0x0fd9
+      product_id: 0x0060
+    macro_pad:
+      vendor_id: 0x1234
+      product_id: 0x5678
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Écrire sur un device
+  - type: usb_hid
+    params:
+      device: "stream_deck"
+      action: "write"
+      data: [0x02, 0x01, 0x00, 0x00]  # Tableau d'octets
+      report_id: 0
+
+  # Écrire en hexadécimal
+  - type: usb_hid
+    params:
+      vendor_id: 0x0fd9
+      product_id: 0x0060
+      action: "write"
+      data: "02010000"  # String hex
+
+  # Lire depuis le device
+  - type: usb_hid
+    params:
+      device: "macro_pad"
+      action: "read"
+      read_timeout: 1000  # ms
+
+  # Récupérer un Feature Report
+  - type: usb_hid
+    params:
+      device: "stream_deck"
+      action: "get_feature"
+      report_id: 5
+      read_size: 64
+
+  # Envoyer un Feature Report
+  - type: usb_hid
+    params:
+      device: "stream_deck"
+      action: "send_feature"
+      report_id: 5
+      data: [0x01, 0x02, 0x03]
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `write` | Envoie un rapport HID |
+| `read` | Lit un rapport HID |
+| `get_feature` | Récupère un Feature Report |
+| `send_feature` | Envoie un Feature Report |
+
+---
+
+### I2C
+
+Communication I2C pour capteurs et périphériques sur Raspberry Pi et SBCs.
+
+**Installation** :
+```bash
+npm install i2c-bus
+```
+
+**Fichier de config** : `config/handlers/i2c.yml`
+
+```yaml
+i2c:
+  enabled: true
+  bus_number: 1  # /dev/i2c-1
+  devices:
+    oled_display:
+      address: 0x3c
+      description: "SSD1306 OLED"
+    temp_sensor:
+      address: 0x48
+      description: "TMP102"
+    eeprom:
+      address: 0x50
+      description: "AT24C256"
+```
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Scanner le bus I2C
+  - type: i2c
+    params:
+      action: "scan"
+
+  # Écrire des données
+  - type: i2c
+    params:
+      device: "oled_display"
+      action: "write"
+      data: [0x00, 0xAE]  # Commande OFF
+
+  # Écrire un byte dans un registre
+  - type: i2c
+    params:
+      device: "temp_sensor"
+      action: "write_byte"
+      register: 0x01
+      data: 0x60  # Configuration
+
+  # Lire un byte depuis un registre
+  - type: i2c
+    params:
+      device: "temp_sensor"
+      action: "read_byte"
+      register: 0x00  # Température
+
+  # Lire un word (16 bits)
+  - type: i2c
+    params:
+      address: 0x48  # Adresse directe
+      action: "read_word"
+      register: 0x00
+
+  # Écrire un bloc de données
+  - type: i2c
+    params:
+      device: "eeprom"
+      action: "write_i2c_block"
+      register: 0x00
+      data: "48454C4C4F"  # Hex string
+
+  # Lire un bloc de données
+  - type: i2c
+    params:
+      device: "eeprom"
+      action: "read_i2c_block"
+      register: 0x00
+      length: 16
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `scan` | Scanne le bus pour trouver les devices |
+| `write` | Écriture brute de données |
+| `read` | Lecture brute de données |
+| `write_byte` | Écrit un byte dans un registre |
+| `read_byte` | Lit un byte depuis un registre |
+| `write_word` | Écrit un word (16 bits) dans un registre |
+| `read_word` | Lit un word depuis un registre |
+| `write_i2c_block` | Écrit un bloc dans un registre |
+| `read_i2c_block` | Lit un bloc depuis un registre |
 
 ---
 

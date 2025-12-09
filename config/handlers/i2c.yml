@@ -1,0 +1,121 @@
+# Configuration I2C Handler (Raspberry Pi, etc.)
+i2c:
+  enabled: true
+
+  # Numéro du bus I2C
+  # Raspberry Pi: généralement 1 (/dev/i2c-1)
+  # Autres SBCs: vérifier la documentation
+  bus_number: 1
+
+  # Mapping des devices I2C (optionnel)
+  # devices:
+  #   lcd_display:
+  #     address: 0x27
+  #     description: "LCD 16x2 avec backpack I2C"
+  #
+  #   temp_sensor:
+  #     address: 0x48
+  #     description: "Capteur température LM75"
+  #
+  #   eeprom:
+  #     address: 0x50
+  #     description: "EEPROM 24C32"
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Scanner le bus I2C
+#   - type: i2c
+#     params:
+#       action: scan
+#
+#   # Écrire un octet dans un registre
+#   - type: i2c
+#     params:
+#       address: 0x27
+#       action: write_byte
+#       register: 0x00
+#       data: 0xFF
+#
+#   # Lire un octet depuis un registre
+#   - type: i2c
+#     params:
+#       address: 0x48
+#       action: read_byte
+#       register: 0x00
+#
+#   # Écrire un mot (2 octets)
+#   - type: i2c
+#     params:
+#       address: 0x27
+#       action: write_word
+#       register: 0x00
+#       data: 0x1234
+#
+#   # Lire un mot
+#   - type: i2c
+#     params:
+#       address: 0x48
+#       action: read_word
+#       register: 0x00
+#
+#   # Écrire un bloc de données
+#   - type: i2c
+#     params:
+#       address: 0x50
+#       action: write_i2c_block
+#       register: 0x00
+#       data: [0x48, 0x45, 0x4C, 0x4C, 0x4F]  # HELLO
+#
+#   # Lire un bloc de données
+#   - type: i2c
+#     params:
+#       address: 0x50
+#       action: read_i2c_block
+#       register: 0x00
+#       length: 16
+#
+#   # Écriture brute (sans registre)
+#   - type: i2c
+#     params:
+#       address: 0x27
+#       action: write
+#       data: "48454C4C4F"  # Hex string
+#
+#   # Lecture brute
+#   - type: i2c
+#     params:
+#       address: 0x27
+#       action: read
+#       length: 4
+#
+#   # Utiliser un device mappé
+#   - type: i2c
+#     params:
+#       device: "temp_sensor"
+#       action: read_byte
+#       register: 0x00
+
+# Actions disponibles:
+# - scan: Scanner le bus pour trouver les devices
+# - write: Écriture brute (i2cWrite)
+# - read: Lecture brute (i2cRead)
+# - write_byte: Écrire un octet dans un registre
+# - read_byte: Lire un octet depuis un registre
+# - write_word: Écrire 2 octets dans un registre
+# - read_word: Lire 2 octets depuis un registre
+# - write_i2c_block: Écrire un bloc dans un registre
+# - read_i2c_block: Lire un bloc depuis un registre
+
+# Devices I2C courants:
+# - 0x27: LCD avec backpack PCF8574
+# - 0x3C/0x3D: Écran OLED SSD1306
+# - 0x48-0x4F: Capteurs température LM75
+# - 0x50-0x57: EEPROM 24Cxx
+# - 0x68: RTC DS1307/DS3231
+# - 0x76/0x77: Capteur BME280/BMP280
+
+# Activer I2C sur Raspberry Pi:
+#   sudo raspi-config > Interface Options > I2C > Enable
+# Permissions:
+#   sudo usermod -a -G i2c $USER

@@ -28,6 +28,12 @@ import { BlueskyHandler } from './outbound/bluesky.handler.js';
 import { LemmyHandler } from './outbound/lemmy.handler.js';
 import { GitHubHandler } from './outbound/github.handler.js';
 import { GitLabHandler } from './outbound/gitlab.handler.js';
+import { SerialHandler } from './outbound/serial.handler.js';
+import { GpioHandler } from './outbound/gpio.handler.js';
+import { MqttHandler } from './outbound/mqtt.handler.js';
+import { BleHandler } from './outbound/ble.handler.js';
+import { UsbHidHandler } from './outbound/usb-hid.handler.js';
+import { I2cHandler } from './outbound/i2c.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -61,6 +67,12 @@ interface AppState {
     lemmy?: LemmyHandler;
     github?: GitHubHandler;
     gitlab?: GitLabHandler;
+    serial?: SerialHandler;
+    gpio?: GpioHandler;
+    mqtt?: MqttHandler;
+    ble?: BleHandler;
+    usbHid?: UsbHidHandler;
+    i2c?: I2cHandler;
   };
 }
 
@@ -804,6 +816,199 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('GitLab handler not configured, skipping');
   }
+
+  // Serial Handler (optional, needs config)
+  try {
+    interface SerialConfigFile {
+      serial?: {
+        enabled?: boolean;
+        port?: string;
+        baudrate?: number;
+        databits?: 5 | 6 | 7 | 8;
+        stopbits?: 1 | 1.5 | 2;
+        parity?: 'none' | 'even' | 'odd' | 'mark' | 'space';
+        rtscts?: boolean;
+        xon?: boolean;
+        xoff?: boolean;
+      };
+    }
+    const serialConfig = await loadHandlerConfig<SerialConfigFile>('serial');
+    if (
+      serialConfig?.serial?.enabled !== false &&
+      serialConfig?.serial?.port
+    ) {
+      state.handlers.serial = new SerialHandler({
+        enabled: true,
+        port: serialConfig.serial.port,
+        baudrate: serialConfig.serial.baudrate,
+        databits: serialConfig.serial.databits,
+        stopbits: serialConfig.serial.stopbits,
+        parity: serialConfig.serial.parity,
+        rtscts: serialConfig.serial.rtscts,
+        xon: serialConfig.serial.xon,
+        xoff: serialConfig.serial.xoff,
+      });
+      await state.handlers.serial.initialize();
+      state.workflowEngine.registerHandler('serial', state.handlers.serial);
+      logger.info('Serial handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Serial handler not configured, skipping');
+  }
+
+  // GPIO Handler (optional, needs config)
+  try {
+    interface GpioConfigFile {
+      gpio?: {
+        enabled?: boolean;
+        pins?: Record<string, number>;
+        default_direction?: 'in' | 'out';
+        active_low?: boolean;
+      };
+    }
+    const gpioConfig = await loadHandlerConfig<GpioConfigFile>('gpio');
+    if (gpioConfig?.gpio?.enabled !== false) {
+      state.handlers.gpio = new GpioHandler({
+        enabled: true,
+        pins: gpioConfig?.gpio?.pins,
+        default_direction: gpioConfig?.gpio?.default_direction,
+        active_low: gpioConfig?.gpio?.active_low,
+      });
+      await state.handlers.gpio.initialize();
+      state.workflowEngine.registerHandler('gpio', state.handlers.gpio);
+      logger.info('GPIO handler enabled');
+    }
+  } catch (error) {
+    logger.debug('GPIO handler not configured, skipping');
+  }
+
+  // MQTT Handler (optional, needs config)
+  try {
+    interface MqttConfigFile {
+      mqtt?: {
+        enabled?: boolean;
+        broker_url?: string;
+        username?: string;
+        password?: string;
+        client_id?: string;
+        keepalive?: number;
+        clean?: boolean;
+        reconnect_period?: number;
+        connect_timeout?: number;
+        default_topic?: string;
+        topic_prefix?: string;
+      };
+    }
+    const mqttConfig = await loadHandlerConfig<MqttConfigFile>('mqtt');
+    if (
+      mqttConfig?.mqtt?.enabled !== false &&
+      mqttConfig?.mqtt?.broker_url
+    ) {
+      state.handlers.mqtt = new MqttHandler({
+        enabled: true,
+        broker_url: mqttConfig.mqtt.broker_url,
+        username: mqttConfig.mqtt.username,
+        password: mqttConfig.mqtt.password,
+        client_id: mqttConfig.mqtt.client_id,
+        keepalive: mqttConfig.mqtt.keepalive,
+        clean: mqttConfig.mqtt.clean,
+        reconnect_period: mqttConfig.mqtt.reconnect_period,
+        connect_timeout: mqttConfig.mqtt.connect_timeout,
+        default_topic: mqttConfig.mqtt.default_topic,
+        topic_prefix: mqttConfig.mqtt.topic_prefix,
+      });
+      await state.handlers.mqtt.initialize();
+      state.workflowEngine.registerHandler('mqtt', state.handlers.mqtt);
+      logger.info('MQTT handler enabled');
+    }
+  } catch (error) {
+    logger.debug('MQTT handler not configured, skipping');
+  }
+
+  // BLE Handler (optional, needs config)
+  try {
+    interface BleConfigFile {
+      ble?: {
+        enabled?: boolean;
+        devices?: Record<string, {
+          address?: string;
+          service_uuid?: string;
+          characteristic_uuid?: string;
+        }>;
+        scan_timeout?: number;
+        connect_timeout?: number;
+      };
+    }
+    const bleConfig = await loadHandlerConfig<BleConfigFile>('ble');
+    if (bleConfig?.ble?.enabled !== false) {
+      state.handlers.ble = new BleHandler({
+        enabled: true,
+        devices: bleConfig?.ble?.devices,
+        scan_timeout: bleConfig?.ble?.scan_timeout,
+        connect_timeout: bleConfig?.ble?.connect_timeout,
+      });
+      await state.handlers.ble.initialize();
+      state.workflowEngine.registerHandler('ble', state.handlers.ble);
+      logger.info('BLE handler enabled');
+    }
+  } catch (error) {
+    logger.debug('BLE handler not configured, skipping');
+  }
+
+  // USB HID Handler (optional, needs config)
+  try {
+    interface UsbHidConfigFile {
+      usb_hid?: {
+        enabled?: boolean;
+        devices?: Record<string, {
+          vendor_id: number;
+          product_id: number;
+          usage_page?: number;
+          usage?: number;
+          interface_number?: number;
+        }>;
+      };
+    }
+    const usbHidConfig = await loadHandlerConfig<UsbHidConfigFile>('usb-hid');
+    if (usbHidConfig?.usb_hid?.enabled !== false) {
+      state.handlers.usbHid = new UsbHidHandler({
+        enabled: true,
+        devices: usbHidConfig?.usb_hid?.devices,
+      });
+      await state.handlers.usbHid.initialize();
+      state.workflowEngine.registerHandler('usb_hid', state.handlers.usbHid);
+      logger.info('USB HID handler enabled');
+    }
+  } catch (error) {
+    logger.debug('USB HID handler not configured, skipping');
+  }
+
+  // I2C Handler (optional, needs config)
+  try {
+    interface I2cConfigFile {
+      i2c?: {
+        enabled?: boolean;
+        bus_number?: number;
+        devices?: Record<string, {
+          address: number;
+          description?: string;
+        }>;
+      };
+    }
+    const i2cConfig = await loadHandlerConfig<I2cConfigFile>('i2c');
+    if (i2cConfig?.i2c?.enabled !== false) {
+      state.handlers.i2c = new I2cHandler({
+        enabled: true,
+        bus_number: i2cConfig?.i2c?.bus_number,
+        devices: i2cConfig?.i2c?.devices,
+      });
+      await state.handlers.i2c.initialize();
+      state.workflowEngine.registerHandler('i2c', state.handlers.i2c);
+      logger.info('I2C handler enabled');
+    }
+  } catch (error) {
+    logger.debug('I2C handler not configured, skipping');
+  }
 }
 
 async function main(): Promise<void> {
@@ -1010,6 +1215,24 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.gitlab) {
       await appState.handlers.gitlab.shutdown();
+    }
+    if (appState.handlers.serial) {
+      await appState.handlers.serial.shutdown();
+    }
+    if (appState.handlers.gpio) {
+      await appState.handlers.gpio.shutdown();
+    }
+    if (appState.handlers.mqtt) {
+      await appState.handlers.mqtt.shutdown();
+    }
+    if (appState.handlers.ble) {
+      await appState.handlers.ble.shutdown();
+    }
+    if (appState.handlers.usbHid) {
+      await appState.handlers.usbHid.shutdown();
+    }
+    if (appState.handlers.i2c) {
+      await appState.handlers.i2c.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

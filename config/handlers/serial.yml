@@ -1,0 +1,61 @@
+# Configuration Serial Handler (RS232/USB)
+serial:
+  enabled: true
+
+  # Port série (obligatoire)
+  # Linux: /dev/ttyUSB0, /dev/ttyACM0, /dev/ttyS0
+  # Windows: COM3, COM4, etc.
+  # macOS: /dev/tty.usbserial-xxx
+  port: "/dev/ttyUSB0"
+
+  # Paramètres de communication
+  baudrate: 9600       # 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200
+  databits: 8          # 5, 6, 7, 8
+  stopbits: 1          # 1, 1.5, 2
+  parity: "none"       # none, even, odd, mark, space
+
+  # Flow control
+  # rtscts: false      # Hardware flow control
+  # xon: false         # Software flow control
+  # xoff: false
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Envoyer du texte simple
+#   - type: serial
+#     params:
+#       data: "EVENT:{{event_id}}"
+#       line_ending: "crlf"
+#
+#   # Envoyer en JSON
+#   - type: serial
+#     params:
+#       format: json
+#       line_ending: "lf"
+#
+#   # Envoyer des données hexadécimales
+#   - type: serial
+#     params:
+#       data: "48454C4C4F"  # HELLO en hex
+#       format: hex
+#
+#   # Attendre une réponse
+#   - type: serial
+#     params:
+#       data: "STATUS?"
+#       line_ending: "crlf"
+#       wait_response: true
+#       response_timeout: 5000
+#       response_delimiter: "\n"
+
+# Terminateurs de ligne disponibles:
+# - none: Pas de terminateur
+# - lf: \n (Unix)
+# - crlf: \r\n (Windows)
+# - cr: \r (Mac classique)
+
+# Cas d'usage typiques:
+# - Arduino: baudrate 9600 ou 115200, databits 8, parity none
+# - Modems: baudrate variable, souvent avec flow control
+# - Équipements industriels: Vérifier la documentation du fabricant

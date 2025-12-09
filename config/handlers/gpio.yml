@@ -1,0 +1,77 @@
+# Configuration GPIO Handler (Raspberry Pi, etc.)
+gpio:
+  enabled: true
+
+  # Direction par défaut pour les nouveaux pins
+  default_direction: "out"
+
+  # Inverser la logique (active low)
+  # active_low: false
+
+  # Mapping des pins avec des noms symboliques (optionnel)
+  # pins:
+  #   led_status: 17
+  #   led_error: 27
+  #   relay_1: 22
+  #   buzzer: 23
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Allumer une LED (mettre le pin à HIGH)
+#   - type: gpio
+#     params:
+#       pin: 17
+#       action: set
+#
+#   # Éteindre une LED (mettre le pin à LOW)
+#   - type: gpio
+#     params:
+#       pin: 17
+#       action: clear
+#
+#   # Toggle (inverser l'état)
+#   - type: gpio
+#     params:
+#       pin: 17
+#       action: toggle
+#
+#   # Pulse (allumer puis éteindre)
+#   - type: gpio
+#     params:
+#       pin: 17
+#       action: pulse
+#       duration: 500  # ms
+#
+#   # Lire l'état d'un pin
+#   - type: gpio
+#     params:
+#       pin: 18
+#       action: read
+#       direction: in
+#
+#   # PWM logiciel (attention: peu précis)
+#   - type: gpio
+#     params:
+#       pin: 17
+#       action: pwm
+#       duty_cycle: 50      # 0-100%
+#       pwm_frequency: 100  # Hz
+#
+#   # Utiliser un nom mappé
+#   - type: gpio
+#     params:
+#       pin: "led_status"
+#       action: set
+
+# Actions disponibles:
+# - set: Met le pin à HIGH
+# - clear: Met le pin à LOW
+# - toggle: Inverse l'état du pin
+# - pulse: HIGH pendant duration ms, puis LOW
+# - read: Lit l'état du pin (retourne 0 ou 1)
+# - pwm: PWM logiciel (peu précis, utiliser hardware PWM si possible)
+
+# Note: Nécessite les permissions d'accès aux GPIO
+# Sur Raspberry Pi: ajouter l'utilisateur au groupe gpio
+#   sudo usermod -a -G gpio $USER

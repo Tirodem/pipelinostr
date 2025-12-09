@@ -1,0 +1,89 @@
+# Configuration Bluetooth LE Handler
+ble:
+  enabled: true
+
+  # Timeout pour le scan de devices (ms)
+  scan_timeout: 10000
+
+  # Timeout pour la connexion (ms)
+  connect_timeout: 10000
+
+  # Mapping des devices BLE (optionnel)
+  # devices:
+  #   heart_rate_monitor:
+  #     address: "aa:bb:cc:dd:ee:ff"
+  #     service_uuid: "180d"           # Heart Rate Service
+  #     characteristic_uuid: "2a37"    # Heart Rate Measurement
+  #
+  #   custom_sensor:
+  #     address: "11:22:33:44:55:66"
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Écrire sur une characteristic
+#   - type: ble
+#     params:
+#       address: "aa:bb:cc:dd:ee:ff"
+#       service_uuid: "ffe0"
+#       characteristic_uuid: "ffe1"
+#       action: write
+#       data: "EVENT"
+#       data_format: text
+#
+#   # Écrire en hexadécimal
+#   - type: ble
+#     params:
+#       address: "aa:bb:cc:dd:ee:ff"
+#       service_uuid: "ffe0"
+#       characteristic_uuid: "ffe1"
+#       action: write
+#       data: "01020304"
+#       data_format: hex
+#
+#   # Écrire sans attendre de réponse
+#   - type: ble
+#     params:
+#       address: "aa:bb:cc:dd:ee:ff"
+#       service_uuid: "ffe0"
+#       characteristic_uuid: "ffe1"
+#       action: write_without_response
+#       data: "PING"
+#
+#   # Lire une characteristic
+#   - type: ble
+#     params:
+#       address: "aa:bb:cc:dd:ee:ff"
+#       service_uuid: "180f"           # Battery Service
+#       characteristic_uuid: "2a19"    # Battery Level
+#       action: read
+#
+#   # Écouter les notifications
+#   - type: ble
+#     params:
+#       address: "aa:bb:cc:dd:ee:ff"
+#       service_uuid: "180d"
+#       characteristic_uuid: "2a37"
+#       action: notify
+#       listen_duration: 5000  # ms
+#
+#   # Utiliser un device mappé
+#   - type: ble
+#     params:
+#       device: "heart_rate_monitor"
+#       action: notify
+#       listen_duration: 10000
+
+# Actions disponibles:
+# - write: Écriture avec réponse
+# - write_without_response: Écriture sans attendre de réponse
+# - read: Lecture de la characteristic
+# - notify: Écouter les notifications pendant listen_duration
+
+# Formats de données:
+# - text: Chaîne UTF-8
+# - hex: Chaîne hexadécimale (ex: "48454C4C4F")
+# - json: Objet JSON sérialisé
+
+# Note: Nécessite les permissions Bluetooth sur le système
+# Linux: sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
