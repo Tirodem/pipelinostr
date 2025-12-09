@@ -5,7 +5,7 @@ export interface RetryConfig {
   backoff: {
     type: 'exponential' | 'linear' | 'fixed';
     initialDelayMs: number;
-    multiplier?: number;
+    multiplier?: number | undefined;
     maxDelayMs: number;
   };
 }
