@@ -1,0 +1,27 @@
+# Configuration Signal Handler
+# Utilise signal-cli en mode daemon JSON-RPC
+
+signal:
+  enabled: true
+
+  # Numéro de téléphone enregistré sur Signal (avec indicatif pays)
+  phone_number: ${SIGNAL_PHONE_NUMBER}
+
+  # Chemin vers le binaire signal-cli (optionnel, utilise PATH par défaut)
+  # signal_cli_bin: "/usr/local/bin/signal-cli"
+
+  # Répertoire de configuration signal-cli (optionnel)
+  # config_dir: "./data/signal-config"
+
+# PRÉREQUIS:
+# 1. Installez signal-cli: https://github.com/AsamK/signal-cli
+#    - Linux: disponible via AUR, ou téléchargement direct
+#    - macOS: brew install signal-cli
+#    - Windows: téléchargement manuel + Java requis
+#
+# 2. Enregistrez votre numéro:
+#    signal-cli -u +33612345678 register
+#    signal-cli -u +33612345678 verify CODE_RECU_PAR_SMS
+#
+# 3. Configurez SIGNAL_PHONE_NUMBER dans .env:
+#    SIGNAL_PHONE_NUMBER=+33612345678

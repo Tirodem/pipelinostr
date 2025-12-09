@@ -10,6 +10,8 @@ import { NostrDmHandler, NostrNoteHandler } from './outbound/nostr.handler.js';
 import { TelegramHandler, type TelegramHandlerOptions } from './outbound/telegram.handler.js';
 import { SlackHandler, type SlackHandlerOptions } from './outbound/slack.handler.js';
 import { ZulipHandler, type ZulipHandlerOptions } from './outbound/zulip.handler.js';
+import { WhatsAppHandler, type WhatsAppHandlerOptions } from './outbound/whatsapp.handler.js';
+import { SignalHandler, type SignalHandlerOptions } from './outbound/signal.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -25,6 +27,8 @@ interface AppState {
     telegram?: TelegramHandler;
     slack?: SlackHandler;
     zulip?: ZulipHandler;
+    whatsapp?: WhatsAppHandler;
+    signal?: SignalHandler;
   };
 }
 
@@ -173,6 +177,75 @@ async function initializeHandlers(
     }
   } catch (error) {
     logger.debug('Zulip handler not configured, skipping');
+  }
+
+  // Get handler types used by enabled workflows (for lazy daemon initialization)
+  const usedHandlerTypes = state.workflowEngine.getUsedHandlerTypes();
+
+  // WhatsApp Handler (daemon-based, only start if used by workflows)
+  if (usedHandlerTypes.has('whatsapp')) {
+    try {
+      interface WhatsAppConfigFile {
+        whatsapp?: {
+          enabled?: boolean;
+          session_dir?: string;
+          headless?: boolean;
+          puppeteer_args?: string[];
+        };
+      }
+      const whatsappConfig = await loadHandlerConfig<WhatsAppConfigFile>('whatsapp');
+      if (whatsappConfig?.whatsapp?.enabled !== false) {
+        const whatsappOptions: WhatsAppHandlerOptions = {
+          sessionDir: whatsappConfig?.whatsapp?.session_dir,
+          headless: whatsappConfig?.whatsapp?.headless,
+          puppeteerArgs: whatsappConfig?.whatsapp?.puppeteer_args,
+        };
+
+        logger.info('WhatsApp handler needed by workflows, starting daemon...');
+        state.handlers.whatsapp = new WhatsAppHandler(whatsappOptions);
+        await state.handlers.whatsapp.initialize();
+        state.workflowEngine.registerHandler('whatsapp', state.handlers.whatsapp);
+        logger.info('WhatsApp handler enabled (daemon running)');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Failed to initialize WhatsApp handler');
+    }
+  } else {
+    logger.debug('WhatsApp handler not used by any workflow, daemon not started');
+  }
+
+  // Signal Handler (daemon-based, only start if used by workflows)
+  if (usedHandlerTypes.has('signal')) {
+    try {
+      interface SignalConfigFile {
+        signal?: {
+          enabled?: boolean;
+          phone_number?: string;
+          signal_cli_bin?: string;
+          config_dir?: string;
+        };
+      }
+      const signalConfig = await loadHandlerConfig<SignalConfigFile>('signal');
+      if (signalConfig?.signal?.enabled !== false && signalConfig?.signal?.phone_number) {
+        const signalOptions: SignalHandlerOptions = {
+          phoneNumber: signalConfig.signal.phone_number,
+          signalCliBin: signalConfig.signal.signal_cli_bin,
+          configDir: signalConfig.signal.config_dir,
+        };
+
+        logger.info('Signal handler needed by workflows, starting daemon...');
+        state.handlers.signal = new SignalHandler(signalOptions);
+        await state.handlers.signal.initialize();
+        state.workflowEngine.registerHandler('signal', state.handlers.signal);
+        logger.info('Signal handler enabled (daemon running)');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Failed to initialize Signal handler');
+    }
+  } else {
+    logger.debug('Signal handler not used by any workflow, daemon not started');
   }
 }
 
@@ -326,6 +399,12 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.zulip) {
       await appState.handlers.zulip.shutdown();
+    }
+    if (appState.handlers.whatsapp) {
+      await appState.handlers.whatsapp.shutdown();
+    }
+    if (appState.handlers.signal) {
+      await appState.handlers.signal.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

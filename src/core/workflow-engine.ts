@@ -323,4 +323,24 @@ export class WorkflowEngine {
       handlers: Array.from(this.handlers.keys()),
     };
   }
+
+  // Get all handler types used by enabled workflows
+  // Used for lazy initialization of daemon-based handlers
+  getUsedHandlerTypes(): Set<string> {
+    const usedTypes = new Set<string>();
+    const enabledWorkflows = this.loader.getEnabledWorkflows();
+
+    for (const workflow of enabledWorkflows) {
+      for (const action of workflow.actions) {
+        usedTypes.add(action.type);
+      }
+    }
+
+    return usedTypes;
+  }
+
+  // Check if a specific handler type is used by any enabled workflow
+  isHandlerTypeUsed(type: string): boolean {
+    return this.getUsedHandlerTypes().has(type);
+  }
 }
