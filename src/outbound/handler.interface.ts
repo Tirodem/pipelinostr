@@ -1,7 +1,7 @@
 export interface HandlerResult {
   success: boolean;
-  data?: Record<string, unknown>;
-  error?: string;
+  data?: Record<string, unknown> | undefined;
+  error?: string | undefined;
 }
 
 export interface HandlerConfig {
