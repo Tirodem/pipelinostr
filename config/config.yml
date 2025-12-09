@@ -1,0 +1,74 @@
+# PipeliNostr - Configuration principale
+pipelinostr:
+  name: "Mon PipeliNostr"
+  version: "0.1.0"
+
+# Identite Nostr du bot
+nostr:
+  private_key: ${NOSTR_PRIVATE_KEY}
+
+# Whitelist des npub autorisees
+whitelist:
+  enabled: true
+  npubs:
+    - "npub1..."  # Remplacez par vos npubs
+
+# Gestion des relays
+relays:
+  primary:
+    - "wss://relay.damus.io"
+    - "wss://nos.lol"
+    - "wss://relay.nostr.band"
+
+  blacklist: []
+
+  quarantine:
+    enabled: true
+    thresholds:
+      - failures: 1
+        duration: "15m"
+      - failures: 2
+        duration: "2h"
+      - failures: 3
+        duration: "6h"
+      - failures: 4
+        duration: "24h"
+      - failures: 5
+        duration: "2d"
+    max_quarantine_duration: "6M"
+    health_check_interval: "30d"
+
+# API entrante
+api:
+  enabled: true
+  port: 3000
+  host: "127.0.0.1"
+  rate_limit:
+    enabled: true
+    window_ms: 60000
+    max_requests: 100
+
+# Base de donnees
+database:
+  path: "./data/pipelinostr.db"
+
+# Logging
+logging:
+  level: "info"
+  files:
+    general: "./logs/general.log"
+    events: "./logs/events.log"
+    workflows: "./logs/workflows.log"
+    relays: "./logs/relays.log"
+  rotation:
+    max_size: "10M"
+    max_files: 5
+
+# Retry global
+retry:
+  max_attempts: 5
+  backoff:
+    type: "exponential"
+    initial_delay_ms: 1000
+    multiplier: 2
+    max_delay_ms: 60000

@@ -1,0 +1,249 @@
+import Ajv from 'ajv';
+
+export interface PipelinostrConfig {
+  pipelinostr: {
+    name: string;
+    version: string;
+  };
+  nostr: {
+    private_key?: string;
+    private_key_file?: string;
+  };
+  whitelist: {
+    enabled: boolean;
+    npubs?: string[];
+    file?: string;
+  };
+  relays: {
+    primary: string[];
+    blacklist?: string[];
+    discovery?: {
+      enabled: boolean;
+      sources?: string[];
+      max_relays?: number;
+      auto_add_from_events?: boolean;
+    };
+    quarantine?: {
+      enabled: boolean;
+      thresholds?: Array<{
+        failures: number;
+        duration: string;
+      }>;
+      max_quarantine_duration?: string;
+      health_check_interval?: string;
+    };
+  };
+  api?: {
+    enabled: boolean;
+    port: number;
+    host: string;
+    auth?: {
+      methods?: Array<{
+        type: 'api_key' | 'jwt' | 'nostr_signature';
+        header?: string;
+        keys?: string[];
+        secret?: string;
+        algorithm?: string;
+        enabled?: boolean;
+      }>;
+    };
+    rate_limit?: {
+      enabled: boolean;
+      window_ms: number;
+      max_requests: number;
+    };
+  };
+  database: {
+    path: string;
+  };
+  logging: {
+    level: 'debug' | 'info' | 'warn' | 'error';
+    files?: {
+      general?: string;
+      events?: string;
+      workflows?: string;
+      relays?: string;
+    };
+    rotation?: {
+      max_size?: string;
+      max_files?: number;
+    };
+  };
+  retry?: {
+    max_attempts: number;
+    backoff: {
+      type: 'exponential' | 'linear' | 'fixed';
+      initial_delay_ms: number;
+      multiplier?: number;
+      max_delay_ms: number;
+    };
+  };
+}
+
+const configSchema = {
+  type: 'object',
+  properties: {
+    pipelinostr: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        version: { type: 'string' },
+      },
+      required: ['name', 'version'],
+      additionalProperties: false,
+    },
+    nostr: {
+      type: 'object',
+      properties: {
+        private_key: { type: 'string' },
+        private_key_file: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+    whitelist: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        npubs: { type: 'array', items: { type: 'string' } },
+        file: { type: 'string' },
+      },
+      required: ['enabled'],
+      additionalProperties: false,
+    },
+    relays: {
+      type: 'object',
+      properties: {
+        primary: { type: 'array', items: { type: 'string' } },
+        blacklist: { type: 'array', items: { type: 'string' } },
+        discovery: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            sources: { type: 'array', items: { type: 'string' } },
+            max_relays: { type: 'integer' },
+            auto_add_from_events: { type: 'boolean' },
+          },
+          required: ['enabled'],
+        },
+        quarantine: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            thresholds: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  failures: { type: 'integer' },
+                  duration: { type: 'string' },
+                },
+                required: ['failures', 'duration'],
+              },
+            },
+            max_quarantine_duration: { type: 'string' },
+            health_check_interval: { type: 'string' },
+          },
+          required: ['enabled'],
+        },
+      },
+      required: ['primary'],
+    },
+    api: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        port: { type: 'integer' },
+        host: { type: 'string' },
+        auth: {
+          type: 'object',
+          properties: {
+            methods: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  type: { type: 'string', enum: ['api_key', 'jwt', 'nostr_signature'] },
+                  header: { type: 'string' },
+                  keys: { type: 'array', items: { type: 'string' } },
+                  secret: { type: 'string' },
+                  algorithm: { type: 'string' },
+                  enabled: { type: 'boolean' },
+                },
+                required: ['type'],
+              },
+            },
+          },
+        },
+        rate_limit: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            window_ms: { type: 'integer' },
+            max_requests: { type: 'integer' },
+          },
+          required: ['enabled', 'window_ms', 'max_requests'],
+        },
+      },
+      required: ['enabled', 'port', 'host'],
+    },
+    database: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+      },
+      required: ['path'],
+    },
+    logging: {
+      type: 'object',
+      properties: {
+        level: { type: 'string', enum: ['debug', 'info', 'warn', 'error'] },
+        files: {
+          type: 'object',
+          properties: {
+            general: { type: 'string' },
+            events: { type: 'string' },
+            workflows: { type: 'string' },
+            relays: { type: 'string' },
+          },
+        },
+        rotation: {
+          type: 'object',
+          properties: {
+            max_size: { type: 'string' },
+            max_files: { type: 'integer' },
+          },
+        },
+      },
+      required: ['level'],
+    },
+    retry: {
+      type: 'object',
+      properties: {
+        max_attempts: { type: 'integer' },
+        backoff: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['exponential', 'linear', 'fixed'] },
+            initial_delay_ms: { type: 'integer' },
+            multiplier: { type: 'number' },
+            max_delay_ms: { type: 'integer' },
+          },
+          required: ['type', 'initial_delay_ms', 'max_delay_ms'],
+        },
+      },
+      required: ['max_attempts', 'backoff'],
+    },
+  },
+  required: ['pipelinostr', 'nostr', 'whitelist', 'relays', 'database', 'logging'],
+  additionalProperties: false,
+} as const;
+
+const ajv = new Ajv.default({ allErrors: true, useDefaults: true });
+const validate = ajv.compile(configSchema);
+
+export function validateConfig(config: unknown): PipelinostrConfig {
+  if (validate(config)) {
+    return config as PipelinostrConfig;
+  }
+  throw new Error(`Invalid configuration: ${JSON.stringify(validate.errors, null, 2)}`);
+}
