@@ -1,0 +1,39 @@
+# Workflow: Webhook Notifier
+# Send events to an external webhook
+
+id: webhook-notifier
+name: Webhook Notifier
+description: Forward events to external HTTP endpoint
+enabled: false  # Enable when ready
+multiple: true  # Allow other workflows to also process
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    from_whitelist: true
+
+actions:
+  - id: notify_webhook
+    type: http
+    config:
+      url: "https://api.example.com/webhook/nostr"
+      method: POST
+      headers:
+        Authorization: "Bearer your-api-key"
+        Content-Type: "application/json"
+      body:
+        event_id: "{{ trigger.event.id }}"
+        from: "{{ trigger.from }}"
+        pubkey: "{{ trigger.pubkey }}"
+        content: "{{ trigger.content }}"
+        kind: "{{ trigger.kind }}"
+        timestamp: "{{ trigger.timestamp }}"
+        relay: "{{ trigger.relayUrl }}"
+      timeout_ms: 10000
+    retry:
+      max_attempts: 3
+      backoff:
+        type: exponential
+        initial_delay_ms: 500
+        max_delay_ms: 5000

@@ -1,0 +1,29 @@
+# Workflow: Auto Reply
+# Automatic responses based on message content
+
+id: auto-reply
+name: Auto Reply
+description: Send automatic responses based on keywords
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    # Match greetings
+    content_pattern: "(?i)^(hello|hi|hey|bonjour|salut)\\b"
+
+actions:
+  - id: greeting_reply
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Hello! Thanks for reaching out.
+
+        I'm an automated bot. Here are some things you can do:
+        - Send /help for available commands
+        - Send /status to check if I'm online
+
+        A human will respond to other messages soon.

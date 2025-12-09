@@ -1,0 +1,44 @@
+# Workflow: Publish Note
+# Publish a public note when receiving a specific command
+
+id: publish-note
+name: Publish Note
+description: Publish a public note based on DM command
+enabled: false  # Enable with caution - publishes publicly!
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    starts_with: "/publish "
+    content_pattern: "^/publish\\s+(?<note_content>.+)$"
+
+actions:
+  # Publish the note
+  - id: publish
+    type: nostr_note
+    config:
+      content: "{{ match.note_content }}"
+      tags:
+        - ["client", "PipeliNostr"]
+
+  # Confirm to user
+  - id: confirm
+    type: nostr_dm
+    when: "actions.publish.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Note published successfully!
+        Event ID: {{ actions.publish.response.event_id }}
+
+  # Notify on failure
+  - id: notify_failure
+    type: nostr_dm
+    when: "!actions.publish.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Failed to publish note.
+        Error: {{ actions.publish.error }}

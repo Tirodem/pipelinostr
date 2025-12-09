@@ -1,0 +1,53 @@
+# Workflow: Command Handler
+# Responds to commands starting with /
+
+id: command-handler
+name: Command Handler
+description: Handle slash commands and respond via DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]  # NIP-04 DMs
+    from_whitelist: true
+    starts_with: "/"
+    content_pattern: "^/(?<command>\\w+)(?:\\s+(?<args>.*))?$"
+
+actions:
+  # Respond to /ping
+  - id: ping_response
+    type: nostr_dm
+    when: "match.command === 'ping'"
+    config:
+      to: "{{ trigger.from }}"
+      content: "pong! Received at {{ trigger.timestamp }}"
+
+  # Respond to /help
+  - id: help_response
+    type: nostr_dm
+    when: "match.command === 'help'"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Available commands:
+        /ping - Test bot responsiveness
+        /help - Show this help message
+        /status - Get system status
+        /echo <text> - Echo back your text
+
+  # Respond to /echo
+  - id: echo_response
+    type: nostr_dm
+    when: "match.command === 'echo' && match.args"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Echo: {{ match.args }}"
+
+  # Respond to /status
+  - id: status_response
+    type: nostr_dm
+    when: "match.command === 'status'"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Bot is online and operational."

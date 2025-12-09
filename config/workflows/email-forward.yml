@@ -1,0 +1,36 @@
+# Workflow: Forward DMs to email
+# Forwards all incoming DMs (NIP-04/NIP-44) to an email address
+
+id: email-forward
+name: Email Forward
+description: Forward all DMs to email
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]  # NIP-04 and NIP-44
+    from_whitelist: true
+
+actions:
+  - id: send_email
+    type: email
+    config:
+      to: "alerts@example.com"
+      subject: "Nostr DM from {{ trigger.from }}"
+      body: |
+        New message received on Nostr:
+
+        From: {{ trigger.from }}
+        Time: {{ trigger.timestamp }}
+        Relay: {{ trigger.relayUrl }}
+
+        Content:
+        {{ trigger.content }}
+      html: |
+        <h2>New Nostr DM</h2>
+        <p><strong>From:</strong> {{ trigger.from }}</p>
+        <p><strong>Time:</strong> {{ trigger.timestamp }}</p>
+        <p><strong>Relay:</strong> {{ trigger.relayUrl }}</p>
+        <hr>
+        <p>{{ trigger.content }}</p>
