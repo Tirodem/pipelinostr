@@ -1,0 +1,16 @@
+# Configuration Twitter/X Handler
+twitter:
+  enabled: true
+
+  # OAuth 1.0a credentials
+  # Créez une app: https://developer.twitter.com/en/portal/dashboard
+  # Nécessite un compte développeur approuvé
+  api_key: ${TWITTER_API_KEY}
+  api_secret: ${TWITTER_API_SECRET}
+  access_token: ${TWITTER_ACCESS_TOKEN}
+  access_token_secret: ${TWITTER_ACCESS_TOKEN_SECRET}
+
+# IMPORTANT:
+# - Compte développeur X/Twitter requis (peut nécessiter approbation)
+# - L'app doit avoir les permissions "Read and Write"
+# - Rate limits stricts: 50 tweets/24h pour le tier gratuit

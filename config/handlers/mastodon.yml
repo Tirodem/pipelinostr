@@ -1,0 +1,19 @@
+# Configuration Mastodon Handler
+mastodon:
+  enabled: true
+
+  # URL de l'instance (ex: https://mastodon.social)
+  instance_url: "https://mastodon.social"
+
+  # Access token OAuth2
+  # Pour obtenir un token:
+  # 1. Preferences > Development > New Application
+  # 2. Scope requis: write:statuses
+  # 3. Copiez le "Your access token"
+  access_token: ${MASTODON_ACCESS_TOKEN}
+
+# COMPATIBLE avec:
+# - Mastodon
+# - Pleroma
+# - Misskey (API compatible)
+# - Autres serveurs ActivityPub avec API Mastodon

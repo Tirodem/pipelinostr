@@ -1,0 +1,22 @@
+# Configuration Matrix Handler
+matrix:
+  enabled: true
+
+  # URL du homeserver (ex: https://matrix.org)
+  homeserver_url: "https://matrix.org"
+
+  # Access token du bot
+  # Pour obtenir un token:
+  # 1. Créez un compte Matrix pour le bot
+  # 2. Connectez-vous via Element ou autre client
+  # 3. Récupérez le token: Settings > Help & About > Access Token
+  # Ou utilisez l'API: POST /_matrix/client/v3/login
+  access_token: ${MATRIX_ACCESS_TOKEN}
+
+  # Room ID par défaut (optionnel)
+  # Format: !roomid:homeserver.org
+  # default_room_id: "!abc123:matrix.org"
+
+# IMPORTANT:
+# - Le bot doit être invité dans les rooms où il doit envoyer
+# - Utilisez un serveur Matrix autohébergé pour plus de contrôle

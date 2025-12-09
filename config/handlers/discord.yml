@@ -1,0 +1,12 @@
+# Configuration Discord Handler
+discord:
+  enabled: true
+
+  # Mode Webhook (simple, recommandé pour notifications)
+  # Créez un webhook: Server Settings > Integrations > Webhooks
+  webhook_url: ${DISCORD_WEBHOOK_URL}
+
+  # Mode Bot API (pour fonctionnalités avancées)
+  # Créez un bot: https://discord.com/developers/applications
+  # bot_token: ${DISCORD_BOT_TOKEN}
+  # default_channel_id: "123456789012345678"

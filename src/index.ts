@@ -12,6 +12,10 @@ import { SlackHandler, type SlackHandlerOptions } from './outbound/slack.handler
 import { ZulipHandler, type ZulipHandlerOptions } from './outbound/zulip.handler.js';
 import { WhatsAppHandler, type WhatsAppHandlerOptions } from './outbound/whatsapp.handler.js';
 import { SignalHandler, type SignalHandlerOptions } from './outbound/signal.handler.js';
+import { DiscordHandler, type DiscordHandlerOptions } from './outbound/discord.handler.js';
+import { TwitterHandler, type TwitterHandlerOptions } from './outbound/twitter.handler.js';
+import { MatrixHandler, type MatrixHandlerOptions } from './outbound/matrix.handler.js';
+import { MastodonHandler, type MastodonHandlerOptions } from './outbound/mastodon.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -29,6 +33,10 @@ interface AppState {
     zulip?: ZulipHandler;
     whatsapp?: WhatsAppHandler;
     signal?: SignalHandler;
+    discord?: DiscordHandler;
+    twitter?: TwitterHandler;
+    matrix?: MatrixHandler;
+    mastodon?: MastodonHandler;
   };
 }
 
@@ -247,6 +255,128 @@ async function initializeHandlers(
   } else {
     logger.debug('Signal handler not used by any workflow, daemon not started');
   }
+
+  // Discord Handler (optional, needs config)
+  try {
+    interface DiscordConfigFile {
+      discord?: {
+        enabled?: boolean;
+        webhook_url?: string;
+        bot_token?: string;
+        default_channel_id?: string;
+      };
+    }
+    const discordConfig = await loadHandlerConfig<DiscordConfigFile>('discord');
+    if (discordConfig?.discord?.enabled !== false && (discordConfig?.discord?.webhook_url || discordConfig?.discord?.bot_token)) {
+      const discordOptions: DiscordHandlerOptions = {
+        webhookUrl: discordConfig.discord.webhook_url,
+        botToken: discordConfig.discord.bot_token,
+        defaultChannelId: discordConfig.discord.default_channel_id,
+      };
+
+      state.handlers.discord = new DiscordHandler(discordOptions);
+      await state.handlers.discord.initialize();
+      state.workflowEngine.registerHandler('discord', state.handlers.discord);
+      logger.info('Discord handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Discord handler not configured, skipping');
+  }
+
+  // Twitter/X Handler (optional, needs config)
+  try {
+    interface TwitterConfigFile {
+      twitter?: {
+        enabled?: boolean;
+        api_key?: string;
+        api_secret?: string;
+        access_token?: string;
+        access_token_secret?: string;
+      };
+    }
+    const twitterConfig = await loadHandlerConfig<TwitterConfigFile>('twitter');
+    if (
+      twitterConfig?.twitter?.enabled !== false &&
+      twitterConfig?.twitter?.api_key &&
+      twitterConfig?.twitter?.api_secret &&
+      twitterConfig?.twitter?.access_token &&
+      twitterConfig?.twitter?.access_token_secret
+    ) {
+      const twitterOptions: TwitterHandlerOptions = {
+        apiKey: twitterConfig.twitter.api_key,
+        apiSecret: twitterConfig.twitter.api_secret,
+        accessToken: twitterConfig.twitter.access_token,
+        accessTokenSecret: twitterConfig.twitter.access_token_secret,
+      };
+
+      state.handlers.twitter = new TwitterHandler(twitterOptions);
+      await state.handlers.twitter.initialize();
+      state.workflowEngine.registerHandler('twitter', state.handlers.twitter);
+      logger.info('Twitter handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Twitter handler not configured, skipping');
+  }
+
+  // Matrix Handler (optional, needs config)
+  try {
+    interface MatrixConfigFile {
+      matrix?: {
+        enabled?: boolean;
+        homeserver_url?: string;
+        access_token?: string;
+        default_room_id?: string;
+      };
+    }
+    const matrixConfig = await loadHandlerConfig<MatrixConfigFile>('matrix');
+    if (
+      matrixConfig?.matrix?.enabled !== false &&
+      matrixConfig?.matrix?.homeserver_url &&
+      matrixConfig?.matrix?.access_token
+    ) {
+      const matrixOptions: MatrixHandlerOptions = {
+        homeserverUrl: matrixConfig.matrix.homeserver_url,
+        accessToken: matrixConfig.matrix.access_token,
+        defaultRoomId: matrixConfig.matrix.default_room_id,
+      };
+
+      state.handlers.matrix = new MatrixHandler(matrixOptions);
+      await state.handlers.matrix.initialize();
+      state.workflowEngine.registerHandler('matrix', state.handlers.matrix);
+      logger.info('Matrix handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Matrix handler not configured, skipping');
+  }
+
+  // Mastodon Handler (optional, needs config)
+  try {
+    interface MastodonConfigFile {
+      mastodon?: {
+        enabled?: boolean;
+        instance_url?: string;
+        access_token?: string;
+      };
+    }
+    const mastodonConfig = await loadHandlerConfig<MastodonConfigFile>('mastodon');
+    if (
+      mastodonConfig?.mastodon?.enabled !== false &&
+      mastodonConfig?.mastodon?.instance_url &&
+      mastodonConfig?.mastodon?.access_token
+    ) {
+      const mastodonOptions: MastodonHandlerOptions = {
+        instanceUrl: mastodonConfig.mastodon.instance_url,
+        accessToken: mastodonConfig.mastodon.access_token,
+      };
+
+      state.handlers.mastodon = new MastodonHandler(mastodonOptions);
+      await state.handlers.mastodon.initialize();
+      state.workflowEngine.registerHandler('mastodon', state.handlers.mastodon);
+      logger.info('Mastodon handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Mastodon handler not configured, skipping');
+  }
 }
 
 async function main(): Promise<void> {
@@ -405,6 +535,18 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.signal) {
       await appState.handlers.signal.shutdown();
+    }
+    if (appState.handlers.discord) {
+      await appState.handlers.discord.shutdown();
+    }
+    if (appState.handlers.twitter) {
+      await appState.handlers.twitter.shutdown();
+    }
+    if (appState.handlers.matrix) {
+      await appState.handlers.matrix.shutdown();
+    }
+    if (appState.handlers.mastodon) {
+      await appState.handlers.mastodon.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
