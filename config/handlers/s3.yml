@@ -1,0 +1,62 @@
+# Configuration S3 Handler (Compatible AWS, MinIO, Backblaze, Wasabi, etc.)
+s3:
+  enabled: true
+
+  # Credentials
+  access_key_id: ${S3_ACCESS_KEY_ID}
+  secret_access_key: ${S3_SECRET_ACCESS_KEY}
+
+  # Bucket
+  bucket: "pipelinostr"
+  region: "us-east-1"
+
+  # Pour services S3-compatibles (décommenter si nécessaire)
+  # endpoint: "https://s3.example.com"  # MinIO, Backblaze, etc.
+  # force_path_style: true              # Requis pour MinIO
+
+  # URL publique personnalisée (optionnel)
+  # public_url_base: "https://cdn.example.com"
+
+# Exemples de configuration par provider:
+#
+# AWS S3:
+#   region: "eu-west-3"
+#   bucket: "my-bucket"
+#
+# MinIO:
+#   endpoint: "http://localhost:9000"
+#   region: "us-east-1"
+#   force_path_style: true
+#
+# Backblaze B2:
+#   endpoint: "https://s3.us-west-000.backblazeb2.com"
+#   region: "us-west-000"
+#
+# Wasabi:
+#   endpoint: "https://s3.eu-central-1.wasabisys.com"
+#   region: "eu-central-1"
+#
+# DigitalOcean Spaces:
+#   endpoint: "https://fra1.digitaloceanspaces.com"
+#   region: "fra1"
+#
+# Cloudflare R2:
+#   endpoint: "https://<account_id>.r2.cloudflarestorage.com"
+#   region: "auto"
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: s3
+#     params:
+#       key: "events/{year}/{month}/{day}/{event_id}.json"
+#       content_type: "application/json"
+#       acl: "private"
+#       metadata:
+#         source: "pipelinostr"
+#         kind: "{kind}"
+#
+#   - type: s3
+#     params:
+#       operation: delete
+#       key: "old/file.json"

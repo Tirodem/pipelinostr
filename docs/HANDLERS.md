@@ -19,6 +19,8 @@ Ce document détaille la configuration de tous les handlers sortants disponibles
 3. [Handlers Réseaux Sociaux](#handlers-réseaux-sociaux)
    - [Twitter/X](#twitterx)
    - [Mastodon](#mastodon)
+   - [Bluesky](#bluesky)
+   - [Lemmy](#lemmy)
 4. [Handlers HTTP/API](#handlers-httpapi)
    - [HTTP (Webhook)](#http-webhook)
    - [ntfy](#ntfy)
@@ -26,7 +28,9 @@ Ce document détaille la configuration de tous les handlers sortants disponibles
    - [File](#file)
    - [FTP](#ftp)
    - [SFTP](#sftp)
-6. [Handlers Base de données](#handlers-base-de-données)
+6. [Handlers Cloud Storage](#handlers-cloud-storage)
+   - [S3 (Compatible)](#s3-compatible)
+7. [Handlers Base de données](#handlers-base-de-données)
    - [MongoDB](#mongodb)
    - [MySQL](#mysql)
    - [PostgreSQL](#postgresql)
@@ -516,6 +520,158 @@ actions:
 
 ---
 
+### Bluesky
+
+Publie des posts sur Bluesky (protocole AT).
+
+**Fichier de config** : `config/handlers/bluesky.yml`
+
+```yaml
+bluesky:
+  enabled: true
+  service: "https://bsky.social"  # ou autre PDS
+  identifier: "your-handle.bsky.social"
+  password: ${BLUESKY_APP_PASSWORD}  # App Password recommandé
+```
+
+**Variables d'environnement** :
+```bash
+BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+```
+
+**Obtenir un App Password** :
+1. Aller sur [bsky.app](https://bsky.app)
+2. Settings > App Passwords
+3. "Add App Password" et copier le mot de passe généré
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Post simple
+  - type: bluesky
+    params:
+      text: "{{content}}"
+
+  # Post avec liens/mentions détectés automatiquement
+  - type: bluesky
+    params:
+      text: "Check out @someone.bsky.social and https://example.com #nostr"
+      # Les facets (mentions, liens, hashtags) sont détectés automatiquement
+
+  # Répondre à un post
+  - type: bluesky
+    params:
+      text: "Ma réponse"
+      reply_to: "at://did:plc:xxx/app.bsky.feed.post/yyy"
+
+  # Quote post
+  - type: bluesky
+    params:
+      text: "Intéressant!"
+      quote: "at://did:plc:xxx/app.bsky.feed.post/yyy"
+
+  # Désactiver la détection auto des facets
+  - type: bluesky
+    params:
+      text: "Texte brut sans formatage"
+      facets: false
+```
+
+**Paramètres** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `text` | string | Oui | Contenu du post (max 300 caractères) |
+| `reply_to` | string | Non | URI AT du post parent pour répondre |
+| `quote` | string | Non | URI AT du post à citer |
+| `facets` | boolean | Non | Activer la détection auto (défaut: true) |
+
+---
+
+### Lemmy
+
+Publie des posts et commentaires sur Lemmy (Reddit décentralisé, Fediverse).
+
+**Fichier de config** : `config/handlers/lemmy.yml`
+
+```yaml
+lemmy:
+  enabled: true
+  instance_url: "https://lemmy.world"
+  username: "your_username"
+  password: ${LEMMY_PASSWORD}
+  default_community: "nostr"  # Optionnel
+```
+
+**Variables d'environnement** :
+```bash
+LEMMY_PASSWORD=xxxxx
+```
+
+**Instances Lemmy populaires** :
+- `https://lemmy.world` - Généraliste, grande communauté
+- `https://lemmy.ml` - Instance officielle Lemmy
+- `https://sh.itjust.works` - Généraliste
+- `https://programming.dev` - Tech et développement
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Créer un post
+  - type: lemmy
+    params:
+      action: post
+      community: "nostr"  # ou "nostr@lemmy.world" pour fédéré
+      title: "Nouveau message Nostr"
+      body: "{{content}}"
+      nsfw: false
+
+  # Post avec lien externe
+  - type: lemmy
+    params:
+      action: post
+      community: "technology"
+      title: "Article intéressant"
+      url: "https://example.com/article"
+      body: "Mon résumé: {{content}}"
+
+  # Commenter un post
+  - type: lemmy
+    params:
+      action: comment
+      post_id: 12345
+      body: "{{content}}"
+
+  # Répondre à un commentaire
+  - type: lemmy
+    params:
+      action: comment
+      post_id: 12345
+      parent_id: 67890
+      body: "Ma réponse"
+```
+
+**Paramètres pour les posts** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `action` | string | Non | `post` (défaut) ou `comment` |
+| `community` | string | Oui | Nom de la communauté |
+| `title` | string | Oui | Titre du post |
+| `body` | string | Non | Corps du message (Markdown) |
+| `url` | string | Non | Lien externe |
+| `nsfw` | boolean | Non | Marquer comme NSFW |
+
+**Paramètres pour les commentaires** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `action` | string | Oui | `comment` |
+| `post_id` | number | Oui | ID du post à commenter |
+| `parent_id` | number | Non | ID du commentaire parent |
+| `body` | string | Oui | Contenu du commentaire |
+
+---
+
 ## Handlers HTTP/API
 
 ### HTTP (Webhook)
@@ -727,6 +883,121 @@ actions:
       remote_path: "/home/user/uploads/{date}/event-{event_id}.json"
       create_dirs: true
 ```
+
+---
+
+## Handlers Cloud Storage
+
+### S3 (Compatible)
+
+Upload de fichiers vers tout stockage compatible S3 (AWS S3, MinIO, Backblaze B2, Wasabi, DigitalOcean Spaces, Cloudflare R2).
+
+**Fichier de config** : `config/handlers/s3.yml`
+
+```yaml
+s3:
+  enabled: true
+
+  # Credentials (via variables d'environnement)
+  access_key_id: ${S3_ACCESS_KEY_ID}
+  secret_access_key: ${S3_SECRET_ACCESS_KEY}
+
+  # Bucket par défaut
+  bucket: "my-bucket"
+
+  # Configuration endpoint selon le provider
+  # AWS S3 (défaut)
+  region: "eu-west-1"
+
+  # MinIO / Auto-hébergé
+  # endpoint: "http://localhost:9000"
+  # force_path_style: true
+
+  # Backblaze B2
+  # endpoint: "https://s3.us-west-004.backblazeb2.com"
+  # region: "us-west-004"
+
+  # Wasabi
+  # endpoint: "https://s3.eu-central-1.wasabisys.com"
+  # region: "eu-central-1"
+
+  # DigitalOcean Spaces
+  # endpoint: "https://fra1.digitaloceanspaces.com"
+  # region: "fra1"
+
+  # Cloudflare R2
+  # endpoint: "https://<account_id>.r2.cloudflarestorage.com"
+  # region: "auto"
+```
+
+**Variables d'environnement** :
+```bash
+S3_ACCESS_KEY_ID=xxxxx
+S3_SECRET_ACCESS_KEY=xxxxx
+```
+
+**Variables disponibles dans les clés** :
+- `{event_id}` : ID de l'événement (8 premiers caractères)
+- `{pubkey}` : Pubkey (8 premiers caractères)
+- `{kind}` : Kind de l'événement
+- `{timestamp}` : Timestamp Unix
+- `{date}` : Date ISO (YYYY-MM-DD)
+- `{time}` : Heure (HH-MM-SS)
+- `{datetime}` : Date et heure complète
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Upload simple (auto-génère la clé)
+  - type: s3
+    params:
+      operation: put
+
+  # Upload avec clé personnalisée
+  - type: s3
+    params:
+      operation: put
+      key: "events/{date}/{event_id}.json"
+      content_type: "application/json"
+
+  # Upload vers un bucket spécifique
+  - type: s3
+    params:
+      operation: put
+      bucket: "archive-bucket"
+      key: "nostr/events/{datetime}.json"
+
+  # Vérifier si un objet existe
+  - type: s3
+    params:
+      operation: exists
+      key: "events/{event_id}.json"
+
+  # Supprimer un objet
+  - type: s3
+    params:
+      operation: delete
+      key: "events/{event_id}.json"
+```
+
+**Paramètres** :
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `operation` | string | Non | `put` (défaut), `delete`, `exists` |
+| `bucket` | string | Non | Bucket cible (défaut: config) |
+| `key` | string | Non | Chemin de l'objet (auto-généré si absent) |
+| `content_type` | string | Non | MIME type (auto-détecté si absent) |
+
+**Providers supportés** :
+| Provider | Endpoint | Notes |
+|----------|----------|-------|
+| AWS S3 | (par défaut) | Utiliser la région AWS |
+| MinIO | `http://host:9000` | `force_path_style: true` |
+| Backblaze B2 | `s3.REGION.backblazeb2.com` | Compatible S3 |
+| Wasabi | `s3.REGION.wasabisys.com` | Pas de frais d'egress |
+| DigitalOcean Spaces | `REGION.digitaloceanspaces.com` | CDN inclus |
+| Cloudflare R2 | `ACCOUNT.r2.cloudflarestorage.com` | Pas de frais d'egress |
 
 ---
 

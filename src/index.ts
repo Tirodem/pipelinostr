@@ -23,6 +23,9 @@ import { MongoDbHandler } from './outbound/mongodb.handler.js';
 import { MysqlHandler } from './outbound/mysql.handler.js';
 import { PostgresHandler } from './outbound/postgres.handler.js';
 import { RedisHandler } from './outbound/redis.handler.js';
+import { S3Handler } from './outbound/s3.handler.js';
+import { BlueskyHandler } from './outbound/bluesky.handler.js';
+import { LemmyHandler } from './outbound/lemmy.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -51,6 +54,9 @@ interface AppState {
     mysql?: MysqlHandler;
     postgres?: PostgresHandler;
     redis?: RedisHandler;
+    s3?: S3Handler;
+    bluesky?: BlueskyHandler;
+    lemmy?: LemmyHandler;
   };
 }
 
@@ -632,6 +638,108 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('Redis handler not configured, skipping');
   }
+
+  // S3 Handler (optional, needs config)
+  try {
+    interface S3ConfigFile {
+      s3?: {
+        enabled?: boolean;
+        endpoint?: string;
+        region?: string;
+        access_key_id?: string;
+        secret_access_key?: string;
+        bucket?: string;
+        force_path_style?: boolean;
+        public_url_base?: string;
+      };
+    }
+    const s3Config = await loadHandlerConfig<S3ConfigFile>('s3');
+    if (
+      s3Config?.s3?.enabled !== false &&
+      s3Config?.s3?.access_key_id &&
+      s3Config?.s3?.secret_access_key &&
+      s3Config?.s3?.bucket
+    ) {
+      state.handlers.s3 = new S3Handler({
+        enabled: true,
+        endpoint: s3Config.s3.endpoint,
+        region: s3Config.s3.region || 'us-east-1',
+        access_key_id: s3Config.s3.access_key_id,
+        secret_access_key: s3Config.s3.secret_access_key,
+        bucket: s3Config.s3.bucket,
+        force_path_style: s3Config.s3.force_path_style,
+        public_url_base: s3Config.s3.public_url_base,
+      });
+      await state.handlers.s3.initialize();
+      state.workflowEngine.registerHandler('s3', state.handlers.s3);
+      logger.info('S3 handler enabled');
+    }
+  } catch (error) {
+    logger.debug('S3 handler not configured, skipping');
+  }
+
+  // Bluesky Handler (optional, needs config)
+  try {
+    interface BlueskyConfigFile {
+      bluesky?: {
+        enabled?: boolean;
+        service?: string;
+        identifier?: string;
+        password?: string;
+      };
+    }
+    const blueskyConfig = await loadHandlerConfig<BlueskyConfigFile>('bluesky');
+    if (
+      blueskyConfig?.bluesky?.enabled !== false &&
+      blueskyConfig?.bluesky?.identifier &&
+      blueskyConfig?.bluesky?.password
+    ) {
+      state.handlers.bluesky = new BlueskyHandler({
+        enabled: true,
+        service: blueskyConfig.bluesky.service || 'https://bsky.social',
+        identifier: blueskyConfig.bluesky.identifier,
+        password: blueskyConfig.bluesky.password,
+      });
+      await state.handlers.bluesky.initialize();
+      state.workflowEngine.registerHandler('bluesky', state.handlers.bluesky);
+      logger.info('Bluesky handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Bluesky handler not configured, skipping');
+  }
+
+  // Lemmy Handler (optional, needs config)
+  try {
+    interface LemmyConfigFile {
+      lemmy?: {
+        enabled?: boolean;
+        instance_url?: string;
+        username?: string;
+        password?: string;
+        default_community?: string;
+      };
+    }
+    const lemmyConfig = await loadHandlerConfig<LemmyConfigFile>('lemmy');
+    if (
+      lemmyConfig?.lemmy?.enabled !== false &&
+      lemmyConfig?.lemmy?.instance_url &&
+      lemmyConfig?.lemmy?.username &&
+      lemmyConfig?.lemmy?.password
+    ) {
+      state.handlers.lemmy = new LemmyHandler({
+        enabled: true,
+        instance_url: lemmyConfig.lemmy.instance_url,
+        username: lemmyConfig.lemmy.username,
+        password: lemmyConfig.lemmy.password,
+        default_community: lemmyConfig.lemmy.default_community,
+      });
+      await state.handlers.lemmy.initialize();
+      state.workflowEngine.registerHandler('lemmy', state.handlers.lemmy);
+      logger.info('Lemmy handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Lemmy handler not configured, skipping');
+  }
 }
 
 async function main(): Promise<void> {
@@ -823,6 +931,15 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.redis) {
       await appState.handlers.redis.shutdown();
+    }
+    if (appState.handlers.s3) {
+      await appState.handlers.s3.shutdown();
+    }
+    if (appState.handlers.bluesky) {
+      await appState.handlers.bluesky.shutdown();
+    }
+    if (appState.handlers.lemmy) {
+      await appState.handlers.lemmy.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

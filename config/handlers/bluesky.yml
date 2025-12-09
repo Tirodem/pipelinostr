@@ -1,0 +1,52 @@
+# Configuration Bluesky Handler (AT Protocol)
+bluesky:
+  enabled: true
+
+  # Service PDS (Personal Data Server)
+  service: "https://bsky.social"
+
+  # Identifiant (handle ou DID)
+  # Exemples:
+  #   - handle: "username.bsky.social"
+  #   - DID: "did:plc:xxxxx"
+  identifier: "your-handle.bsky.social"
+
+  # App Password (recommandé plutôt que le mot de passe principal)
+  # Créer via: Settings > App Passwords > Add App Password
+  password: ${BLUESKY_APP_PASSWORD}
+
+# IMPORTANT:
+# - Utilisez un "App Password" plutôt que votre mot de passe principal
+# - Settings > Privacy and Security > App Passwords
+# - Cela permet de révoquer l'accès sans changer votre mot de passe
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: bluesky
+#     params:
+#       text: "{{content}}"
+#       langs: ["fr"]
+#       facets: true  # Détection auto des @mentions, liens, #hashtags
+#
+#   # Répondre à un post
+#   - type: bluesky
+#     params:
+#       text: "Ma réponse"
+#       reply_to:
+#         uri: "at://did:plc:xxx/app.bsky.feed.post/yyy"
+#         cid: "bafyreiabc..."
+#
+#   # Quote post
+#   - type: bluesky
+#     params:
+#       text: "Mon commentaire sur ce post"
+#       quote:
+#         uri: "at://did:plc:xxx/app.bsky.feed.post/yyy"
+#         cid: "bafyreiabc..."
+
+# Notes sur le texte:
+# - Maximum 300 caractères (graphèmes)
+# - Les mentions (@handle.bsky.social) sont auto-détectées
+# - Les liens sont auto-détectés
+# - Les hashtags (#topic) sont auto-détectés

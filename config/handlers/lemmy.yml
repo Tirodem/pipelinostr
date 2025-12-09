@@ -1,0 +1,63 @@
+# Configuration Lemmy Handler (Reddit décentralisé, Fediverse)
+lemmy:
+  enabled: true
+
+  # Instance Lemmy
+  # Exemples: https://lemmy.world, https://lemmy.ml, https://sh.itjust.works
+  instance_url: "https://lemmy.world"
+
+  # Authentification
+  username: "your_username"
+  password: ${LEMMY_PASSWORD}
+
+  # Communauté par défaut (optionnel)
+  # default_community: "nostr"
+
+# Instances Lemmy populaires:
+# - https://lemmy.world (généraliste)
+# - https://lemmy.ml (officiel Lemmy)
+# - https://sh.itjust.works (généraliste)
+# - https://programming.dev (tech/dev)
+# - https://discuss.tchncs.de (allemand)
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   # Créer un post
+#   - type: lemmy
+#     params:
+#       action: post
+#       community: "nostr"  # ou "nostr@lemmy.world" pour fédéré
+#       title: "Nouveau message Nostr"
+#       body: "{{content}}"
+#       nsfw: false
+#
+#   # Post avec lien
+#   - type: lemmy
+#     params:
+#       action: post
+#       community: "technology"
+#       title: "Article intéressant"
+#       url: "https://example.com/article"
+#       body: "Mon résumé: {{content}}"
+#
+#   # Commenter un post
+#   - type: lemmy
+#     params:
+#       action: comment
+#       post_id: 12345
+#       body: "{{content}}"
+#
+#   # Répondre à un commentaire
+#   - type: lemmy
+#     params:
+#       action: comment
+#       post_id: 12345
+#       parent_id: 67890
+#       body: "Ma réponse"
+
+# Notes:
+# - Les communautés peuvent être locales ("nostr") ou fédérées ("nostr@autre-instance.com")
+# - Un titre est obligatoire pour les posts
+# - Le body supporte le Markdown
+# - NSFW doit être défini correctement selon le contenu
