@@ -1,0 +1,63 @@
+# Configuration PostgreSQL Handler
+postgres:
+  enabled: true
+
+  # Connexion PostgreSQL
+  host: "localhost"
+  port: 5432
+  user: "pipelinostr"
+  password: ${POSTGRES_PASSWORD}
+  database: "pipelinostr"
+
+  # SSL
+  ssl: false
+
+  # Pool de connexions
+  max_connections: 10
+
+  # Table par défaut
+  default_table: "nostr_events"
+
+# Structure de table suggérée:
+#
+# CREATE TABLE nostr_events (
+#   id SERIAL PRIMARY KEY,
+#   event_id VARCHAR(64) UNIQUE NOT NULL,
+#   pubkey VARCHAR(64) NOT NULL,
+#   kind INTEGER NOT NULL,
+#   created_at TIMESTAMP NOT NULL,
+#   content TEXT,
+#   transformed_content TEXT,
+#   tags JSONB,
+#   sig VARCHAR(128),
+#   received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+# );
+#
+# CREATE INDEX idx_nostr_events_pubkey ON nostr_events(pubkey);
+# CREATE INDEX idx_nostr_events_kind ON nostr_events(kind);
+# CREATE INDEX idx_nostr_events_created_at ON nostr_events(created_at);
+# CREATE INDEX idx_nostr_events_tags ON nostr_events USING GIN(tags);
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: postgres
+#     params:
+#       operation: insert
+#       table: "events"
+#
+#   - type: postgres
+#     params:
+#       operation: upsert
+#       table: "events"
+#       conflict_columns: ["event_id"]
+#       columns:
+#         event_id: "{event_id}"
+#         pubkey: "{pubkey}"
+#         content: "{content}"
+#
+#   - type: postgres
+#     params:
+#       operation: query
+#       query: "SELECT * FROM events WHERE pubkey = $1 ORDER BY created_at DESC LIMIT 10"
+#       values: ["{pubkey}"]

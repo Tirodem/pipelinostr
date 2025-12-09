@@ -1,0 +1,34 @@
+# Configuration SFTP Handler
+sftp:
+  enabled: true
+
+  # Serveur SSH/SFTP
+  host: "sftp.example.com"
+  port: 22
+
+  # Authentification
+  username: "user"
+
+  # Option 1: Mot de passe
+  password: ${SFTP_PASSWORD}
+
+  # Option 2: Clé privée (recommandé)
+  # private_key_path: "/path/to/id_rsa"
+  # passphrase: ${SFTP_KEY_PASSPHRASE}
+
+  # Timeout en ms
+  timeout: 30000
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: sftp
+#     params:
+#       remote_path: "/home/user/uploads/{date}/event-{event_id}.json"
+#       create_dirs: true
+#       mode: 0644
+#
+#   - type: sftp
+#     params:
+#       remote_path: "/var/log/nostr/events.log"
+#       content: "{timestamp} [{kind}] {content}\n"

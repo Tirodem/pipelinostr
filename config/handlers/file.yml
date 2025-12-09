@@ -1,0 +1,41 @@
+# Configuration File Handler
+file:
+  enabled: true
+
+  # Répertoire de sortie pour les fichiers générés
+  output_dir: "./data/files"
+
+  # Taille maximale d'un fichier (Mo)
+  max_file_size_mb: 10
+
+  # Formats autorisés
+  allowed_formats:
+    - text
+    - json
+    - csv
+    - binary
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   - type: file
+#     params:
+#       filename: "events/{date}/event-{event_id}.json"
+#       format: json
+#
+#   - type: file
+#     params:
+#       filename: "logs/events.csv"
+#       format: csv
+#       append: true
+#       csv_headers: ["timestamp", "event_id", "pubkey", "content"]
+#
+#   - type: file
+#     params:
+#       filename: "reports/{datetime}.txt"
+#       format: text
+#       template: |
+#         Événement Nostr reçu
+#         ID: {event_id}
+#         Date: {timestamp}
+#         Contenu: {content}

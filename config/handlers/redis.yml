@@ -1,0 +1,59 @@
+# Configuration Redis Handler
+redis:
+  enabled: true
+
+  # URL Redis (redis://user:password@host:port)
+  url: "redis://localhost:6379"
+
+  # Mot de passe (optionnel, peut être dans l'URL)
+  # password: ${REDIS_PASSWORD}
+
+  # Base de données (0-15)
+  database: 0
+
+  # Préfixe pour les clés
+  key_prefix: "pipelinostr"
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   # Stocker un événement
+#   - type: redis
+#     params:
+#       operation: set
+#       key: "event:{event_id}"
+#       ttl: 86400  # 24h
+#
+#   # Stocker dans un hash
+#   - type: redis
+#     params:
+#       operation: hset
+#       key: "user:{pubkey}"
+#       fields:
+#         last_event: "{event_id}"
+#         last_seen: "{timestamp}"
+#
+#   # Ajouter à une liste (file d'attente)
+#   - type: redis
+#     params:
+#       operation: rpush
+#       key: "queue:events"
+#
+#   # Compteur d'événements par pubkey
+#   - type: redis
+#     params:
+#       operation: incr
+#       key: "count:events:{pubkey}"
+#
+#   # Sorted set pour timeline
+#   - type: redis
+#     params:
+#       operation: zadd
+#       key: "timeline:{pubkey}"
+#       score: "{timestamp}"
+#
+#   # Pub/Sub pour notifications temps réel
+#   - type: redis
+#     params:
+#       operation: publish
+#       channel: "nostr:events:kind1"

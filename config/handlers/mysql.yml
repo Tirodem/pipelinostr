@@ -1,0 +1,57 @@
+# Configuration MySQL Handler
+mysql:
+  enabled: true
+
+  # Connexion MySQL/MariaDB
+  host: "localhost"
+  port: 3306
+  user: "pipelinostr"
+  password: ${MYSQL_PASSWORD}
+  database: "pipelinostr"
+
+  # Pool de connexions
+  connection_limit: 10
+
+  # Table par défaut
+  default_table: "nostr_events"
+
+# Structure de table suggérée:
+#
+# CREATE TABLE nostr_events (
+#   id INT AUTO_INCREMENT PRIMARY KEY,
+#   event_id VARCHAR(64) UNIQUE NOT NULL,
+#   pubkey VARCHAR(64) NOT NULL,
+#   kind INT NOT NULL,
+#   created_at DATETIME NOT NULL,
+#   content TEXT,
+#   transformed_content TEXT,
+#   tags JSON,
+#   sig VARCHAR(128),
+#   received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+#   INDEX idx_pubkey (pubkey),
+#   INDEX idx_kind (kind),
+#   INDEX idx_created_at (created_at)
+# );
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: mysql
+#     params:
+#       operation: insert
+#       table: "events"
+#
+#   - type: mysql
+#     params:
+#       operation: upsert
+#       table: "events"
+#       columns:
+#         event_id: "{event_id}"
+#         pubkey: "{pubkey}"
+#         content: "{content}"
+#
+#   - type: mysql
+#     params:
+#       operation: query
+#       query: "SELECT COUNT(*) as count FROM events WHERE pubkey = ?"
+#       values: ["{pubkey}"]

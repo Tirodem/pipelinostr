@@ -1,0 +1,30 @@
+# Configuration FTP Handler
+ftp:
+  enabled: true
+
+  # Serveur FTP
+  host: "ftp.example.com"
+  port: 21
+
+  # Authentification
+  user: "username"
+  password: ${FTP_PASSWORD}
+
+  # Connexion sécurisée (FTPS)
+  secure: false
+
+  # Timeout en ms
+  timeout: 30000
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: ftp
+#     params:
+#       remote_path: "/uploads/{date}/event-{event_id}.json"
+#       create_dirs: true
+#
+#   - type: ftp
+#     params:
+#       remote_path: "/data/events.log"
+#       content: "{timestamp} - {content}\n"

@@ -1,0 +1,37 @@
+# Configuration MongoDB Handler
+mongodb:
+  enabled: true
+
+  # Connection string MongoDB
+  # Format: mongodb://user:password@host:port/database
+  # Ou: mongodb+srv://user:password@cluster.mongodb.net/
+  connection_string: ${MONGODB_URI}
+
+  # Base de données
+  database: "pipelinostr"
+
+  # Collection par défaut
+  default_collection: "nostr_events"
+
+# Exemple d'utilisation dans un workflow:
+#
+# actions:
+#   - type: mongodb
+#     params:
+#       operation: insert
+#       collection: "events"
+#
+#   - type: mongodb
+#     params:
+#       operation: upsert
+#       collection: "events"
+#       upsert_key: "event_id"
+#
+#   - type: mongodb
+#     params:
+#       operation: update
+#       filter:
+#         pubkey: "{pubkey}"
+#       update_fields:
+#         last_seen: "{timestamp}"
+#         message_count: { "$inc": 1 }

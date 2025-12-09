@@ -16,6 +16,13 @@ import { DiscordHandler, type DiscordHandlerOptions } from './outbound/discord.h
 import { TwitterHandler, type TwitterHandlerOptions } from './outbound/twitter.handler.js';
 import { MatrixHandler, type MatrixHandlerOptions } from './outbound/matrix.handler.js';
 import { MastodonHandler, type MastodonHandlerOptions } from './outbound/mastodon.handler.js';
+import { FileHandler } from './outbound/file.handler.js';
+import { FtpHandler } from './outbound/ftp.handler.js';
+import { SftpHandler } from './outbound/sftp.handler.js';
+import { MongoDbHandler } from './outbound/mongodb.handler.js';
+import { MysqlHandler } from './outbound/mysql.handler.js';
+import { PostgresHandler } from './outbound/postgres.handler.js';
+import { RedisHandler } from './outbound/redis.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -37,6 +44,13 @@ interface AppState {
     twitter?: TwitterHandler;
     matrix?: MatrixHandler;
     mastodon?: MastodonHandler;
+    file?: FileHandler;
+    ftp?: FtpHandler;
+    sftp?: SftpHandler;
+    mongodb?: MongoDbHandler;
+    mysql?: MysqlHandler;
+    postgres?: PostgresHandler;
+    redis?: RedisHandler;
   };
 }
 
@@ -377,6 +391,247 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('Mastodon handler not configured, skipping');
   }
+
+  // File Handler (optional, needs config)
+  try {
+    interface FileConfigFile {
+      file?: {
+        enabled?: boolean;
+        output_dir?: string;
+        max_file_size_mb?: number;
+        allowed_formats?: string[];
+      };
+    }
+    const fileConfig = await loadHandlerConfig<FileConfigFile>('file');
+    if (fileConfig?.file?.enabled !== false) {
+      state.handlers.file = new FileHandler({
+        enabled: true,
+        output_dir: fileConfig?.file?.output_dir || './data/files',
+        max_file_size_mb: fileConfig?.file?.max_file_size_mb || 10,
+        allowed_formats: fileConfig?.file?.allowed_formats || ['text', 'json', 'csv', 'binary'],
+      });
+      await state.handlers.file.initialize();
+      state.workflowEngine.registerHandler('file', state.handlers.file);
+      logger.info('File handler enabled');
+    }
+  } catch (error) {
+    logger.debug('File handler not configured, skipping');
+  }
+
+  // FTP Handler (optional, needs config)
+  try {
+    interface FtpConfigFile {
+      ftp?: {
+        enabled?: boolean;
+        host?: string;
+        port?: number;
+        user?: string;
+        password?: string;
+        secure?: boolean;
+        timeout?: number;
+      };
+    }
+    const ftpConfig = await loadHandlerConfig<FtpConfigFile>('ftp');
+    if (
+      ftpConfig?.ftp?.enabled !== false &&
+      ftpConfig?.ftp?.host &&
+      ftpConfig?.ftp?.user &&
+      ftpConfig?.ftp?.password
+    ) {
+      state.handlers.ftp = new FtpHandler({
+        enabled: true,
+        host: ftpConfig.ftp.host,
+        port: ftpConfig.ftp.port || 21,
+        user: ftpConfig.ftp.user,
+        password: ftpConfig.ftp.password,
+        secure: ftpConfig.ftp.secure || false,
+        timeout: ftpConfig.ftp.timeout || 30000,
+      });
+      await state.handlers.ftp.initialize();
+      state.workflowEngine.registerHandler('ftp', state.handlers.ftp);
+      logger.info('FTP handler enabled');
+    }
+  } catch (error) {
+    logger.debug('FTP handler not configured, skipping');
+  }
+
+  // SFTP Handler (optional, needs config)
+  try {
+    interface SftpConfigFile {
+      sftp?: {
+        enabled?: boolean;
+        host?: string;
+        port?: number;
+        username?: string;
+        password?: string;
+        private_key_path?: string;
+        passphrase?: string;
+        timeout?: number;
+      };
+    }
+    const sftpConfig = await loadHandlerConfig<SftpConfigFile>('sftp');
+    if (
+      sftpConfig?.sftp?.enabled !== false &&
+      sftpConfig?.sftp?.host &&
+      sftpConfig?.sftp?.username &&
+      (sftpConfig?.sftp?.password || sftpConfig?.sftp?.private_key_path)
+    ) {
+      state.handlers.sftp = new SftpHandler({
+        enabled: true,
+        host: sftpConfig.sftp.host,
+        port: sftpConfig.sftp.port || 22,
+        username: sftpConfig.sftp.username,
+        password: sftpConfig.sftp.password,
+        private_key_path: sftpConfig.sftp.private_key_path,
+        passphrase: sftpConfig.sftp.passphrase,
+        timeout: sftpConfig.sftp.timeout || 30000,
+      });
+      await state.handlers.sftp.initialize();
+      state.workflowEngine.registerHandler('sftp', state.handlers.sftp);
+      logger.info('SFTP handler enabled');
+    }
+  } catch (error) {
+    logger.debug('SFTP handler not configured, skipping');
+  }
+
+  // MongoDB Handler (optional, needs config)
+  try {
+    interface MongoDbConfigFile {
+      mongodb?: {
+        enabled?: boolean;
+        connection_string?: string;
+        database?: string;
+        default_collection?: string;
+      };
+    }
+    const mongodbConfig = await loadHandlerConfig<MongoDbConfigFile>('mongodb');
+    if (
+      mongodbConfig?.mongodb?.enabled !== false &&
+      mongodbConfig?.mongodb?.connection_string
+    ) {
+      state.handlers.mongodb = new MongoDbHandler({
+        enabled: true,
+        connection_string: mongodbConfig.mongodb.connection_string,
+        database: mongodbConfig.mongodb.database || 'pipelinostr',
+        default_collection: mongodbConfig.mongodb.default_collection || 'nostr_events',
+      });
+      await state.handlers.mongodb.initialize();
+      state.workflowEngine.registerHandler('mongodb', state.handlers.mongodb);
+      logger.info('MongoDB handler enabled');
+    }
+  } catch (error) {
+    logger.debug('MongoDB handler not configured, skipping');
+  }
+
+  // MySQL Handler (optional, needs config)
+  try {
+    interface MysqlConfigFile {
+      mysql?: {
+        enabled?: boolean;
+        host?: string;
+        port?: number;
+        user?: string;
+        password?: string;
+        database?: string;
+        connection_limit?: number;
+        default_table?: string;
+      };
+    }
+    const mysqlConfig = await loadHandlerConfig<MysqlConfigFile>('mysql');
+    if (
+      mysqlConfig?.mysql?.enabled !== false &&
+      mysqlConfig?.mysql?.host &&
+      mysqlConfig?.mysql?.user &&
+      mysqlConfig?.mysql?.password &&
+      mysqlConfig?.mysql?.database
+    ) {
+      state.handlers.mysql = new MysqlHandler({
+        enabled: true,
+        host: mysqlConfig.mysql.host,
+        port: mysqlConfig.mysql.port || 3306,
+        user: mysqlConfig.mysql.user,
+        password: mysqlConfig.mysql.password,
+        database: mysqlConfig.mysql.database,
+        connection_limit: mysqlConfig.mysql.connection_limit || 10,
+        default_table: mysqlConfig.mysql.default_table || 'nostr_events',
+      });
+      await state.handlers.mysql.initialize();
+      state.workflowEngine.registerHandler('mysql', state.handlers.mysql);
+      logger.info('MySQL handler enabled');
+    }
+  } catch (error) {
+    logger.debug('MySQL handler not configured, skipping');
+  }
+
+  // PostgreSQL Handler (optional, needs config)
+  try {
+    interface PostgresConfigFile {
+      postgres?: {
+        enabled?: boolean;
+        host?: string;
+        port?: number;
+        user?: string;
+        password?: string;
+        database?: string;
+        ssl?: boolean;
+        max_connections?: number;
+        default_table?: string;
+      };
+    }
+    const postgresConfig = await loadHandlerConfig<PostgresConfigFile>('postgres');
+    if (
+      postgresConfig?.postgres?.enabled !== false &&
+      postgresConfig?.postgres?.host &&
+      postgresConfig?.postgres?.user &&
+      postgresConfig?.postgres?.password &&
+      postgresConfig?.postgres?.database
+    ) {
+      state.handlers.postgres = new PostgresHandler({
+        enabled: true,
+        host: postgresConfig.postgres.host,
+        port: postgresConfig.postgres.port || 5432,
+        user: postgresConfig.postgres.user,
+        password: postgresConfig.postgres.password,
+        database: postgresConfig.postgres.database,
+        ssl: postgresConfig.postgres.ssl || false,
+        max_connections: postgresConfig.postgres.max_connections || 10,
+        default_table: postgresConfig.postgres.default_table || 'nostr_events',
+      });
+      await state.handlers.postgres.initialize();
+      state.workflowEngine.registerHandler('postgres', state.handlers.postgres);
+      logger.info('PostgreSQL handler enabled');
+    }
+  } catch (error) {
+    logger.debug('PostgreSQL handler not configured, skipping');
+  }
+
+  // Redis Handler (optional, needs config)
+  try {
+    interface RedisConfigFile {
+      redis?: {
+        enabled?: boolean;
+        url?: string;
+        password?: string;
+        database?: number;
+        key_prefix?: string;
+      };
+    }
+    const redisConfig = await loadHandlerConfig<RedisConfigFile>('redis');
+    if (redisConfig?.redis?.enabled !== false && redisConfig?.redis?.url) {
+      state.handlers.redis = new RedisHandler({
+        enabled: true,
+        url: redisConfig.redis.url,
+        password: redisConfig.redis.password,
+        database: redisConfig.redis.database || 0,
+        key_prefix: redisConfig.redis.key_prefix || 'pipelinostr',
+      });
+      await state.handlers.redis.initialize();
+      state.workflowEngine.registerHandler('redis', state.handlers.redis);
+      logger.info('Redis handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Redis handler not configured, skipping');
+  }
 }
 
 async function main(): Promise<void> {
@@ -547,6 +802,27 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.mastodon) {
       await appState.handlers.mastodon.shutdown();
+    }
+    if (appState.handlers.file) {
+      await appState.handlers.file.shutdown();
+    }
+    if (appState.handlers.ftp) {
+      await appState.handlers.ftp.shutdown();
+    }
+    if (appState.handlers.sftp) {
+      await appState.handlers.sftp.shutdown();
+    }
+    if (appState.handlers.mongodb) {
+      await appState.handlers.mongodb.shutdown();
+    }
+    if (appState.handlers.mysql) {
+      await appState.handlers.mysql.shutdown();
+    }
+    if (appState.handlers.postgres) {
+      await appState.handlers.postgres.shutdown();
+    }
+    if (appState.handlers.redis) {
+      await appState.handlers.redis.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
