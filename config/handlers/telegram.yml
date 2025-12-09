@@ -1,0 +1,12 @@
+# Configuration Telegram Handler
+telegram:
+  enabled: true
+
+  # Token du bot Telegram (obtenu via @BotFather)
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+
+  # Chat ID par défaut (optionnel)
+  # Peut être un ID de user, group ou channel
+  # Pour obtenir votre chat_id: envoyez un message à votre bot puis
+  # visitez https://api.telegram.org/bot<TOKEN>/getUpdates
+  default_chat_id: ""

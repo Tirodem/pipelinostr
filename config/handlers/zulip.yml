@@ -1,0 +1,15 @@
+# Configuration Zulip Handler
+zulip:
+  enabled: true
+
+  # URL de votre instance Zulip
+  site_url: "https://your-org.zulipchat.com"
+
+  # Credentials du bot
+  # Créez un bot: Settings > Your bots > Add a new bot
+  email: "bot@your-org.zulipchat.com"
+  api_key: ${ZULIP_API_KEY}
+
+  # Stream et topic par défaut (optionnel)
+  default_stream: "notifications"
+  default_topic: "PipeliNostr"
