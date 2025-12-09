@@ -8,8 +8,8 @@ import { HealthChecker } from './health-checker.js';
 
 export interface RelayManagerConfig {
   primaryRelays: string[];
-  blacklist?: string[];
-  quarantine?: Partial<QuarantineConfig>;
+  blacklist?: string[] | undefined;
+  quarantine?: Partial<QuarantineConfig> | undefined;
 }
 
 interface ConnectedRelay {

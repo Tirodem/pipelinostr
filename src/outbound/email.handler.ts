@@ -6,15 +6,15 @@ import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.
 export interface EmailHandlerOptions {
   host: string;
   port: number;
-  secure?: boolean;
+  secure?: boolean | undefined;
   auth: {
     user: string;
     pass: string;
   };
   from?: {
-    name?: string;
+    name?: string | undefined;
     address: string;
-  };
+  } | undefined;
 }
 
 export interface EmailActionConfig extends HandlerConfig {
