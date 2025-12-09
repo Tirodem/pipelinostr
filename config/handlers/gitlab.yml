@@ -1,0 +1,92 @@
+# Configuration GitLab Handler
+gitlab:
+  enabled: true
+
+  # Personal Access Token
+  # Scopes requis: api (ou scopes plus restreints selon les actions)
+  token: ${GITLAB_TOKEN}
+
+  # Project par défaut (optionnel)
+  # Format: "namespace/project" ou ID numérique du projet
+  # default_project: "username/myproject"
+
+  # URL de l'API (défaut: gitlab.com)
+  # Pour GitLab auto-hébergé:
+  # api_url: "https://gitlab.example.com/api/v4"
+
+# Obtenir un Personal Access Token:
+# 1. GitLab > User Settings > Access Tokens
+# 2. Créer un token avec le scope "api"
+# 3. Copier le token généré
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Créer une issue
+#   - type: gitlab
+#     params:
+#       action: create_issue
+#       project: "namespace/project"
+#       title: "Nouvel événement Nostr"
+#       description: "{{content}}"
+#       labels: "nostr,automated"
+#
+#   # Commenter une issue existante
+#   - type: gitlab
+#     params:
+#       action: comment_issue
+#       project: "namespace/project"
+#       issue_iid: 42
+#       description: "Commentaire automatique: {{content}}"
+#
+#   # Créer un fichier dans le repo
+#   - type: gitlab
+#     params:
+#       action: create_file
+#       project: "namespace/project"
+#       file_path: "events/{date}/{event_id}.json"
+#       commit_message: "Archive event {{event_id}}"
+#       branch: "main"
+#
+#   # Mettre à jour un fichier existant
+#   - type: gitlab
+#     params:
+#       action: update_file
+#       project: "namespace/project"
+#       file_path: "data/latest.json"
+#       commit_message: "Update latest event"
+#       branch: "main"
+#
+#   # Déclencher un pipeline CI/CD
+#   - type: gitlab
+#     params:
+#       action: trigger_pipeline
+#       project: "namespace/project"
+#       ref: "main"
+#       variables:
+#         - key: "EVENT_ID"
+#           value: "{{event_id}}"
+#         - key: "TRIGGER_SOURCE"
+#           value: "nostr"
+#
+#   # Créer une release
+#   - type: gitlab
+#     params:
+#       action: create_release
+#       project: "namespace/project"
+#       tag_name: "v1.0.0"
+#       name: "Release v1.0.0"
+#       description: "{{content}}"
+
+# Notes:
+# - Le project peut être spécifié par son ID numérique ou son path "namespace/project"
+# - Les labels sont séparés par des virgules (pas un tableau)
+# - issue_iid est l'ID interne au projet (pas l'ID global)
+# - Les variables de pipeline doivent avoir un format key/value
+
+# Variables disponibles dans les file_path:
+# - {event_id}: ID de l'événement (8 chars)
+# - {pubkey}: Pubkey (8 chars)
+# - {timestamp}: Timestamp Unix
+# - {date}: Date ISO (YYYY-MM-DD)
+# - {datetime}: Date et heure complète

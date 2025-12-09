@@ -1,0 +1,93 @@
+# Configuration GitHub Handler
+github:
+  enabled: true
+
+  # Personal Access Token (PAT)
+  # Scopes requis selon les actions:
+  # - Issues: repo (ou public_repo pour repos publics)
+  # - Fichiers: repo
+  # - Workflows: workflow
+  # - Releases: repo
+  token: ${GITHUB_TOKEN}
+
+  # Repository par défaut (optionnel)
+  # Peut être "owner/repo" ou configuré séparément
+  # default_owner: "username"
+  # default_repo: "repository"
+
+  # Pour GitHub Enterprise (optionnel)
+  # api_url: "https://github.example.com/api/v3"
+
+# Obtenir un Personal Access Token:
+# 1. GitHub.com > Settings > Developer settings > Personal access tokens
+# 2. "Generate new token (classic)" ou Fine-grained tokens
+# 3. Sélectionner les scopes nécessaires
+# 4. Copier le token généré
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Créer une issue
+#   - type: github
+#     params:
+#       action: create_issue
+#       repo: "owner/repo"
+#       title: "Nouvel événement Nostr"
+#       body: "{{content}}"
+#       labels: ["nostr", "automated"]
+#       assignees: ["username"]
+#
+#   # Commenter une issue existante
+#   - type: github
+#     params:
+#       action: comment_issue
+#       repo: "owner/repo"
+#       issue_number: 123
+#       body: "Commentaire automatique: {{content}}"
+#
+#   # Créer/archiver un fichier
+#   - type: github
+#     params:
+#       action: create_file
+#       repo: "owner/archive-repo"
+#       path: "events/{date}/{event_id}.json"
+#       message: "Archive event {{event_id}}"
+#       branch: "main"
+#
+#   # Mettre à jour un fichier existant
+#   - type: github
+#     params:
+#       action: update_file
+#       repo: "owner/repo"
+#       path: "data/latest.json"
+#       message: "Update latest event"
+#       branch: "main"
+#
+#   # Déclencher un workflow GitHub Actions
+#   - type: github
+#     params:
+#       action: trigger_workflow
+#       repo: "owner/repo"
+#       workflow_id: "deploy.yml"
+#       ref: "main"
+#       inputs:
+#         event_id: "{{event_id}}"
+#         trigger: "nostr"
+#
+#   # Créer une release
+#   - type: github
+#     params:
+#       action: create_release
+#       repo: "owner/repo"
+#       tag_name: "v1.0.0"
+#       name: "Release v1.0.0"
+#       body: "{{content}}"
+#       draft: false
+#       prerelease: false
+
+# Variables disponibles dans les paths:
+# - {event_id}: ID de l'événement (8 chars)
+# - {pubkey}: Pubkey (8 chars)
+# - {timestamp}: Timestamp Unix
+# - {date}: Date ISO (YYYY-MM-DD)
+# - {datetime}: Date et heure complète

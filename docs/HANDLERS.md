@@ -35,6 +35,9 @@ Ce document détaille la configuration de tous les handlers sortants disponibles
    - [MySQL](#mysql)
    - [PostgreSQL](#postgresql)
    - [Redis](#redis)
+8. [Handlers DevOps](#handlers-devops)
+   - [GitHub](#github)
+   - [GitLab](#gitlab)
 
 ---
 
@@ -1286,6 +1289,212 @@ actions:
 | `publish` | Publie sur un channel |
 | `incr` | Incrémente un compteur |
 | `expire` | Définit un TTL |
+
+---
+
+## Handlers DevOps
+
+### GitHub
+
+Interagit avec GitHub : créer des issues, commenter, gérer des fichiers, déclencher des workflows.
+
+**Fichier de config** : `config/handlers/github.yml`
+
+```yaml
+github:
+  enabled: true
+  token: ${GITHUB_TOKEN}
+  # default_owner: "username"
+  # default_repo: "repository"
+  # api_url: "https://github.example.com/api/v3"  # Pour GitHub Enterprise
+```
+
+**Variables d'environnement** :
+```bash
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**Obtenir un Personal Access Token** :
+1. GitHub.com > Settings > Developer settings > Personal access tokens
+2. "Generate new token (classic)" ou Fine-grained tokens
+3. Scopes requis selon les actions :
+   - Issues : `repo` (ou `public_repo` pour repos publics)
+   - Fichiers : `repo`
+   - Workflows : `workflow`
+   - Releases : `repo`
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Créer une issue
+  - type: github
+    params:
+      action: create_issue
+      repo: "owner/repo"
+      title: "Nouvel événement Nostr"
+      body: "{{content}}"
+      labels: ["nostr", "automated"]
+      assignees: ["username"]
+
+  # Commenter une issue existante
+  - type: github
+    params:
+      action: comment_issue
+      repo: "owner/repo"
+      issue_number: 123
+      body: "Commentaire: {{content}}"
+
+  # Créer un fichier dans le repo
+  - type: github
+    params:
+      action: create_file
+      repo: "owner/archive-repo"
+      path: "events/{date}/{event_id}.json"
+      message: "Archive event {{event_id}}"
+      branch: "main"
+
+  # Mettre à jour un fichier existant
+  - type: github
+    params:
+      action: update_file
+      repo: "owner/repo"
+      path: "data/latest.json"
+      message: "Update latest event"
+
+  # Déclencher un workflow GitHub Actions
+  - type: github
+    params:
+      action: trigger_workflow
+      repo: "owner/repo"
+      workflow_id: "deploy.yml"
+      ref: "main"
+      inputs:
+        event_id: "{{event_id}}"
+        trigger: "nostr"
+
+  # Créer une release
+  - type: github
+    params:
+      action: create_release
+      repo: "owner/repo"
+      tag_name: "v1.0.0"
+      name: "Release v1.0.0"
+      body: "{{content}}"
+      draft: false
+      prerelease: false
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `create_issue` | Crée une nouvelle issue |
+| `comment_issue` | Ajoute un commentaire à une issue |
+| `create_file` | Crée un fichier dans le repository |
+| `update_file` | Met à jour un fichier existant |
+| `trigger_workflow` | Déclenche un workflow GitHub Actions |
+| `create_release` | Crée une release |
+
+---
+
+### GitLab
+
+Interagit avec GitLab : créer des issues, commenter, gérer des fichiers, déclencher des pipelines.
+
+**Fichier de config** : `config/handlers/gitlab.yml`
+
+```yaml
+gitlab:
+  enabled: true
+  token: ${GITLAB_TOKEN}
+  # default_project: "namespace/project"
+  # api_url: "https://gitlab.example.com/api/v4"  # Pour GitLab auto-hébergé
+```
+
+**Variables d'environnement** :
+```bash
+GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx
+```
+
+**Obtenir un Personal Access Token** :
+1. GitLab > User Settings > Access Tokens
+2. Créer un token avec le scope "api"
+3. Copier le token généré
+
+**Exemple de workflow** :
+
+```yaml
+actions:
+  # Créer une issue
+  - type: gitlab
+    params:
+      action: create_issue
+      project: "namespace/project"
+      title: "Nouvel événement Nostr"
+      description: "{{content}}"
+      labels: "nostr,automated"
+
+  # Commenter une issue existante
+  - type: gitlab
+    params:
+      action: comment_issue
+      project: "namespace/project"
+      issue_iid: 42
+      description: "Commentaire: {{content}}"
+
+  # Créer un fichier dans le repo
+  - type: gitlab
+    params:
+      action: create_file
+      project: "namespace/project"
+      file_path: "events/{date}/{event_id}.json"
+      commit_message: "Archive event {{event_id}}"
+      branch: "main"
+
+  # Mettre à jour un fichier existant
+  - type: gitlab
+    params:
+      action: update_file
+      project: "namespace/project"
+      file_path: "data/latest.json"
+      commit_message: "Update latest event"
+
+  # Déclencher un pipeline CI/CD
+  - type: gitlab
+    params:
+      action: trigger_pipeline
+      project: "namespace/project"
+      ref: "main"
+      variables:
+        - key: "EVENT_ID"
+          value: "{{event_id}}"
+        - key: "TRIGGER_SOURCE"
+          value: "nostr"
+
+  # Créer une release
+  - type: gitlab
+    params:
+      action: create_release
+      project: "namespace/project"
+      tag_name: "v1.0.0"
+      name: "Release v1.0.0"
+      description: "{{content}}"
+```
+
+**Actions disponibles** :
+| Action | Description |
+|--------|-------------|
+| `create_issue` | Crée une nouvelle issue |
+| `comment_issue` | Ajoute un commentaire (note) à une issue |
+| `create_file` | Crée un fichier dans le repository |
+| `update_file` | Met à jour un fichier existant |
+| `trigger_pipeline` | Déclenche un pipeline CI/CD |
+| `create_release` | Crée une release |
+
+**Notes** :
+- Le project peut être spécifié par son ID numérique ou son path "namespace/project"
+- Les labels sont séparés par des virgules (string, pas tableau)
+- `issue_iid` est l'ID interne au projet (pas l'ID global)
 
 ---
 

@@ -26,6 +26,8 @@ import { RedisHandler } from './outbound/redis.handler.js';
 import { S3Handler } from './outbound/s3.handler.js';
 import { BlueskyHandler } from './outbound/bluesky.handler.js';
 import { LemmyHandler } from './outbound/lemmy.handler.js';
+import { GitHubHandler } from './outbound/github.handler.js';
+import { GitLabHandler } from './outbound/gitlab.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -57,6 +59,8 @@ interface AppState {
     s3?: S3Handler;
     bluesky?: BlueskyHandler;
     lemmy?: LemmyHandler;
+    github?: GitHubHandler;
+    gitlab?: GitLabHandler;
   };
 }
 
@@ -740,6 +744,66 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('Lemmy handler not configured, skipping');
   }
+
+  // GitHub Handler (optional, needs config)
+  try {
+    interface GitHubConfigFile {
+      github?: {
+        enabled?: boolean;
+        token?: string;
+        api_url?: string;
+        default_owner?: string;
+        default_repo?: string;
+      };
+    }
+    const githubConfig = await loadHandlerConfig<GitHubConfigFile>('github');
+    if (
+      githubConfig?.github?.enabled !== false &&
+      githubConfig?.github?.token
+    ) {
+      state.handlers.github = new GitHubHandler({
+        enabled: true,
+        token: githubConfig.github.token,
+        api_url: githubConfig.github.api_url,
+        default_owner: githubConfig.github.default_owner,
+        default_repo: githubConfig.github.default_repo,
+      });
+      await state.handlers.github.initialize();
+      state.workflowEngine.registerHandler('github', state.handlers.github);
+      logger.info('GitHub handler enabled');
+    }
+  } catch (error) {
+    logger.debug('GitHub handler not configured, skipping');
+  }
+
+  // GitLab Handler (optional, needs config)
+  try {
+    interface GitLabConfigFile {
+      gitlab?: {
+        enabled?: boolean;
+        token?: string;
+        api_url?: string;
+        default_project?: string;
+      };
+    }
+    const gitlabConfig = await loadHandlerConfig<GitLabConfigFile>('gitlab');
+    if (
+      gitlabConfig?.gitlab?.enabled !== false &&
+      gitlabConfig?.gitlab?.token
+    ) {
+      state.handlers.gitlab = new GitLabHandler({
+        enabled: true,
+        token: gitlabConfig.gitlab.token,
+        api_url: gitlabConfig.gitlab.api_url,
+        default_project: gitlabConfig.gitlab.default_project,
+      });
+      await state.handlers.gitlab.initialize();
+      state.workflowEngine.registerHandler('gitlab', state.handlers.gitlab);
+      logger.info('GitLab handler enabled');
+    }
+  } catch (error) {
+    logger.debug('GitLab handler not configured, skipping');
+  }
 }
 
 async function main(): Promise<void> {
@@ -940,6 +1004,12 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.lemmy) {
       await appState.handlers.lemmy.shutdown();
+    }
+    if (appState.handlers.github) {
+      await appState.handlers.github.shutdown();
+    }
+    if (appState.handlers.gitlab) {
+      await appState.handlers.gitlab.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
