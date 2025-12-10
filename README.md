@@ -4,6 +4,24 @@
 
 PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route vers des actions configurables : emails, webhooks HTTP, réponses Nostr, et plus encore.
 
+## Progression
+
+### Workflows testés et fonctionnels
+
+| Fichier | Description |
+|---------|-------------|
+| `zulip-forward.yml` | Forward DM vers Zulip |
+| `zap-notification.yml` | Notification sur zap recu |
+| `nostr-to-telegram.yml` | Forward DM vers Telegram |
+| `nostr-to-email.yml` | Forward DM vers Email |
+| `nostr-to-calendar.yml` | DM vers invitation calendrier (iCal) |
+| `nostr-to-sms.yml` | DM vers SMS (via Traccar) |
+
+Les exemples sont dans `examples/workflows/`. Pour les utiliser :
+```bash
+cp examples/workflows/<fichier>.yml config/workflows/
+```
+
 ## Fonctionnalités
 
 - **Multi-relay** : Connexion simultanée à plusieurs relays avec gestion automatique des reconnexions
