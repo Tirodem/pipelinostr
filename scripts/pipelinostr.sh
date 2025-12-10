@@ -481,7 +481,7 @@ relay_list() {
     printf "%-45s %-12s %-10s %s\n" "URL" "STATUS" "FAILURES" "SOURCE"
     printf "%-45s %-12s %-10s %s\n" "---------------------------------------------" "------------" "----------" "----------"
 
-    sqlite3 -separator '|' "$DB_PATH" "SELECT url, status, consecutive_failures, discovered_from FROM relay_states ORDER BY status, url;" 2>/dev/null | while IFS='|' read -r url status failures source; do
+    sqlite3 -separator '|' "$DB_PATH" "SELECT url, status, consecutive_failures, discovered_from FROM relay_state ORDER BY status, url;" 2>/dev/null | while IFS='|' read -r url status failures source; do
         case "$status" in
             active)
                 status_color="${GREEN}active${NC}"
@@ -501,9 +501,9 @@ relay_list() {
 
     echo ""
     # Show stats
-    local total=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states;" 2>/dev/null)
-    local active=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states WHERE status='active';" 2>/dev/null)
-    local quarantined=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states WHERE status='quarantined';" 2>/dev/null)
+    local total=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_state;" 2>/dev/null)
+    local active=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_state WHERE status='active';" 2>/dev/null)
+    local quarantined=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_state WHERE status='quarantined';" 2>/dev/null)
     echo -e "Total: $total | Active: ${GREEN}$active${NC} | Quarantined: ${YELLOW}$quarantined${NC}"
 }
 
@@ -528,7 +528,7 @@ relay_add() {
     fi
 
     # Check if already exists
-    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_states WHERE url='$url';" 2>/dev/null)
+    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_state WHERE url='$url';" 2>/dev/null)
     if [ -n "$existing" ]; then
         echo -e "${YELLOW}Relay already exists: $url${NC}"
         exit 0
@@ -536,7 +536,7 @@ relay_add() {
 
     # Insert new relay
     local now=$(date -u +"%Y-%m-%d %H:%M:%S")
-    sqlite3 "$DB_PATH" "INSERT INTO relay_states (url, status, consecutive_failures, quarantine_level, total_events_received, total_events_sent, discovered_from, first_seen_at, updated_at) VALUES ('$url', 'active', 0, 0, 0, 0, 'config', '$now', '$now');" 2>/dev/null
+    sqlite3 "$DB_PATH" "INSERT INTO relay_state (url, status, consecutive_failures, quarantine_level, total_events_received, total_events_sent, discovered_from, first_seen_at, updated_at) VALUES ('$url', 'active', 0, 0, 0, 0, 'config', '$now', '$now');" 2>/dev/null
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Added relay: $url"
@@ -565,14 +565,14 @@ relay_remove() {
     fi
 
     # Check if exists
-    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_states WHERE url='$url';" 2>/dev/null)
+    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_state WHERE url='$url';" 2>/dev/null)
     if [ -z "$existing" ]; then
         echo -e "${YELLOW}Relay not found: $url${NC}"
         exit 0
     fi
 
     # Delete relay
-    sqlite3 "$DB_PATH" "DELETE FROM relay_states WHERE url='$url';" 2>/dev/null
+    sqlite3 "$DB_PATH" "DELETE FROM relay_state WHERE url='$url';" 2>/dev/null
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Removed relay: $url"
