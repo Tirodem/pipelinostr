@@ -1,0 +1,38 @@
+# Forward Nostr DMs to Telegram
+#
+# Prerequisites:
+# 1. Create a Telegram bot via @BotFather (see howto below)
+# 2. Configure config/handlers/telegram.yml with your bot token
+# 3. Add TELEGRAM_BOT_TOKEN to .env
+# 4. Get your chat_id (see howto below)
+#
+# Available variables:
+# - trigger.from       : Sender npub
+# - trigger.content    : Message content
+# - trigger.timestamp  : Unix timestamp
+# - trigger.kind       : Event kind (4 for DM)
+# - match.*            : Regex capture groups (if using content_pattern)
+
+id: nostr-to-telegram
+name: Forward DM to Telegram
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    # Optional: filter by content pattern
+    # content_pattern: "^\\[telegram\\]\\s*(?<message>.+)"
+
+actions:
+  - id: send_telegram
+    type: telegram
+    config:
+      # chat_id: "123456789"  # Override default_chat_id if needed
+      text: |
+        New Nostr DM from {{ trigger.from }}:
+
+        {{ trigger.content }}
+      parse_mode: HTML       # Optional: HTML, Markdown, MarkdownV2
+      # disable_notification: true  # Silent message
