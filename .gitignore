@@ -9,6 +9,13 @@ dist/
 .env.local
 .env.*.local
 
+# Local configuration (use config.yml.example as template)
+config/config.yml
+config/handlers/*.yml
+!config/handlers/*.yml.example
+config/workflows/*.yml
+!config/workflows/*.yml.example
+
 # Logs
 logs/
 *.log
