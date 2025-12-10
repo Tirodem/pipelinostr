@@ -46,6 +46,10 @@ export interface NostrListenerConfig {
   kinds?: number[];
   // Listen to all events (not just those tagged to us)
   listenToAll?: boolean;
+  // Only process events after this timestamp (default: now)
+  since?: number;
+  // Process historical events (default: false - only new events)
+  processHistorical?: boolean;
 }
 
 export class NostrListener {
@@ -56,11 +60,15 @@ export class NostrListener {
   private eventCallbacks: EventCallback[] = [];
   private processedEventIds: Set<string> = new Set();
   private maxProcessedCache = 10000;
+  private startTimestamp: number;
 
   constructor(config: NostrListenerConfig, relayManager: RelayManager) {
     this.config = config;
     this.relayManager = relayManager;
     this.crypto = new CryptoHelper(config.privateKey);
+
+    // Set start timestamp to ignore historical events (unless processHistorical is true)
+    this.startTimestamp = config.since ?? Math.floor(Date.now() / 1000);
 
     // Convert whitelist npubs to hex for faster lookup
     this.whitelistHex = new Set(
@@ -82,6 +90,8 @@ export class NostrListener {
         publicKey: this.crypto.getPublicKeyNpub(),
         whitelistCount: this.whitelistHex.size,
         whitelistEnabled: config.whitelist.enabled,
+        startTimestamp: this.startTimestamp,
+        processHistorical: config.processHistorical ?? false,
       },
       'NostrListener initialized'
     );
@@ -162,6 +172,15 @@ export class NostrListener {
   private async handleEvent(event: NostrEvent, relayUrl: string): Promise<void> {
     // Deduplicate events (same event from multiple relays)
     if (this.processedEventIds.has(event.id)) {
+      return;
+    }
+
+    // Ignore historical events unless processHistorical is enabled
+    if (!this.config.processHistorical && event.created_at < this.startTimestamp) {
+      logger.debug(
+        { eventId: event.id, eventTime: event.created_at, startTime: this.startTimestamp },
+        'Ignoring historical event'
+      );
       return;
     }
 
