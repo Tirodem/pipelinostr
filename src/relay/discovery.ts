@@ -16,7 +16,7 @@ export interface DiscoveryResult {
   relays: string[];
 }
 
-const DEFAULT_SOURCE = 'https://nostr.watch/relays.json';
+const DEFAULT_SOURCE = 'https://api.nostr.watch/v1/online';
 const DEFAULT_MAX_RELAYS = 10;
 const DEFAULT_REFRESH_INTERVAL = 3600; // 1 hour
 
