@@ -31,6 +31,11 @@ usage() {
     echo "  handler disable <name|all>            Disable handler(s)"
     echo "  handler show <name>                   Show handler config"
     echo ""
+    echo "  relay list                            List all relays from database"
+    echo "  relay add <wss://...>                 Add a relay"
+    echo "  relay remove <wss://...>              Remove a relay"
+    echo "  relay blacklist [+|-]<wss://...>      Add (+) or remove (-) from blacklist"
+    echo ""
     echo "  status                                Show service status"
     echo "  restart                               Restart PipeliNostr"
     echo "  logs [lines]                          Show recent logs (default: 50)"
@@ -44,6 +49,10 @@ usage() {
     echo "  $0 handler list"
     echo "  $0 handler enable email"
     echo "  $0 handler disable traccar-sms"
+    echo "  $0 relay list"
+    echo "  $0 relay add wss://relay.example.com"
+    echo "  $0 relay blacklist +wss://spam.relay.com"
+    echo "  $0 relay blacklist -wss://spam.relay.com"
     echo "  $0 logs 100"
 }
 
@@ -453,6 +462,185 @@ show_logs() {
     fi
 }
 
+# ============================================
+# Relay Management (via SQLite database)
+# ============================================
+
+DB_PATH="$PROJECT_DIR/data/pipelinostr.db"
+
+# List relays from database
+relay_list() {
+    if [ ! -f "$DB_PATH" ]; then
+        echo -e "${RED}Database not found: $DB_PATH${NC}"
+        echo "Is PipeliNostr running?"
+        exit 1
+    fi
+
+    echo -e "${BLUE}Relays in database${NC}"
+    echo ""
+    printf "%-45s %-12s %-10s %s\n" "URL" "STATUS" "FAILURES" "SOURCE"
+    printf "%-45s %-12s %-10s %s\n" "---------------------------------------------" "------------" "----------" "----------"
+
+    sqlite3 -separator '|' "$DB_PATH" "SELECT url, status, consecutive_failures, discovered_from FROM relay_states ORDER BY status, url;" 2>/dev/null | while IFS='|' read -r url status failures source; do
+        case "$status" in
+            active)
+                status_color="${GREEN}active${NC}"
+                ;;
+            quarantined)
+                status_color="${YELLOW}quarantined${NC}"
+                ;;
+            abandoned)
+                status_color="${RED}abandoned${NC}"
+                ;;
+            *)
+                status_color="$status"
+                ;;
+        esac
+        printf "%-45s %b %-10s %s\n" "${url:0:45}" "$status_color" "$failures" "$source"
+    done
+
+    echo ""
+    # Show stats
+    local total=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states;" 2>/dev/null)
+    local active=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states WHERE status='active';" 2>/dev/null)
+    local quarantined=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM relay_states WHERE status='quarantined';" 2>/dev/null)
+    echo -e "Total: $total | Active: ${GREEN}$active${NC} | Quarantined: ${YELLOW}$quarantined${NC}"
+}
+
+# Add a relay to database
+relay_add() {
+    local url="$1"
+
+    if [ -z "$url" ]; then
+        echo -e "${RED}Error: Missing relay URL${NC}"
+        echo "Usage: $0 relay add <wss://...>"
+        exit 1
+    fi
+
+    if [[ ! "$url" =~ ^wss?:// ]]; then
+        echo -e "${RED}Error: Invalid relay URL (must start with wss:// or ws://)${NC}"
+        exit 1
+    fi
+
+    if [ ! -f "$DB_PATH" ]; then
+        echo -e "${RED}Database not found: $DB_PATH${NC}"
+        exit 1
+    fi
+
+    # Check if already exists
+    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_states WHERE url='$url';" 2>/dev/null)
+    if [ -n "$existing" ]; then
+        echo -e "${YELLOW}Relay already exists: $url${NC}"
+        exit 0
+    fi
+
+    # Insert new relay
+    local now=$(date -u +"%Y-%m-%d %H:%M:%S")
+    sqlite3 "$DB_PATH" "INSERT INTO relay_states (url, status, consecutive_failures, quarantine_level, total_events_received, total_events_sent, discovered_from, first_seen_at, updated_at) VALUES ('$url', 'active', 0, 0, 0, 0, 'config', '$now', '$now');" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Added relay: $url"
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to connect to this relay${NC}"
+        echo "  $0 restart"
+    else
+        echo -e "${RED}Failed to add relay${NC}"
+        exit 1
+    fi
+}
+
+# Remove a relay from database
+relay_remove() {
+    local url="$1"
+
+    if [ -z "$url" ]; then
+        echo -e "${RED}Error: Missing relay URL${NC}"
+        echo "Usage: $0 relay remove <wss://...>"
+        exit 1
+    fi
+
+    if [ ! -f "$DB_PATH" ]; then
+        echo -e "${RED}Database not found: $DB_PATH${NC}"
+        exit 1
+    fi
+
+    # Check if exists
+    local existing=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_states WHERE url='$url';" 2>/dev/null)
+    if [ -z "$existing" ]; then
+        echo -e "${YELLOW}Relay not found: $url${NC}"
+        exit 0
+    fi
+
+    # Delete relay
+    sqlite3 "$DB_PATH" "DELETE FROM relay_states WHERE url='$url';" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Removed relay: $url"
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to disconnect from this relay${NC}"
+        echo "  $0 restart"
+    else
+        echo -e "${RED}Failed to remove relay${NC}"
+        exit 1
+    fi
+}
+
+# Manage relay blacklist in config.yml
+relay_blacklist() {
+    local arg="$1"
+    local config_file="$PROJECT_DIR/config/config.yml"
+
+    if [ -z "$arg" ]; then
+        # Show current blacklist
+        echo -e "${BLUE}Current blacklist:${NC}"
+        grep -A 100 "^relays:" "$config_file" 2>/dev/null | grep -A 50 "blacklist:" | grep "^\s*-" | sed 's/^\s*-\s*/  /' || echo "  (empty)"
+        exit 0
+    fi
+
+    if [ ! -f "$config_file" ]; then
+        echo -e "${RED}Config file not found: $config_file${NC}"
+        exit 1
+    fi
+
+    local action="${arg:0:1}"
+    local url="${arg:1}"
+
+    if [[ "$action" != "+" && "$action" != "-" ]]; then
+        echo -e "${RED}Error: Use +wss://... to add or -wss://... to remove${NC}"
+        echo "Usage: $0 relay blacklist [+|-]<wss://...>"
+        exit 1
+    fi
+
+    if [[ ! "$url" =~ ^wss?:// ]]; then
+        echo -e "${RED}Error: Invalid relay URL (must start with wss:// or ws://)${NC}"
+        exit 1
+    fi
+
+    if [ "$action" = "+" ]; then
+        # Add to blacklist
+        # Check if blacklist line exists and is empty array
+        if grep -q "blacklist: \[\]" "$config_file"; then
+            # Replace empty array with the URL
+            sed -i "s|blacklist: \[\]|blacklist:\n    - \"$url\"|" "$config_file"
+        elif grep -q "blacklist:" "$config_file"; then
+            # Add to existing blacklist (after blacklist: line)
+            sed -i "/^\s*blacklist:/a\\    - \"$url\"" "$config_file"
+        else
+            echo -e "${RED}Could not find blacklist section in config${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✓${NC} Added to blacklist: $url"
+    else
+        # Remove from blacklist
+        sed -i "/^\s*-\s*[\"']$url[\"']/d" "$config_file"
+        echo -e "${GREEN}✓${NC} Removed from blacklist: $url"
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+    echo "  $0 restart"
+}
+
 # Main
 case "${1:-}" in
     workflow)
@@ -493,6 +681,27 @@ case "${1:-}" in
             *)
                 echo -e "${RED}Unknown handler command: ${2:-}${NC}"
                 echo "Use: $0 handler [list|enable|disable|show]"
+                exit 1
+                ;;
+        esac
+        ;;
+    relay)
+        case "${2:-}" in
+            list)
+                relay_list
+                ;;
+            add)
+                relay_add "$3"
+                ;;
+            remove)
+                relay_remove "$3"
+                ;;
+            blacklist)
+                relay_blacklist "$3"
+                ;;
+            *)
+                echo -e "${RED}Unknown relay command: ${2:-}${NC}"
+                echo "Use: $0 relay [list|add|remove|blacklist]"
                 exit 1
                 ;;
         esac
