@@ -1,0 +1,25 @@
+# Forward all Nostr DMs to a Zulip stream
+#
+# Prerequisites:
+# - Zulip handler enabled in config/handlers/zulip.yml
+# - ZULIP_API_KEY set in .env
+# - Sender npub in whitelist (config/config.yml)
+
+id: zulip-forward
+name: Forward DM to Zulip
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+
+actions:
+  - id: send_zulip
+    type: zulip
+    config:
+      type: stream          # 'stream' or 'private'
+      # stream: "my-stream" # Optional: override default_stream from handler config
+      # topic: "my-topic"   # Optional: override default_topic from handler config
+      content: "DM de {{ trigger.from }}: {{ trigger.content }}"
