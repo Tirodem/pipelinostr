@@ -50,7 +50,9 @@ export interface NostrListenerConfig {
   since?: number;
   // Process historical events (default: false - only new events)
   processHistorical?: boolean;
-  // Listen to zaps (kind 9735) for these npubs. If empty, listen to zaps for our pubkey only.
+  // Additional npubs to monitor for incoming zaps (kind 9735).
+  // PipeliNostr always listens to zaps for its own pubkey.
+  // Add other npubs here to also receive their zap notifications.
   zapRecipients?: string[];
 }
 

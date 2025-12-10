@@ -1,19 +1,25 @@
 # Notify on incoming zaps
 #
 # This workflow listens for zap receipts (kind 9735) and sends a notification.
-# It can monitor zaps for any npub, not just PipeliNostr's own pubkey.
+#
+# By default, PipeliNostr listens to zaps received by its own npub.
+# To also monitor zaps received by other npubs, add them in config.yml:
+#
+#   nostr:
+#     zapRecipients:
+#       - "npub1..."
+#       - "npub1..."
 #
 # Prerequisites:
 # - Zulip handler enabled (or replace with telegram, discord, slack, email)
-# - For monitoring other npubs, add them to config.yml: nostr.zapRecipients
 #
 # Available trigger.zap variables:
-# - trigger.zap.amount       : Amount in sats
-# - trigger.zap.sender       : Sender npub
-# - trigger.zap.recipient    : Recipient npub
-# - trigger.zap.message      : Zap comment (if any)
+# - trigger.zap.amount          : Amount in sats
+# - trigger.zap.sender          : Sender npub
+# - trigger.zap.recipient       : Recipient npub (who received the zap)
+# - trigger.zap.message         : Zap comment (if any)
 # - trigger.zap.zapped_event_id : ID of zapped note (if zapping a note)
-# - trigger.zap.bolt11       : The Lightning invoice
+# - trigger.zap.bolt11          : The Lightning invoice
 
 id: zap-notification
 name: Zap Notification
@@ -23,13 +29,12 @@ trigger:
   type: nostr_event
   filters:
     kinds: [9735]           # Zap receipts only
-    # Optional: only zaps above a certain amount (in sats)
+    # Optional: minimum amount in sats
     # zap_min_amount: 100
     #
-    # Optional: only zaps to specific recipients (overrides config zapRecipients)
+    # Optional: filter to specific recipients only
     # zap_recipients:
-    #   - "npub1streamer..."
-    #   - "npub1creator..."
+    #   - "npub1..."
 
 actions:
   - id: notify_zulip

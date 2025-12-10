@@ -19,7 +19,7 @@ export interface WorkflowFilter {
   content_pattern?: string;
 
   // Zap-specific filters (for kind 9735)
-  // Listen to zaps received by these npubs
+  // Filter to only zaps received by these specific npubs
   zap_recipients?: string[];
 
   // Minimum zap amount in sats
