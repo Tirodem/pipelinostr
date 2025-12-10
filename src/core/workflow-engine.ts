@@ -289,7 +289,7 @@ export class WorkflowEngine {
     try {
       const db = getDatabase();
       db.insertWorkflowExecution({
-        event_log_id: 0, // Will be linked properly in production
+        event_log_id: null, // Optional - not linked to event_log
         workflow_id: workflow.id,
         action_id: action.id,
         action_type: action.type,

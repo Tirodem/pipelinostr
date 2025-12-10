@@ -371,7 +371,7 @@ export class PipelinostrDatabase {
     `);
 
     const result = stmt.run({
-      event_log_id: execution.event_log_id,
+      event_log_id: execution.event_log_id ?? null,
       workflow_id: execution.workflow_id,
       action_id: execution.action_id,
       action_type: execution.action_type,

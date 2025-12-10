@@ -1,6 +1,6 @@
 export interface WorkflowExecution {
   id?: number | undefined;
-  event_log_id: number;
+  event_log_id?: number | null | undefined;
   workflow_id: string;
   action_id: string;
   action_type: string;
