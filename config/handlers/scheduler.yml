@@ -1,0 +1,55 @@
+# Configuration du scheduler (tâches planifiées)
+# Déclenche des workflows à des moments programmés
+
+scheduler:
+  enabled: false
+  timezone: "Europe/Paris"  # Timezone par défaut
+
+  schedules:
+    # Exemple: toutes les 5 minutes
+    - id: "every_5min"
+      name: "Every 5 Minutes"
+      cron: "*/5 * * * *"
+      enabled: true
+      payload:
+        task: "check_status"
+
+    # Exemple: tous les jours à 9h
+    - id: "daily_9am"
+      name: "Daily at 9 AM"
+      cron: "0 9 * * *"
+      enabled: true
+      payload:
+        task: "daily_report"
+
+    # Exemple: tous les lundis à 8h
+    - id: "weekly_monday"
+      name: "Weekly Monday 8 AM"
+      cron: "0 8 * * 1"
+      enabled: true
+      payload:
+        task: "weekly_summary"
+
+    # Exemple: premier jour du mois à minuit
+    - id: "monthly"
+      name: "Monthly First Day"
+      cron: "0 0 1 * *"
+      enabled: true
+      payload:
+        task: "monthly_archive"
+
+    # Expressions cron supportées:
+    # ┌───────────── minute (0 - 59)
+    # │ ┌───────────── hour (0 - 23)
+    # │ │ ┌───────────── day of month (1 - 31)
+    # │ │ │ ┌───────────── month (1 - 12)
+    # │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday=0)
+    # │ │ │ │ │
+    # * * * * *
+    #
+    # Exemples:
+    # "*/15 * * * *"    - toutes les 15 minutes
+    # "0 * * * *"       - toutes les heures
+    # "0 0 * * *"       - tous les jours à minuit
+    # "0 9 * * 1-5"     - 9h du lundi au vendredi
+    # "0 0 1,15 * *"    - 1er et 15 du mois

@@ -3,6 +3,9 @@ import { logger } from './persistence/logger.js';
 import { initDatabase, getDatabase } from './persistence/database.js';
 import { RelayManager } from './relay/manager.js';
 import { NostrListener } from './inbound/nostr-listener.js';
+import { WebhookServer, type WebhookServerConfig, type WebhookEvent } from './inbound/webhook-server.js';
+import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from './inbound/api-poller.js';
+import { SchedulerManager, type SchedulerManagerConfig, type SchedulerEvent } from './inbound/scheduler.js';
 import { WorkflowEngine } from './core/workflow-engine.js';
 import { EmailHandler, type EmailHandlerOptions } from './outbound/email.handler.js';
 import { HttpHandler } from './outbound/http.handler.js';
@@ -41,6 +44,11 @@ interface AppState {
   relayManager: RelayManager;
   nostrListener: NostrListener;
   workflowEngine: WorkflowEngine;
+  // Inbound handlers
+  webhookServer?: WebhookServer;
+  apiPoller?: ApiPollerManager;
+  scheduler?: SchedulerManager;
+  // Outbound handlers
   handlers: {
     email?: EmailHandler;
     http: HttpHandler;
@@ -1011,6 +1019,153 @@ async function initializeHandlers(
   }
 }
 
+// Helper to convert inbound events to ProcessedEvent-like format for workflow engine
+function createInboundEvent(source: string, data: WebhookEvent | PollerEvent | SchedulerEvent): {
+  id: string;
+  pubkey: string;
+  pubkeyNpub: string;
+  kind: number;
+  created_at: number;
+  tags: string[][];
+  sig: string;
+  rawContent: string;
+  decryptedContent?: string;
+  encryptionType: 'none';
+  isEncrypted: boolean;
+  isFromWhitelist: boolean;
+  relayUrl: string;
+} {
+  const content = JSON.stringify(data);
+  return {
+    id: data.id,
+    pubkey: source,
+    pubkeyNpub: source,
+    kind: source === 'webhook' ? 20000 : source === 'api_poller' ? 20001 : 20002,
+    created_at: Math.floor(data.timestamp / 1000),
+    tags: [['source', source]],
+    sig: '',
+    rawContent: content,
+    decryptedContent: content,
+    encryptionType: 'none',
+    isEncrypted: false,
+    isFromWhitelist: true, // Inbound events bypass whitelist
+    relayUrl: source,
+  };
+}
+
+async function initializeInboundHandlers(
+  state: AppState,
+  workflowEngine: WorkflowEngine
+): Promise<void> {
+  // Webhook Server
+  try {
+    interface WebhookConfigFile {
+      webhook?: WebhookServerConfig;
+    }
+    const webhookConfig = await loadHandlerConfig<WebhookConfigFile>('webhook');
+    if (webhookConfig?.webhook?.enabled) {
+      state.webhookServer = new WebhookServer(webhookConfig.webhook);
+
+      // Connect to workflow engine
+      state.webhookServer.onWebhook(async (event: WebhookEvent) => {
+        const processedEvent = createInboundEvent('webhook', event);
+        const results = await workflowEngine.processEvent(processedEvent);
+
+        for (const result of results) {
+          if (result.success) {
+            logger.info(
+              { workflowId: result.workflowId, source: 'webhook', webhookId: event.webhookId },
+              'Webhook workflow executed'
+            );
+          } else {
+            logger.error(
+              { workflowId: result.workflowId, error: result.error },
+              'Webhook workflow failed'
+            );
+          }
+        }
+      });
+
+      await state.webhookServer.start();
+      logger.info('Webhook server enabled');
+    }
+  } catch (error) {
+    logger.debug('Webhook server not configured, skipping');
+  }
+
+  // API Poller
+  try {
+    interface ApiPollerConfigFile {
+      api_poller?: ApiPollerManagerConfig;
+    }
+    const pollerConfig = await loadHandlerConfig<ApiPollerConfigFile>('api-poller');
+    if (pollerConfig?.api_poller?.enabled) {
+      state.apiPoller = new ApiPollerManager(pollerConfig.api_poller);
+
+      // Connect to workflow engine
+      state.apiPoller.onPoll(async (event: PollerEvent) => {
+        const processedEvent = createInboundEvent('api_poller', event);
+        const results = await workflowEngine.processEvent(processedEvent);
+
+        for (const result of results) {
+          if (result.success) {
+            logger.info(
+              { workflowId: result.workflowId, source: 'api_poller', pollerId: event.pollerId },
+              'Poller workflow executed'
+            );
+          } else {
+            logger.error(
+              { workflowId: result.workflowId, error: result.error },
+              'Poller workflow failed'
+            );
+          }
+        }
+      });
+
+      await state.apiPoller.start();
+      logger.info('API Poller enabled');
+    }
+  } catch (error) {
+    logger.debug('API Poller not configured, skipping');
+  }
+
+  // Scheduler
+  try {
+    interface SchedulerConfigFile {
+      scheduler?: SchedulerManagerConfig;
+    }
+    const schedulerConfig = await loadHandlerConfig<SchedulerConfigFile>('scheduler');
+    if (schedulerConfig?.scheduler?.enabled) {
+      state.scheduler = new SchedulerManager(schedulerConfig.scheduler);
+
+      // Connect to workflow engine
+      state.scheduler.onSchedule(async (event: SchedulerEvent) => {
+        const processedEvent = createInboundEvent('scheduler', event);
+        const results = await workflowEngine.processEvent(processedEvent);
+
+        for (const result of results) {
+          if (result.success) {
+            logger.info(
+              { workflowId: result.workflowId, source: 'scheduler', scheduleId: event.scheduleId },
+              'Scheduled workflow executed'
+            );
+          } else {
+            logger.error(
+              { workflowId: result.workflowId, error: result.error },
+              'Scheduled workflow failed'
+            );
+          }
+        }
+      });
+
+      await state.scheduler.start();
+      logger.info('Scheduler enabled');
+    }
+  } catch (error) {
+    logger.debug('Scheduler not configured, skipping');
+  }
+}
+
 async function main(): Promise<void> {
   logger.info('Starting PipeliNostr...');
 
@@ -1093,6 +1248,9 @@ async function main(): Promise<void> {
     // Initialize handlers
     await initializeHandlers(appState, privateKey);
 
+    // Initialize inbound handlers
+    await initializeInboundHandlers(appState, workflowEngine);
+
     // Connect listener to workflow engine
     nostrListener.onEvent(async (event) => {
       logger.debug(
@@ -1149,7 +1307,18 @@ async function shutdown(): Promise<void> {
   logger.info('Shutting down PipeliNostr...');
 
   if (appState) {
-    // Shutdown handlers
+    // Shutdown inbound handlers
+    if (appState.webhookServer) {
+      await appState.webhookServer.shutdown();
+    }
+    if (appState.apiPoller) {
+      await appState.apiPoller.shutdown();
+    }
+    if (appState.scheduler) {
+      await appState.scheduler.shutdown();
+    }
+
+    // Shutdown outbound handlers
     if (appState.handlers.email) {
       await appState.handlers.email.shutdown();
     }

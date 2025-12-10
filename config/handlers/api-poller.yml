@@ -1,0 +1,44 @@
+# Configuration du polling d'APIs externes
+# Interroge périodiquement des APIs et déclenche des workflows
+
+api_poller:
+  enabled: false
+  default_timeout: 30000  # 30s
+
+  pollers:
+    # Exemple: polling d'une API REST
+    - id: "status_api"
+      name: "Status API Check"
+      url: "https://api.example.com/status"
+      method: "GET"
+      interval: 60000  # 60s
+      enabled: true
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+      response_type: "json"
+      change_detection:
+        enabled: true
+        mode: "hash"  # hash, json_path, status
+
+    # Exemple: polling avec détection de changement JSON
+    - id: "data_feed"
+      name: "Data Feed"
+      url: "https://api.example.com/feed"
+      interval: 30000  # 30s
+      enabled: true
+      change_detection:
+        enabled: true
+        mode: "json_path"
+        json_path: "$.data.items[*].id"
+
+    # Exemple: polling avec POST
+    - id: "graphql_api"
+      name: "GraphQL Query"
+      url: "https://api.example.com/graphql"
+      method: "POST"
+      interval: 120000  # 2min
+      enabled: true
+      headers:
+        Content-Type: "application/json"
+      body:
+        query: "{ status { online users } }"

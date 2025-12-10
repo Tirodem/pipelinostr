@@ -1,0 +1,37 @@
+# Configuration du serveur Webhook
+# Permet de recevoir des requêtes HTTP et déclencher des workflows
+
+webhook:
+  enabled: false
+  port: 3000
+  host: "0.0.0.0"
+
+  # Taille max des requêtes (bytes)
+  max_body_size: 1048576  # 1MB
+
+  # CORS
+  cors:
+    enabled: true
+    origins:
+      - "*"
+
+  # Définition des webhooks
+  webhooks:
+    # Exemple: webhook générique
+    - id: "generic"
+      path: "/webhook"
+      methods: ["POST"]
+      description: "Webhook générique"
+
+    # Exemple: webhook GitHub
+    - id: "github"
+      path: "/webhook/github"
+      methods: ["POST"]
+      secret: ${WEBHOOK_GITHUB_SECRET}
+      description: "GitHub webhook"
+
+    # Exemple: webhook avec wildcard
+    - id: "api"
+      path: "/api/*"
+      methods: ["GET", "POST", "PUT", "DELETE"]
+      description: "API générique"

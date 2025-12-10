@@ -1,9 +1,15 @@
 # PipeliNostr - Guide de Configuration des Handlers
 
-Ce document détaille la configuration de tous les handlers sortants disponibles dans PipeliNostr.
+Ce document détaille la configuration de tous les handlers disponibles dans PipeliNostr.
 
 ## Table des matières
 
+### Handlers Entrants (Inbound)
+- [Webhook Server](#webhook-server) - Recevoir des requêtes HTTP
+- [API Poller](#api-poller) - Polling périodique d'APIs
+- [Scheduler](#scheduler) - Tâches planifiées (cron)
+
+### Handlers Sortants (Outbound)
 1. [Handlers Nostr](#handlers-nostr)
    - [Nostr DM](#nostr-dm)
    - [Nostr Note](#nostr-note)
@@ -47,6 +53,223 @@ Ce document détaille la configuration de tous les handlers sortants disponibles
    - [I2C](#i2c)
 
 ---
+
+## Handlers Entrants (Inbound)
+
+Les handlers entrants permettent de déclencher des workflows depuis des sources externes autres que Nostr.
+
+### Webhook Server
+
+Serveur HTTP pour recevoir des webhooks et déclencher des workflows.
+
+**Fichier de config** : `config/handlers/webhook.yml`
+
+```yaml
+webhook:
+  enabled: true
+  port: 3000
+  host: "0.0.0.0"
+  max_body_size: 1048576  # 1MB
+
+  cors:
+    enabled: true
+    origins: ["*"]
+
+  webhooks:
+    - id: "github"
+      path: "/webhook/github"
+      methods: ["POST"]
+      secret: ${WEBHOOK_GITHUB_SECRET}
+      description: "GitHub webhook"
+
+    - id: "generic"
+      path: "/webhook"
+      methods: ["POST"]
+```
+
+**Variables d'environnement** :
+```bash
+WEBHOOK_GITHUB_SECRET=your-secret-here
+```
+
+**Exemple d'utilisation** :
+
+```bash
+# Envoyer un webhook
+curl -X POST http://localhost:3000/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from webhook"}'
+```
+
+**Authentification supportée** :
+- Header `X-Webhook-Secret`
+- Header `Authorization: Bearer <token>`
+- GitHub signature `X-Hub-Signature-256`
+
+**Workflow pour webhook** :
+
+```yaml
+name: "Process Webhook"
+enabled: true
+trigger:
+  source: webhook  # Filtre sur source
+  # ou
+  kinds: [20000]   # Kind 20000 = webhook
+
+actions:
+  - type: telegram
+    params:
+      text: "Webhook reçu: {{content}}"
+```
+
+---
+
+### API Poller
+
+Interroge périodiquement des APIs externes et déclenche des workflows.
+
+**Fichier de config** : `config/handlers/api-poller.yml`
+
+```yaml
+api_poller:
+  enabled: true
+  default_timeout: 30000
+
+  pollers:
+    - id: "status_check"
+      name: "Status API"
+      url: "https://api.example.com/status"
+      method: "GET"
+      interval: 60000  # 60 secondes
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+      response_type: "json"
+      change_detection:
+        enabled: true
+        mode: "hash"  # Déclenche seulement si le contenu change
+
+    - id: "data_feed"
+      name: "Data Feed"
+      url: "https://api.example.com/feed"
+      interval: 30000
+      change_detection:
+        mode: "json_path"
+        json_path: "$.data.items[*].id"
+```
+
+**Modes de détection de changement** :
+| Mode | Description |
+|------|-------------|
+| `hash` | Hash du contenu complet |
+| `json_path` | Hash d'un chemin JSON spécifique |
+| `status` | Toujours déclencher |
+
+**Variables d'environnement** :
+```bash
+API_TOKEN=your-api-token
+```
+
+**Workflow pour poller** :
+
+```yaml
+name: "API Change Detected"
+enabled: true
+trigger:
+  source: api_poller
+  # ou
+  kinds: [20001]  # Kind 20001 = api_poller
+
+conditions:
+  - field: "$.hasChanged"
+    operator: "equals"
+    value: true
+
+actions:
+  - type: slack
+    params:
+      text: "API data changed: {{content}}"
+```
+
+---
+
+### Scheduler
+
+Planification de tâches avec expressions cron.
+
+**Fichier de config** : `config/handlers/scheduler.yml`
+
+```yaml
+scheduler:
+  enabled: true
+  timezone: "Europe/Paris"
+
+  schedules:
+    - id: "every_5min"
+      name: "Every 5 Minutes"
+      cron: "*/5 * * * *"
+      enabled: true
+      payload:
+        task: "health_check"
+
+    - id: "daily_report"
+      name: "Daily Report"
+      cron: "0 9 * * *"
+      payload:
+        task: "generate_report"
+
+    - id: "weekly_backup"
+      name: "Weekly Backup"
+      cron: "0 2 * * 0"
+      payload:
+        task: "backup"
+```
+
+**Syntaxe Cron** :
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── heure (0 - 23)
+│ │ ┌───────────── jour du mois (1 - 31)
+│ │ │ ┌───────────── mois (1 - 12)
+│ │ │ │ ┌───────────── jour de la semaine (0 - 6) (Dimanche=0)
+│ │ │ │ │
+* * * * *
+```
+
+**Exemples d'expressions cron** :
+| Expression | Description |
+|------------|-------------|
+| `*/15 * * * *` | Toutes les 15 minutes |
+| `0 * * * *` | Toutes les heures |
+| `0 0 * * *` | Tous les jours à minuit |
+| `0 9 * * 1-5` | 9h du lundi au vendredi |
+| `0 0 1 * *` | Premier jour de chaque mois |
+| `0 0 * * 0` | Tous les dimanches à minuit |
+
+**Workflow pour schedule** :
+
+```yaml
+name: "Scheduled Task"
+enabled: true
+trigger:
+  source: scheduler
+  # ou
+  kinds: [20002]  # Kind 20002 = scheduler
+
+conditions:
+  - field: "$.payload.task"
+    operator: "equals"
+    value: "health_check"
+
+actions:
+  - type: http
+    params:
+      url: "https://api.example.com/health"
+      method: "GET"
+```
+
+---
+
+## Handlers Sortants (Outbound)
 
 ## Handlers Nostr
 
