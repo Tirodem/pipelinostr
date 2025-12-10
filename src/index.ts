@@ -37,6 +37,7 @@ import { MqttHandler } from './outbound/mqtt.handler.js';
 import { BleHandler } from './outbound/ble.handler.js';
 import { UsbHidHandler } from './outbound/usb-hid.handler.js';
 import { I2cHandler } from './outbound/i2c.handler.js';
+import { TraccarSmsHandler, type TraccarSmsHandlerOptions } from './outbound/traccar-sms.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -81,6 +82,7 @@ interface AppState {
     ble?: BleHandler;
     usbHid?: UsbHidHandler;
     i2c?: I2cHandler;
+    traccarSms?: TraccarSmsHandler;
   };
 }
 
@@ -1017,6 +1019,37 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('I2C handler not configured, skipping');
   }
+
+  // Traccar SMS Handler (optional, needs config)
+  try {
+    interface TraccarSmsConfigFile {
+      traccar_sms?: {
+        enabled?: boolean;
+        gateway_url?: string;
+        token?: string;
+        default_sender?: string;
+      };
+    }
+    const traccarSmsConfig = await loadHandlerConfig<TraccarSmsConfigFile>('traccar-sms');
+    if (
+      traccarSmsConfig?.traccar_sms?.enabled !== false &&
+      traccarSmsConfig?.traccar_sms?.gateway_url &&
+      traccarSmsConfig?.traccar_sms?.token
+    ) {
+      const traccarSmsOptions: TraccarSmsHandlerOptions = {
+        gatewayUrl: traccarSmsConfig.traccar_sms.gateway_url,
+        token: traccarSmsConfig.traccar_sms.token,
+        defaultSender: traccarSmsConfig.traccar_sms.default_sender,
+      };
+
+      state.handlers.traccarSms = new TraccarSmsHandler(traccarSmsOptions);
+      await state.handlers.traccarSms.initialize();
+      state.workflowEngine.registerHandler('traccar_sms', state.handlers.traccarSms);
+      logger.info('Traccar SMS handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Traccar SMS handler not configured, skipping');
+  }
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1402,6 +1435,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.i2c) {
       await appState.handlers.i2c.shutdown();
+    }
+    if (appState.handlers.traccarSms) {
+      await appState.handlers.traccarSms.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
