@@ -311,4 +311,19 @@ Simple web dashboard to visualize workflow executions and job status from the SQ
 - Optional: basic auth or API key for remote access
 - No sensitive data exposed (no message content, just metadata)
 
+#### Configuration
+
+```yaml
+# config/config.yml
+dashboard:
+  enabled: true
+  port: 3000        # Auto-increment if port taken (3001, 3002, etc.)
+  host: "127.0.0.1" # localhost only by default
+  # host: "0.0.0.0" # expose to network (use with auth)
+  auth:
+    enabled: false
+    username: "admin"
+    password: ${DASHBOARD_PASSWORD}
+```
+
 ---
