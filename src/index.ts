@@ -2,6 +2,7 @@ import { loadConfig, loadHandlerConfig } from './config/loader.js';
 import { logger } from './persistence/logger.js';
 import { initDatabase, getDatabase } from './persistence/database.js';
 import { RelayManager } from './relay/manager.js';
+import { RelayDiscovery } from './relay/discovery.js';
 import { NostrListener } from './inbound/nostr-listener.js';
 import { WebhookServer, type WebhookServerConfig, type WebhookEvent } from './inbound/webhook-server.js';
 import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from './inbound/api-poller.js';
@@ -45,6 +46,8 @@ interface AppState {
   relayManager: RelayManager;
   nostrListener: NostrListener;
   workflowEngine: WorkflowEngine;
+  // Relay discovery
+  relayDiscovery?: RelayDiscovery | undefined;
   // Inbound handlers
   webhookServer?: WebhookServer;
   apiPoller?: ApiPollerManager;
@@ -1236,6 +1239,32 @@ async function main(): Promise<void> {
     });
     await relayManager.initialize();
 
+    // Initialize relay discovery (if enabled)
+    let relayDiscovery: RelayDiscovery | undefined;
+    if (config.relays.discovery?.enabled) {
+      const discoveryConfig = config.relays.discovery;
+      relayDiscovery = new RelayDiscovery(
+        {
+          enabled: discoveryConfig.enabled,
+          ...(discoveryConfig.sources && { sources: discoveryConfig.sources }),
+          ...(discoveryConfig.max_relays && { max_relays: discoveryConfig.max_relays }),
+          ...(discoveryConfig.refresh_interval && { refresh_interval: discoveryConfig.refresh_interval }),
+        },
+        config.relays.blacklist ?? []
+      );
+      relayDiscovery.setRelayManager(relayManager);
+
+      // Initial discovery
+      const result = await relayDiscovery.discoverRelays();
+      logger.info(
+        { discovered: result.discovered, added: result.added },
+        'Initial relay discovery completed'
+      );
+
+      // Start auto-discovery
+      relayDiscovery.startAutoDiscovery();
+    }
+
     // Initialize workflow engine
     const workflowEngine = new WorkflowEngine({
       whitelistNpubs: config.whitelist.npubs ?? [],
@@ -1266,23 +1295,25 @@ async function main(): Promise<void> {
     );
 
     // Build app state
-    appState = {
+    const state: AppState = {
       config,
       relayManager,
       nostrListener,
       workflowEngine,
+      relayDiscovery,
       handlers: {
         http: undefined as unknown as HttpHandler,
         nostrDm: undefined as unknown as NostrDmHandler,
         nostrNote: undefined as unknown as NostrNoteHandler,
       },
     };
+    appState = state;
 
     // Initialize handlers
-    await initializeHandlers(appState, privateKey);
+    await initializeHandlers(state, privateKey);
 
     // Initialize inbound handlers
-    await initializeInboundHandlers(appState, workflowEngine);
+    await initializeInboundHandlers(state, workflowEngine);
 
     // Connect listener to workflow engine
     nostrListener.onEvent(async (event) => {
@@ -1340,6 +1371,11 @@ async function shutdown(): Promise<void> {
   logger.info('Shutting down PipeliNostr...');
 
   if (appState) {
+    // Stop relay discovery
+    if (appState.relayDiscovery) {
+      appState.relayDiscovery.stopAutoDiscovery();
+    }
+
     // Shutdown inbound handlers
     if (appState.webhookServer) {
       await appState.webhookServer.shutdown();

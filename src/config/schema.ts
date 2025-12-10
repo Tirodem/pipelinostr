@@ -21,6 +21,7 @@ export interface PipelinostrConfig {
       enabled: boolean;
       sources?: string[];
       max_relays?: number;
+      refresh_interval?: number;
       auto_add_from_events?: boolean;
     };
     quarantine?: {
@@ -121,6 +122,7 @@ const configSchema = {
             enabled: { type: 'boolean' },
             sources: { type: 'array', items: { type: 'string' } },
             max_relays: { type: 'integer' },
+            refresh_interval: { type: 'integer' },
             auto_add_from_events: { type: 'boolean' },
           },
           required: ['enabled'],

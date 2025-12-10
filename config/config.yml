@@ -22,6 +22,14 @@ relays:
 
   blacklist: []
 
+  # Decouverte automatique de relays via nostr.watch
+  discovery:
+    enabled: true                 # true = auto, false = manuel
+    sources:
+      - "https://api.nostr.watch/v1/public"
+    max_relays: 10                # Nombre max de relays a ajouter
+    refresh_interval: 3600        # Intervalle en secondes (1h par defaut)
+
   quarantine:
     enabled: true
     thresholds:

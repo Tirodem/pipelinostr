@@ -321,6 +321,28 @@ export class RelayManager {
       .map(([url]) => url);
   }
 
+  // Add a relay at runtime (used by discovery)
+  async addRelay(url: string): Promise<boolean> {
+    if (this.isBlacklisted(url)) {
+      logger.warn({ url }, 'Cannot add blacklisted relay');
+      return false;
+    }
+
+    if (this.relays.has(url) && this.relays.get(url)?.status === 'connected') {
+      logger.debug({ url }, 'Relay already connected');
+      return true;
+    }
+
+    try {
+      await this.connectToRelay(url);
+      return this.relays.get(url)?.status === 'connected';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ url, error: errorMessage }, 'Failed to add relay');
+      return false;
+    }
+  }
+
   // Shutdown
   async shutdown(): Promise<void> {
     logger.info('Shutting down relay manager');
