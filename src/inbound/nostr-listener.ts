@@ -53,7 +53,7 @@ export interface NostrListenerConfig {
   // Additional npubs to monitor for incoming zaps (kind 9735).
   // PipeliNostr always listens to zaps for its own pubkey.
   // Add other npubs here to also receive their zap notifications.
-  zapRecipients?: string[];
+  zapRecipients?: string[] | undefined;
 }
 
 export class NostrListener {

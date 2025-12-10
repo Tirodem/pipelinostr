@@ -8,6 +8,7 @@ export interface PipelinostrConfig {
   nostr: {
     private_key?: string;
     private_key_file?: string;
+    zapRecipients?: string[];
   };
   whitelist: {
     enabled: boolean;
@@ -98,6 +99,7 @@ const configSchema = {
       properties: {
         private_key: { type: 'string' },
         private_key_file: { type: 'string' },
+        zapRecipients: { type: 'array', items: { type: 'string' } },
       },
       additionalProperties: false,
     },

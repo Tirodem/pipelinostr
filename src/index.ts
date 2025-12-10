@@ -1326,6 +1326,7 @@ async function main(): Promise<void> {
           enabled: config.whitelist.enabled,
           npubs: config.whitelist.npubs ?? [],
         },
+        zapRecipients: config.nostr.zapRecipients,
       },
       relayManager
     );
