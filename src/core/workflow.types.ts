@@ -17,6 +17,13 @@ export interface WorkflowFilter {
 
   // Regex pattern with named capture groups
   content_pattern?: string;
+
+  // Zap-specific filters (for kind 9735)
+  // Listen to zaps received by these npubs
+  zap_recipients?: string[];
+
+  // Minimum zap amount in sats
+  zap_min_amount?: number;
 }
 
 export interface WorkflowTrigger {
@@ -68,6 +75,28 @@ export interface WorkflowDefinition {
 
 // Runtime context types
 
+export interface ZapContext {
+  // Amount in sats
+  amount: number;
+
+  // Sender info
+  sender: string;       // npub
+  sender_pubkey: string; // hex
+
+  // Recipient info
+  recipient: string;    // npub
+  recipient_pubkey: string; // hex
+
+  // Zap comment/message
+  message: string;
+
+  // Event that was zapped (if any)
+  zapped_event_id?: string | undefined;
+
+  // Bolt11 invoice
+  bolt11: string;
+}
+
 export interface TriggerContext {
   // Event metadata
   from: string;        // npub
@@ -76,6 +105,9 @@ export interface TriggerContext {
   kind: number;
   timestamp: number;
   relayUrl: string;
+
+  // Zap-specific context (only for kind 9735)
+  zap?: ZapContext | undefined;
 
   // Full event
   event: {

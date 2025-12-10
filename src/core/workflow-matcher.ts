@@ -1,7 +1,8 @@
 import { logger } from '../persistence/logger.js';
 import { npubToHex } from '../utils/crypto.js';
+import { parseZapReceipt, type ParsedZap } from '../utils/zap-parser.js';
 import type { ProcessedEvent } from '../inbound/nostr-listener.js';
-import type { WorkflowDefinition, WorkflowFilter, MatchResult, TriggerContext } from './workflow.types.js';
+import type { WorkflowDefinition, WorkflowFilter, MatchResult, TriggerContext, ZapContext } from './workflow.types.js';
 
 export class WorkflowMatcher {
   private whitelistHex: Set<string>;
@@ -44,6 +45,32 @@ export class WorkflowMatcher {
     const results: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> = [];
     const content = event.decryptedContent ?? event.rawContent;
 
+    // Parse zap if kind 9735
+    let zapContext: ZapContext | undefined;
+    let parsedZap: ParsedZap | null = null;
+    if (event.kind === 9735) {
+      parsedZap = parseZapReceipt({
+        id: event.id,
+        pubkey: event.pubkey,
+        kind: event.kind,
+        created_at: event.created_at,
+        tags: event.tags,
+        content: event.rawContent,
+      });
+      if (parsedZap) {
+        zapContext = {
+          amount: parsedZap.amount,
+          sender: parsedZap.sender.npub,
+          sender_pubkey: parsedZap.sender.pubkey,
+          recipient: parsedZap.recipient.npub,
+          recipient_pubkey: parsedZap.recipient.pubkey,
+          message: parsedZap.message,
+          zapped_event_id: parsedZap.zappedEventId,
+          bolt11: parsedZap.bolt11,
+        };
+      }
+    }
+
     const triggerContext: TriggerContext = {
       from: event.pubkeyNpub,
       pubkey: event.pubkey,
@@ -51,6 +78,7 @@ export class WorkflowMatcher {
       kind: event.kind,
       timestamp: event.created_at,
       relayUrl: event.relayUrl,
+      zap: zapContext,
       event: {
         id: event.id,
         pubkey: event.pubkey,
@@ -66,7 +94,7 @@ export class WorkflowMatcher {
       if (!workflow.enabled) continue;
       if (workflow.trigger.type !== 'nostr_event') continue;
 
-      const matchResult = this.matchWorkflow(event, workflow, content);
+      const matchResult = this.matchWorkflow(event, workflow, content, parsedZap);
 
       if (matchResult.matched) {
         results.push({
@@ -93,7 +121,8 @@ export class WorkflowMatcher {
   private matchWorkflow(
     event: ProcessedEvent,
     workflow: WorkflowDefinition,
-    content: string
+    content: string,
+    parsedZap: ParsedZap | null
   ): MatchResult {
     const filters = workflow.trigger.filters;
     if (!filters) {
@@ -129,6 +158,35 @@ export class WorkflowMatcher {
 
       if (!allowedHex.has(event.pubkey)) {
         return { matched: false, groups: {} };
+      }
+    }
+
+    // Zap-specific filters (only for kind 9735)
+    if (event.kind === 9735) {
+      // Check zap_recipients filter
+      if (filters.zap_recipients && filters.zap_recipients.length > 0) {
+        if (!parsedZap) {
+          return { matched: false, groups: {} };
+        }
+        const recipientHexSet = new Set(
+          filters.zap_recipients.map((npub) => {
+            try {
+              return npubToHex(npub);
+            } catch {
+              return null;
+            }
+          }).filter((hex): hex is string => hex !== null)
+        );
+        if (!recipientHexSet.has(parsedZap.recipient.pubkey)) {
+          return { matched: false, groups: {} };
+        }
+      }
+
+      // Check zap_min_amount filter
+      if (filters.zap_min_amount !== undefined && filters.zap_min_amount > 0) {
+        if (!parsedZap || parsedZap.amount < filters.zap_min_amount) {
+          return { matched: false, groups: {} };
+        }
       }
     }
 

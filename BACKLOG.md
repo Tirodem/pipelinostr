@@ -5,7 +5,7 @@
 ### Dynamic Relay Discovery from nostr.watch
 
 **Priority:** Low
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
@@ -331,7 +331,7 @@ dashboard:
 ### Nostr Zap Listener
 
 **Priority:** Medium
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
@@ -503,7 +503,7 @@ twitch:
 ### Calendar Invite via Email (iCal)
 
 **Priority:** Medium
-**Status:** In Progress
+**Status:** DONE
 
 #### Description
 

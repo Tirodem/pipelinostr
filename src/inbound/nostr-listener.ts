@@ -50,6 +50,8 @@ export interface NostrListenerConfig {
   since?: number;
   // Process historical events (default: false - only new events)
   processHistorical?: boolean;
+  // Listen to zaps (kind 9735) for these npubs. If empty, listen to zaps for our pubkey only.
+  zapRecipients?: string[];
 }
 
 export class NostrListener {
@@ -165,6 +167,37 @@ export class NostrListener {
         '#p': [myPubkey],
       });
     }
+
+    // Zap receipts (kind 9735) - can listen to zaps for any npub
+    const zapPubkeys: string[] = [];
+
+    // Always listen to zaps for our pubkey
+    zapPubkeys.push(myPubkey);
+
+    // Add configured zap recipients
+    if (this.config.zapRecipients && this.config.zapRecipients.length > 0) {
+      for (const npub of this.config.zapRecipients) {
+        try {
+          const hex = npubToHex(npub);
+          if (!zapPubkeys.includes(hex)) {
+            zapPubkeys.push(hex);
+          }
+        } catch {
+          logger.warn({ npub }, 'Invalid npub in zapRecipients');
+        }
+      }
+    }
+
+    // Subscribe to zap receipts for all configured pubkeys
+    filters.push({
+      kinds: [9735],
+      '#p': zapPubkeys,
+    });
+
+    logger.debug(
+      { zapPubkeysCount: zapPubkeys.length },
+      'Subscribed to zap receipts'
+    );
 
     return filters;
   }
