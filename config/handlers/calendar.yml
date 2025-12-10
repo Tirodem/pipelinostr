@@ -1,0 +1,24 @@
+# Calendar Handler - Send calendar invitations via email
+# Uses SMTP to send ICS calendar invites
+
+calendar:
+  enabled: false
+
+  # SMTP Configuration (same as email handler)
+  host: "smtp.example.com"
+  port: 587
+  secure: false
+
+  auth:
+    user: "your-email@example.com"
+    pass: ${SMTP_PASSWORD}
+
+  # From address for invitations
+  from:
+    name: "PipeliNostr Calendar"
+    address: "calendar@example.com"
+
+  # Organizer info (shown in calendar apps)
+  organizer:
+    name: "PipeliNostr"
+    email: "calendar@example.com"

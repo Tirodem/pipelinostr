@@ -39,6 +39,7 @@ import { BleHandler } from './outbound/ble.handler.js';
 import { UsbHidHandler } from './outbound/usb-hid.handler.js';
 import { I2cHandler } from './outbound/i2c.handler.js';
 import { TraccarSmsHandler, type TraccarSmsHandlerOptions } from './outbound/traccar-sms.handler.js';
+import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calendar.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -86,6 +87,7 @@ interface AppState {
     usbHid?: UsbHidHandler;
     i2c?: I2cHandler;
     traccarSms?: TraccarSmsHandler;
+    calendar?: CalendarHandler;
   };
 }
 
@@ -1053,6 +1055,40 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('Traccar SMS handler not configured, skipping');
   }
+
+  // Calendar Handler
+  try {
+    const calendarConfig = await loadHandlerConfig<{
+      calendar: {
+        enabled: boolean;
+        host: string;
+        port: number;
+        secure?: boolean;
+        auth: { user: string; pass: string };
+        from?: { name?: string; address: string };
+        organizer?: { name?: string; email: string };
+      };
+    }>('calendar');
+
+    if (calendarConfig?.calendar?.enabled) {
+      const cal = calendarConfig.calendar;
+      const calendarOptions: CalendarHandlerOptions = {
+        host: cal.host,
+        port: cal.port,
+        secure: cal.secure,
+        auth: cal.auth,
+        from: cal.from,
+        organizer: cal.organizer,
+      };
+
+      state.handlers.calendar = new CalendarHandler(calendarOptions);
+      await state.handlers.calendar.initialize();
+      state.workflowEngine.registerHandler('calendar', state.handlers.calendar);
+      logger.info('Calendar handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Calendar handler not configured, skipping');
+  }
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1474,6 +1510,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.traccarSms) {
       await appState.handlers.traccarSms.shutdown();
+    }
+    if (appState.handlers.calendar) {
+      await appState.handlers.calendar.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
