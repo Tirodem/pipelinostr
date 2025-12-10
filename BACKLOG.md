@@ -104,5 +104,147 @@ Create example workflow templates for each handler in `examples/workflows/`.
 - All templates should use `trigger.type: nostr_event` with `kinds: [4]` and `from_whitelist: true`
 - Include comments explaining prerequisites and configuration
 - Document available template variables
+- **Convention:** Use workflow ID prefix in DM to target specific workflow
+  - Example: `[telegram] Hello world` triggers `nostr-to-telegram.yml`
+  - Pattern: `content_pattern: "^\\[telegram\\]\\s*(?<message>.+)"`
+
+---
+
+### Meta-Workflows (Workflow Orchestration)
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Implement meta-workflows that can orchestrate multiple workflows as steps, with parallel or sequential execution.
+
+#### Use Case
+
+Complex automation scenarios like:
+- Send notification to Slack AND Telegram simultaneously (parallel)
+- Create GitHub issue, then post link to Discord (sequential)
+- Fan-out: notify multiple channels from a single DM
+- Conditional branching based on previous step results
+
+#### Proposed Syntax
+
+```yaml
+id: multi-notify
+name: Multi-Channel Notification
+enabled: true
+type: meta  # New workflow type
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    content_pattern: "^\\[broadcast\\]\\s*(?<message>.+)"
+
+steps:
+  # Parallel execution
+  - parallel:
+      - workflow: slack-forward
+        params:
+          message: "{{ match.message }}"
+      - workflow: telegram-forward
+        params:
+          message: "{{ match.message }}"
+      - workflow: discord-forward
+        params:
+          message: "{{ match.message }}"
+
+  # Sequential execution
+  - sequence:
+      - workflow: github-create-issue
+        id: issue
+        params:
+          title: "From Nostr: {{ match.message | truncate:50 }}"
+      - workflow: slack-notify
+        params:
+          message: "Issue created: {{ steps.issue.result.url }}"
+        when: "{{ steps.issue.success }}"
+```
+
+#### Implementation Notes
+
+- New `type: meta` for orchestration workflows
+- `parallel:` block executes all workflows concurrently
+- `sequence:` block executes workflows in order
+- Access previous step results via `steps.<id>.result`
+- Conditional execution with `when:`
+
+---
+
+### Hardware Testing Protocol
+
+**Priority:** High
+**Status:** Proposed
+
+#### Description
+
+Define a testing protocol to validate PipeliNostr with hardware handlers.
+
+#### Recommended Test Setup
+
+**Option 1: Raspberry Pi + Arduino (Most Complete)**
+
+| Handler | Hardware | Test Case |
+|---------|----------|-----------|
+| GPIO | Raspberry Pi 4/5 | Toggle LED via DM: `[gpio] pin:17 state:high` |
+| I2C | RPi + BME280 sensor | Read temp/humidity, send to Nostr |
+| Serial | Arduino Uno (USB) | Send command, receive response |
+| MQTT | Mosquitto on RPi | Pub/sub test with local broker |
+| BLE | RPi + BLE device | Scan and send characteristic |
+
+**Option 2: ESP32 Only (Minimal)**
+
+| Handler | Hardware | Test Case |
+|---------|----------|-----------|
+| Serial | ESP32 via USB | Bidirectional serial communication |
+| MQTT | ESP32 + WiFi | Connect to public broker (test.mosquitto.org) |
+| BLE | ESP32 built-in | Advertise/scan BLE services |
+
+**Option 3: Software Simulation (No Hardware)**
+
+| Handler | Tool | Test Case |
+|---------|------|-----------|
+| Serial | `socat` virtual ports | `socat -d -d pty,raw,echo=0 pty,raw,echo=0` |
+| MQTT | Mosquitto Docker | `docker run -p 1883:1883 eclipse-mosquitto` |
+| GPIO | `gpio-mock` npm package | Simulated GPIO for testing |
+
+#### Test Scenarios
+
+1. **Nostr DM → GPIO LED**
+   - Send: `[gpio] on`
+   - Expected: LED turns on, confirmation sent back
+
+2. **Nostr DM → Serial → Arduino**
+   - Send: `[serial] PING`
+   - Expected: Arduino responds `PONG`, forwarded to Zulip
+
+3. **MQTT Sensor → Nostr Note**
+   - Publish temp reading to MQTT topic
+   - Expected: PipeliNostr publishes Nostr note with reading
+
+4. **Scheduled I2C Read**
+   - Cron: every 5 minutes
+   - Expected: Read BME280, store in database
+
+#### Recommended Hardware Shopping List
+
+**Budget (~50€):**
+- Raspberry Pi Zero 2 W (~20€)
+- BME280 sensor module (~5€)
+- LED + resistors (~2€)
+- Breadboard + wires (~5€)
+
+**Full Setup (~100€):**
+- Raspberry Pi 4 2GB (~50€)
+- Arduino Nano (~10€)
+- BME280 + other I2C sensors (~15€)
+- ESP32 DevKit (~10€)
+- LED, relay module, breadboard (~15€)
 
 ---
