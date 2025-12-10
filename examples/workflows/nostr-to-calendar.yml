@@ -1,0 +1,41 @@
+# Send Calendar Invitation via Nostr DM
+#
+# Usage: Send a DM with format:
+#   Invite alice@example.com: Meeting title @ 2025-12-15 14:00 (1h) @ Location
+#
+# Examples:
+#   Invite bob@company.com: Weekly sync @ 2025-12-20 09:00 (30m)
+#   Invite alice@example.com: Project review @ 2025-12-15 14:00 (1h30m) @ Room B12
+#   Invite a@x.com, b@x.com: Team standup @ 2025-12-16 10:00 (15m) @ https://meet.google.com/xxx
+#
+# Duration formats:
+#   30m    = 30 minutes
+#   1h     = 1 hour
+#   1h30m  = 1 hour 30 minutes
+#   2h     = 2 hours
+#
+# Prerequisites:
+# - Calendar handler enabled in config/handlers/calendar.yml
+# - SMTP_PASSWORD set in .env
+# - Sender npub in whitelist (config/config.yml)
+
+id: calendar-invite
+name: Send Calendar Invite via DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    content_pattern: "^[Ii]nvite\\s+(?<to>[^:]+):\\s*(?<title>[^@]+)@\\s*(?<start>\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2})\\s*\\((?<duration>[^)]+)\\)(?:\\s*@\\s*(?<location>.+))?$"
+
+actions:
+  - id: send_invite
+    type: calendar
+    config:
+      to: "{{ match.to | trim }}"
+      title: "{{ match.title | trim }}"
+      start: "{{ match.start | trim }}"
+      duration: "{{ match.duration | trim }}"
+      location: "{{ match.location | trim }}"

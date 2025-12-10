@@ -1,0 +1,31 @@
+# Send SMS via Nostr DM command (Traccar SMS Gateway)
+#
+# Usage: Send a DM with format:
+#   Send SMS to +33612345678: Your message here
+#   Send SMS to +33612345678,+33698765432: Multi-recipient message
+#
+# Prerequisites:
+# - Traccar SMS handler enabled in config/handlers/traccar-sms.yml
+# - TRACCAR_SMS_TOKEN set in .env
+# - Traccar SMS Gateway app installed on Android phone
+# - Sender npub in whitelist (config/config.yml)
+#
+# API docs: https://www.traccar.org/sms-gateway/
+
+id: sms-command
+name: Send SMS via DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    content_pattern: "^[Ss]end [Ss][Mm][Ss] to (?<to>[^:]+):\\s*(?<message>.+)"
+
+actions:
+  - id: send_sms
+    type: traccar_sms
+    config:
+      to: "{{ match.to | trim }}"
+      message: "{{ match.message }}"

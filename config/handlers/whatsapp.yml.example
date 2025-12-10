@@ -1,8 +1,15 @@
+# =============================================================================
+# DEPRECATED: WhatsApp handler is temporarily disabled due to security
+# vulnerabilities in whatsapp-web.js dependencies (puppeteer).
+# Will be re-enabled when upstream fixes are available.
+# To use: npm install whatsapp-web.js (at your own risk)
+# =============================================================================
+
 # Configuration WhatsApp Handler
 # Utilise whatsapp-web.js (connexion via WhatsApp Web)
 
 whatsapp:
-  enabled: true
+  enabled: false  # Disabled by default - see deprecation notice above
 
   # Répertoire de session (pour persistance de l'auth)
   # Après le premier scan du QR code, la session est sauvegardée

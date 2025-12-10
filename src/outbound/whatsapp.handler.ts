@@ -1,3 +1,10 @@
+// =============================================================================
+// DEPRECATED: WhatsApp handler is temporarily disabled due to security
+// vulnerabilities in whatsapp-web.js dependencies (puppeteer).
+// See: https://github.com/nickvidal/whatsapp-web.js/issues
+// Will be re-enabled when upstream fixes are available.
+// =============================================================================
+
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -50,7 +57,19 @@ export class WhatsAppHandler extends EventEmitter implements Handler {
     }
 
     // Dynamically import whatsapp-web.js to avoid loading if not needed
-    const { Client, LocalAuth } = await import('whatsapp-web.js');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let whatsappModule: any;
+    try {
+      // Use dynamic import with variable to avoid TypeScript checking the module
+      const moduleName = 'whatsapp-web.js';
+      whatsappModule = await import(/* webpackIgnore: true */ moduleName);
+    } catch {
+      throw new Error(
+        'WhatsApp handler is DEPRECATED due to security vulnerabilities. ' +
+        'If you still want to use it, install manually: npm install whatsapp-web.js'
+      );
+    }
+    const { Client, LocalAuth } = whatsappModule;
 
     const puppeteerArgs = this.options.puppeteerArgs ?? [
       '--no-sandbox',
@@ -70,7 +89,7 @@ export class WhatsAppHandler extends EventEmitter implements Handler {
         headless: this.options.headless ?? true,
         args: puppeteerArgs,
       },
-    }) as unknown as WhatsAppClient;
+    }) as WhatsAppClient;
 
     // Set up event handlers
     this.initPromise = new Promise<void>((resolveInit, rejectInit) => {

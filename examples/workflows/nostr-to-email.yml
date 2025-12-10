@@ -1,0 +1,40 @@
+# Send email via Nostr DM command
+#
+# Usage: Send a DM with format:
+#   Send email to recipient@example.com: Your message here
+#   Send email to email1@test.com,email2@test.com: Multi-recipient message
+#
+# Prerequisites:
+# - Email handler enabled in config/handlers/email.yml
+# - SMTP_PASSWORD set in .env
+# - Sender npub in whitelist (config/config.yml)
+
+id: email-command
+name: Send Email via DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    content_pattern: "^[Ss]end email to (?<to>[^:]+):\\s*(?<message>.+)"
+
+actions:
+  - id: send_email
+    type: email
+    config:
+      to: "{{ match.to | trim }}"
+      subject: "Message from Nostr"
+      body: "{{ match.message }}"
+      html: |
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Message from Nostr</h2>
+          <p>{{ match.message }}</p>
+          <hr style="margin-top: 30px;">
+          <p style="color: #666; font-size: 12px;">
+            Sent via PipeliNostr from {{ trigger.from }}
+          </p>
+        </body>
+        </html>
