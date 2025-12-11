@@ -41,10 +41,10 @@ actions:
       method: GET
       timeout_ms: 15000
 
-  # Step 2: Reply with transaction details (success case)
-  - id: reply_success
+  # Step 2a: Reply for CONFIRMED transactions
+  - id: reply_confirmed
     type: nostr_dm
-    when: "actions.lookup_tx.success == true"
+    when: "actions.lookup_tx.success == true && actions.lookup_tx.response.body.status.confirmed == true"
     config:
       to: "{{ trigger.from }}"
       content: |
@@ -57,8 +57,29 @@ actions:
         Fee: {{ actions.lookup_tx.response.body.fee | number }} sats
         Size: {{ actions.lookup_tx.response.body.size }} vB
 
+        Status: Confirmed
         Block: {{ actions.lookup_tx.response.body.status.block_height | number }}
         Date: {{ actions.lookup_tx.response.body.status.block_time | date_short }}
+
+        https://mempool.space/tx/{{ match.txid }}
+
+  # Step 2b: Reply for PENDING transactions
+  - id: reply_pending
+    type: nostr_dm
+    when: "actions.lookup_tx.success == true && actions.lookup_tx.response.body.status.confirmed == false"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        TX {{ match.txid | truncate:12 }}
+
+        From: {{ actions.lookup_tx.response.body.vin[0].prevout.scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.body.vin | length }} inputs)
+        To: {{ actions.lookup_tx.response.body.vout[0].scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.body.vout | length }} outputs)
+        Amount: {{ actions.lookup_tx.response.body.vout[0].value | sats_to_btc }} BTC
+
+        Fee: {{ actions.lookup_tx.response.body.fee | number }} sats
+        Size: {{ actions.lookup_tx.response.body.size }} vB
+
+        Status: Pending (unconfirmed)
 
         https://mempool.space/tx/{{ match.txid }}
 
@@ -77,7 +98,7 @@ actions:
 # Example usage:
 # Send DM: "mempool: 15e10745f15593a899cef391191bdd3d7c12412cc4696b7bcb669d0feadc8521"
 #
-# Response:
+# Response (confirmed):
 # TX 15e10745f155...
 #
 # From: 157HqdxdT8dx... (5 inputs)
@@ -87,7 +108,22 @@ actions:
 # Fee: 20,000 sats
 # Size: 816 vB
 #
+# Status: Confirmed
 # Block: 363,348
 # Date: 2015-07-01 15:24
 #
-# https://mempool.space/tx/15e10745f15593a899cef391191bdd3d7c12412cc4696b7bcb669d0feadc8521
+# https://mempool.space/tx/...
+#
+# Response (pending):
+# TX 7fac7e266a13...
+#
+# From: bc1q78xnulpv... (1 inputs)
+# To: 3AnYpxNHnT3T... (2 outputs)
+# Amount: 0.00334672 BTC
+#
+# Fee: 564 sats
+# Size: 224 vB
+#
+# Status: Pending (unconfirmed)
+#
+# https://mempool.space/tx/...
