@@ -542,6 +542,13 @@ async function initializeHandlers(
       };
     }
     const mongodbConfig = await loadHandlerConfig<MongoDbConfigFile>('mongodb');
+    logger.debug({
+      hasConfig: !!mongodbConfig,
+      hasMongodbSection: !!mongodbConfig?.mongodb,
+      enabled: mongodbConfig?.mongodb?.enabled,
+      hasConnectionString: !!mongodbConfig?.mongodb?.connection_string,
+      connectionStringValue: mongodbConfig?.mongodb?.connection_string ? '[REDACTED]' : 'undefined'
+    }, 'MongoDB config debug');
     if (
       mongodbConfig?.mongodb?.enabled !== false &&
       mongodbConfig?.mongodb?.connection_string
