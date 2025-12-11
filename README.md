@@ -408,6 +408,10 @@ src/
     └── retry.ts          # Logique de retry
 ```
 
+## Documentation
+
+- [Self-Hosted Hardware Guide](docs/self-hosted-hardware.md) - Choisir le matériel pour héberger PipeliNostr localement (Raspberry Pi, Mini PC, etc.)
+
 ## Licence
 
 MIT

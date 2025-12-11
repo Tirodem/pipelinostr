@@ -671,7 +671,7 @@ Identify hardware devices that can be controlled via PipeliNostr workflows.
 ### Minimal Hardware for Self-Hosted PipeliNostr
 
 **Priority:** Medium
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
