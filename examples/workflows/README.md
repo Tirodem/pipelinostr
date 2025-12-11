@@ -24,6 +24,7 @@ Then restart PipeliNostr to load the new workflow.
 | `zap-notification.yml` | Get notified when receiving zaps |
 | `dm-to-mastodon.yml` | Post to Mastodon via Nostr DM |
 | `dm-to-bluesky.yml` | Post to Bluesky via Nostr DM |
+| `dm-to-mongodb.yml` | Track events to MongoDB via Nostr DM |
 
 ## Template Variables
 

@@ -18,6 +18,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `nostr-to-sms.yml` | DM vers SMS (via Traccar) |
 | `dm-to-mastodon.yml` | DM vers post Mastodon public |
 | `dm-to-bluesky.yml` | DM vers post Bluesky |
+| `dm-to-mongodb.yml` | DM vers MongoDB (event tracking) |
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash
