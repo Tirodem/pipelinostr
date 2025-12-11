@@ -58,18 +58,21 @@ export class BlueskyHandler implements Handler {
     }
 
     const params = config as BlueskyActionConfig;
-    const event = context.event as {
-      id: string;
-      pubkey: string;
-      kind: number;
-      created_at: number;
-      content: string;
-    };
-    const transformedContent = (context.transformedContent as string) || event.content;
 
     try {
-      // Utiliser le texte fourni ou le contenu transformé
-      const text = params.text || transformedContent;
+      // Utiliser le texte fourni, ou le contenu transformé, ou le contenu de l'événement
+      let text = params.text;
+      if (!text) {
+        text = context.transformedContent as string;
+      }
+      if (!text) {
+        const event = context.event as { content?: string } | undefined;
+        text = event?.content ?? '';
+      }
+
+      if (!text) {
+        return { success: false, error: 'Missing required field: text' };
+      }
 
       // Créer le RichText pour détecter mentions, liens, hashtags
       const rt = new RichText({ text });
