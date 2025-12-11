@@ -557,7 +557,8 @@ async function initializeHandlers(
       logger.info('MongoDB handler enabled');
     }
   } catch (error) {
-    logger.debug('MongoDB handler not configured, skipping');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn({ error: errorMessage }, 'MongoDB handler failed to initialize');
   }
 
   // MySQL Handler (optional, needs config)
