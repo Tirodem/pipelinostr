@@ -1,0 +1,58 @@
+# Lookup Bitcoin transaction on mempool.space and reply with details
+#
+# This workflow:
+# 1. Receives a DM with "mempool: <txid>"
+# 2. Calls mempool.space API to get transaction details
+# 3. Replies to sender with formatted transaction info
+#
+# No configuration required - uses public mempool.space API
+
+id: mempool-tx-lookup
+name: Mempool Transaction Lookup
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    content_pattern: "^[Mm]empool:\\s*(?<txid>[a-fA-F0-9]{64})$"
+
+actions:
+  # Step 1: Call mempool.space API
+  - id: lookup_tx
+    type: http
+    config:
+      url: "https://mempool.space/api/tx/{{ match.txid }}"
+      method: GET
+      timeout_ms: 15000
+
+  # Step 2: Reply with transaction details (success case)
+  - id: reply_success
+    type: nostr_dm
+    when: "actions.lookup_tx.success == true"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        TX {{ match.txid | truncate:16 }}
+
+        Fee: {{ actions.lookup_tx.response.body.fee }} sats
+        Size: {{ actions.lookup_tx.response.body.size }} vB
+        Weight: {{ actions.lookup_tx.response.body.weight }} WU
+
+        https://mempool.space/tx/{{ match.txid }}
+
+  # Step 3: Reply with error (failure case)
+  - id: reply_error
+    type: nostr_dm
+    when: "actions.lookup_tx.success == false"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Transaction not found or API error
+
+        TXID: {{ match.txid | truncate:16 }}
+        Error: {{ actions.lookup_tx.error }}
+
+# Example usage:
+# Send DM: "mempool: e3bf3d07d4b0375638d5f1db5255fe07ba2c4cb067cd81b84ee974b6585fb468"
