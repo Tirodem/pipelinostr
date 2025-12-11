@@ -1,0 +1,45 @@
+# API to Nostr DM Workflow
+# Triggered by HTTP API call, sends a Nostr DM with the API content
+#
+# Usage:
+#   curl -X POST https://bebopwizard.pvh-labs.com:3000/api/notify \
+#     -H "Content-Type: application/json" \
+#     -d '{"message": "Hello from API!"}'
+#
+# Configuration:
+#   1. Enable webhook server in config/handlers/webhook.yml
+#   2. Add /api/notify route
+#   3. Set NOTIFY_RECIPIENT_NPUB in this file
+#
+# The webhook body is available in trigger.content as JSON.
+# Structure: {"id":"...","source":"webhook","body":{YOUR_DATA},"path":"/api/notify",...}
+
+id: api-to-nostr-dm
+name: API to Nostr DM
+description: Forward API calls to Nostr DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [20000]  # Webhook events
+
+actions:
+  - id: send_dm
+    type: nostr_dm
+    config:
+      # IMPORTANT: Replace with your recipient npub
+      to: "npub1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      content: |
+        Notification API recue:
+
+        {{ trigger.content }}
+
+        ---
+        Via PipeliNostr API
+
+hooks:
+  on_complete:
+    - workflow_id: zulip-workflow-notification
+  on_fail:
+    - workflow_id: zulip-workflow-notification

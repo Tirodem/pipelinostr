@@ -23,6 +23,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `dm-to-ftp-with-local-storage.yml` | DM vers fichier local + sync FTP |
 | `mempool-tx-lookup.yml` | Lookup TX Bitcoin via mempool.space |
 | `zulip-workflow-notification.yml` | Notification Zulip sur fin de workflow |
+| `api-to-nostr-dm.yml` | Forward appel API HTTP vers Nostr DM |
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash
@@ -312,6 +313,55 @@ config:
   tags:    # optionnel
     - ["t", "hashtag"]
 ```
+
+## API Webhook (Entrante)
+
+PipeliNostr peut recevoir des requêtes HTTP et déclencher des workflows.
+
+### Configuration
+
+1. Activer le webhook dans `config/handlers/webhook.yml` :
+```yaml
+webhook:
+  enabled: true
+  port: 3000
+  host: "0.0.0.0"
+
+  webhooks:
+    - id: "notify"
+      path: "/api/notify"
+      methods: ["POST"]
+```
+
+2. Créer un workflow qui réagit aux webhooks (kind 20000) :
+```yaml
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [20000]  # Webhook events
+```
+
+### Exemple : API vers Nostr DM
+
+Copier le workflow d'exemple :
+```bash
+cp examples/workflows/api-to-nostr-dm.yml config/workflows/
+```
+
+Tester avec curl :
+```bash
+# Exemple avec IP locale
+curl -X POST http://localhost:3000/api/notify \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from API!", "priority": "high"}'
+
+# Exemple sur serveur distant
+curl -X POST https://192.168.1.100:3000/api/notify \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Alert: System check needed"}'
+```
+
+Le contenu JSON est disponible dans `{{ trigger.content }}` du workflow.
 
 ## Scripts npm
 
