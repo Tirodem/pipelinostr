@@ -46,8 +46,8 @@ export class MongoDbHandler implements Handler {
     }
 
     const params = config as MongoDbActionConfig;
-    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string };
-    const transformedContent = (context.transformedContent as string) || event.content;
+    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string } | undefined;
+    const transformedContent = (context.transformedContent as string) || event?.content || '';
 
     const collectionName = params.collection || this.config.default_collection;
     const collection = this.db.collection(collectionName);
@@ -75,11 +75,11 @@ export class MongoDbHandler implements Handler {
   private async insertDocument(
     collection: Collection<Document>,
     collectionName: string,
-    event: { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string },
+    event: { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string } | undefined,
     content: string,
     params: MongoDbActionConfig
   ): Promise<HandlerResult> {
-    const document = params.document || this.buildDefaultDocument(event, content);
+    const document = params.document || (event ? this.buildDefaultDocument(event, content) : { content, received_at: new Date() });
     const result = await collection.insertOne(document as Document);
 
     console.log(`[MongoDB] Document inséré dans ${collectionName}: ${result.insertedId}`);
@@ -97,13 +97,13 @@ export class MongoDbHandler implements Handler {
   private async upsertDocument(
     collection: Collection<Document>,
     collectionName: string,
-    event: { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string },
+    event: { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][]; sig: string } | undefined,
     content: string,
     params: MongoDbActionConfig
   ): Promise<HandlerResult> {
-    const document = params.document || this.buildDefaultDocument(event, content);
+    const document = params.document || (event ? this.buildDefaultDocument(event, content) : { content, received_at: new Date() });
     const upsertKey = params.upsert_key || 'event_id';
-    const filter = { [upsertKey]: (document as Record<string, unknown>)[upsertKey] || event.id };
+    const filter = { [upsertKey]: (document as Record<string, unknown>)[upsertKey] || event?.id || 'unknown' };
 
     const result = await collection.updateOne(
       filter,
@@ -126,10 +126,10 @@ export class MongoDbHandler implements Handler {
   private async updateDocument(
     collection: Collection<Document>,
     collectionName: string,
-    event: { id: string },
+    event: { id: string } | undefined,
     params: MongoDbActionConfig
   ): Promise<HandlerResult> {
-    const filter = params.filter || { event_id: event.id };
+    const filter = params.filter || { event_id: event?.id || 'unknown' };
     const update = params.update_fields || {};
 
     const result = await collection.updateMany(filter, { $set: update });
@@ -149,10 +149,10 @@ export class MongoDbHandler implements Handler {
   private async deleteDocument(
     collection: Collection<Document>,
     collectionName: string,
-    event: { id: string },
+    event: { id: string } | undefined,
     params: MongoDbActionConfig
   ): Promise<HandlerResult> {
-    const filter = params.filter || { event_id: event.id };
+    const filter = params.filter || { event_id: event?.id || 'unknown' };
     const result = await collection.deleteMany(filter);
 
     console.log(`[MongoDB] Documents supprimés dans ${collectionName}: ${result.deletedCount}`);
