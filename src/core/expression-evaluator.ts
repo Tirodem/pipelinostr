@@ -9,12 +9,14 @@ import type { WorkflowContext } from './workflow.types.js';
  * - Comparisons: actions.send-email.success == true
  * - Logical operators: && || !
  * - Nested property access: actions.send-email.response.status
+ * - Array access: actions.lookup.response.body.vin[0].address
  *
  * Examples:
  * - "{{ actions.send-email.success }}"
  * - "actions.send-email.success == true"
  * - "actions.send-email.success && match.to != ''"
  * - "!actions.send-email.error"
+ * - "{{ actions.http.response.body.items[0].name }}"
  */
 
 export class ExpressionEvaluator {
@@ -233,23 +235,71 @@ export class ExpressionEvaluator {
   }
 
   private resolveValue(path: string, context: WorkflowContext): unknown {
-    const parts = path.split('.');
+    // Parse path into segments, handling both dot notation and array access
+    // e.g., "actions.lookup.response.body.vin[0].address" becomes:
+    // ["actions", "lookup", "response", "body", "vin", "[0]", "address"]
+    const segments = this.parsePath(path);
     let current: unknown = context;
 
-    for (const part of parts) {
+    for (const segment of segments) {
       if (current === null || current === undefined) {
         return undefined;
       }
 
-      if (typeof current === 'object') {
-        // Handle hyphenated keys like "send-email"
-        current = (current as Record<string, unknown>)[part];
+      // Check if it's an array index like "[0]" or "[123]"
+      const arrayMatch = segment.match(/^\[(\d+)\]$/);
+      if (arrayMatch) {
+        const index = parseInt(arrayMatch[1] as string, 10);
+        if (Array.isArray(current)) {
+          current = current[index];
+        } else {
+          return undefined;
+        }
+      } else if (typeof current === 'object') {
+        // Handle regular property access (including hyphenated keys like "send-email")
+        current = (current as Record<string, unknown>)[segment];
       } else {
         return undefined;
       }
     }
 
     return current;
+  }
+
+  private parsePath(path: string): string[] {
+    const segments: string[] = [];
+    let current = '';
+
+    for (let i = 0; i < path.length; i++) {
+      const char = path[i] as string;
+
+      if (char === '.') {
+        if (current) {
+          segments.push(current);
+          current = '';
+        }
+      } else if (char === '[') {
+        // Push current segment if exists
+        if (current) {
+          segments.push(current);
+          current = '';
+        }
+        // Find closing bracket and push array index as separate segment
+        const closeIndex = path.indexOf(']', i);
+        if (closeIndex !== -1) {
+          segments.push(path.substring(i, closeIndex + 1));
+          i = closeIndex;
+        }
+      } else {
+        current += char;
+      }
+    }
+
+    if (current) {
+      segments.push(current);
+    }
+
+    return segments;
   }
 
   private applyFilter(value: unknown, filter: string): unknown {
@@ -285,6 +335,34 @@ export class ExpressionEvaluator {
       case 'date': {
         const timestamp = typeof value === 'number' ? value * 1000 : Date.parse(String(value));
         return new Date(timestamp).toISOString();
+      }
+
+      case 'date_short': {
+        // Format: YYYY-MM-DD HH:MM
+        const timestamp = typeof value === 'number' ? value * 1000 : Date.parse(String(value));
+        const d = new Date(timestamp);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+
+      case 'sats_to_btc': {
+        // Convert satoshis to BTC with 8 decimal places
+        const sats = typeof value === 'number' ? value : parseInt(String(value), 10);
+        if (isNaN(sats)) return value;
+        return (sats / 100000000).toFixed(8);
+      }
+
+      case 'number': {
+        // Format number with thousand separators
+        const num = typeof value === 'number' ? value : parseFloat(String(value));
+        if (isNaN(num)) return value;
+        return num.toLocaleString('en-US');
+      }
+
+      case 'length': {
+        // Get array length
+        if (Array.isArray(value)) return value.length;
+        if (typeof value === 'string') return value.length;
+        return 0;
       }
 
       default:

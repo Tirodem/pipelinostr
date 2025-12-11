@@ -60,5 +60,23 @@ Access captured values with `{{ match.arg1 }}`, `{{ match.arg2 }}`, etc.
 | `lower` | Convert to lowercase |
 | `upper` | Convert to uppercase |
 | `truncate:N` | Truncate to N characters |
+| `default:value` | Default value if undefined |
+| `json` | Convert to JSON string |
+| `date` | Format Unix timestamp as ISO date |
+| `date_short` | Format as YYYY-MM-DD HH:MM |
+| `sats_to_btc` | Convert satoshis to BTC (8 decimals) |
+| `number` | Format with thousand separators |
+| `length` | Get array or string length |
 
 Example: `{{ match.to | trim }}`
+
+### Array Access
+
+Access array elements using bracket notation:
+
+```yaml
+content: |
+  First input: {{ actions.http.response.body.items[0].name }}
+  Second output: {{ actions.http.response.body.outputs[1].value }}
+  Total items: {{ actions.http.response.body.items | length }}
+```
