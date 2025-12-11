@@ -1155,22 +1155,37 @@ async function initializeInboundHandlers(
     if (webhookConfig?.webhook?.enabled) {
       state.webhookServer = new WebhookServer(webhookConfig.webhook);
 
-      // Connect to workflow engine
+      // Connect to workflow engine (with or without queue)
       state.webhookServer.onWebhook(async (event: WebhookEvent) => {
-        const processedEvent = createInboundEvent('webhook', event);
-        const results = await workflowEngine.processEvent(processedEvent);
+        if (state.queueEnabled && state.queueWorker) {
+          // Enqueue for async processing
+          const queueId = enqueueWebhookEvent({
+            id: event.id,
+            webhookId: event.webhookId,
+            method: event.method,
+            path: event.path,
+            headers: event.headers as Record<string, string>,
+            body: event.body,
+            timestamp: event.timestamp,
+          });
+          logger.debug({ webhookId: event.webhookId, queueId }, 'Webhook event enqueued');
+        } else {
+          // Process directly (legacy mode)
+          const processedEvent = createInboundEvent('webhook', event);
+          const results = await workflowEngine.processEvent(processedEvent);
 
-        for (const result of results) {
-          if (result.success) {
-            logger.info(
-              { workflowId: result.workflowId, source: 'webhook', webhookId: event.webhookId },
-              'Webhook workflow executed'
-            );
-          } else {
-            logger.error(
-              { workflowId: result.workflowId, error: result.error },
-              'Webhook workflow failed'
-            );
+          for (const result of results) {
+            if (result.success) {
+              logger.info(
+                { workflowId: result.workflowId, source: 'webhook', webhookId: event.webhookId },
+                'Webhook workflow executed'
+              );
+            } else {
+              logger.error(
+                { workflowId: result.workflowId, error: result.error },
+                'Webhook workflow failed'
+              );
+            }
           }
         }
       });
