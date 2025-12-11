@@ -132,6 +132,41 @@ database:
 
 logging:
   level: "info"  # debug, info, warn, error
+
+# Queue (optionnel)
+queue:
+  enabled: true              # Active la file d'attente
+  poll_interval_ms: 1000     # Intervalle de polling
+  concurrency: 1             # Traitement parallèle
+```
+
+## Queue d'événements
+
+La queue permet de :
+- **Fiabilité** : Les événements sont persistés avant traitement
+- **Retry automatique** : Backoff exponentiel en cas d'échec
+- **Replay** : Rejouer des événements échoués ou passés
+- **Audit** : Historique complet de tous les événements
+
+### Cycle de vie
+```
+pending → processing → completed
+                    → failed → (retry) → pending
+                            → dead (après max retries)
+```
+
+### Commandes SQLite utiles
+```bash
+# Voir les événements en queue
+sqlite3 -header -column ./data/pipelinostr.db \
+  "SELECT id, status, retry_count, workflow_id FROM event_queue LIMIT 20;"
+
+# Statistiques
+sqlite3 ./data/pipelinostr.db \
+  "SELECT status, COUNT(*) FROM event_queue GROUP BY status;"
+
+# Rejouer les événements échoués (via l'application)
+# db.replayFailedEvents()
 ```
 
 ## Workflows
