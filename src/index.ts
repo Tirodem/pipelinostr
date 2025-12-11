@@ -532,6 +532,7 @@ async function initializeHandlers(
   }
 
   // MongoDB Handler (optional, needs config)
+  logger.debug('Attempting to load MongoDB config...');
   try {
     interface MongoDbConfigFile {
       mongodb?: {
@@ -542,6 +543,7 @@ async function initializeHandlers(
       };
     }
     const mongodbConfig = await loadHandlerConfig<MongoDbConfigFile>('mongodb');
+    logger.debug({ configLoaded: !!mongodbConfig }, 'MongoDB config loaded');
     logger.debug({
       hasConfig: !!mongodbConfig,
       hasMongodbSection: !!mongodbConfig?.mongodb,
