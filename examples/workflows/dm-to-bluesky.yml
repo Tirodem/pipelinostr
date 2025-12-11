@@ -1,0 +1,41 @@
+# Post to Bluesky via Nostr DM
+#
+# Send a DM with format "Bluesky: your message here" to post on Bluesky.
+#
+# Prerequisites:
+# 1. Create an App Password on Bluesky:
+#    - Settings > Privacy and Security > App Passwords > Add App Password
+# 2. Configure config/handlers/bluesky.yml with your handle
+# 3. Add BLUESKY_APP_PASSWORD to .env
+#
+# Available variables:
+# - trigger.from       : Sender npub
+# - trigger.content    : Full message content
+# - trigger.timestamp  : Unix timestamp
+# - match.message      : Extracted message (after "Bluesky:")
+
+id: dm-to-bluesky
+name: Post to Bluesky via DM
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    # Match "Bluesky: <message>" (case insensitive)
+    content_pattern: "^[Bb]luesky:\\s*(?<message>.+)"
+
+actions:
+  - id: post_bluesky
+    type: bluesky
+    config:
+      text: "(ceci est un message automatique posté depuis un DM Nostr via PipeliNostr)\n\n{{ match.message }}"
+      langs: ["fr"]
+      facets: true    # Auto-detect @mentions, links, #hashtags
+
+# Example usage:
+# Send DM: "Bluesky: Hello world from Nostr! 🦋"
+# Result: Posts on your Bluesky account with auto-detected mentions/links/hashtags
+
+# Note: Bluesky has a 300 character limit (graphemes)

@@ -23,6 +23,7 @@ Then restart PipeliNostr to load the new workflow.
 | `nostr-to-sms.yml` | Send SMS via Nostr DM |
 | `zap-notification.yml` | Get notified when receiving zaps |
 | `dm-to-mastodon.yml` | Post to Mastodon via Nostr DM |
+| `dm-to-bluesky.yml` | Post to Bluesky via Nostr DM |
 
 ## Template Variables
 
