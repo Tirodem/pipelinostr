@@ -38,8 +38,9 @@ actions:
         ---
         Via PipeliNostr API
 
-hooks:
-  on_complete:
-    - workflow_id: zulip-workflow-notification
-  on_fail:
-    - workflow_id: zulip-workflow-notification
+# Optional: uncomment to get notified on workflow completion
+# hooks:
+#   on_complete:
+#     - workflow_id: zulip-workflow-notification
+#   on_fail:
+#     - workflow_id: zulip-workflow-notification
