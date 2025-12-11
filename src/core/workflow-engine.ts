@@ -18,11 +18,22 @@ import type {
   ParentWorkflowInfo,
 } from './workflow.types.js';
 
+// Hook enqueue function type
+export type HookEnqueueFn = (
+  hookType: 'on_start' | 'on_complete' | 'on_fail',
+  parentWorkflowId: string,
+  parentWorkflowName: string,
+  targetWorkflowId: string,
+  context: WorkflowContext,
+  parentInfo: ParentWorkflowInfo
+) => number;
+
 export class WorkflowEngine {
   private loader: WorkflowLoader;
   private matcher: WorkflowMatcher;
   private handlers: Map<string, Handler> = new Map();
   private globalRetryConfig: RetryConfig;
+  private hookEnqueuer?: HookEnqueueFn | undefined;
 
   constructor(options: {
     workflowsDir?: string;
@@ -32,6 +43,11 @@ export class WorkflowEngine {
     this.loader = new WorkflowLoader(options.workflowsDir);
     this.matcher = new WorkflowMatcher(options.whitelistNpubs ?? []);
     this.globalRetryConfig = options.retryConfig ?? defaultRetryConfig;
+  }
+
+  // Set hook enqueuer for queue integration
+  setHookEnqueuer(fn: HookEnqueueFn): void {
+    this.hookEnqueuer = fn;
   }
 
   // Initialize: load workflows
@@ -248,8 +264,6 @@ export class WorkflowEngine {
           continue;
         }
 
-        logger.info({ hookType, parentId: parentWorkflow.id, targetId: hook.workflow_id }, 'Executing hook');
-
         // Build parent info for the child workflow
         const parentInfo: ParentWorkflowInfo = {
           id: parentWorkflow.id,
@@ -261,21 +275,37 @@ export class WorkflowEngine {
           error: executionResult?.error,
         };
 
-        // Create a match result for the child (empty if not passing context)
-        const childMatch: MatchResult = hook.pass_context !== false
-          ? { matched: true, groups: context.match }
-          : { matched: true, groups: {} };
-
-        // Execute the target workflow
-        if (hookType === 'on_start') {
-          // on_start hooks run in parallel (fire and forget)
-          this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo)
-            .catch((error) => {
-              logger.error({ hookType, workflowId: hook.workflow_id, error }, 'Hook workflow failed');
-            });
+        // If hook enqueuer is configured, enqueue instead of executing directly
+        if (this.hookEnqueuer) {
+          const queueId = this.hookEnqueuer(
+            hookType,
+            parentWorkflow.id,
+            parentWorkflow.name,
+            hook.workflow_id,
+            context,
+            parentInfo
+          );
+          logger.info({ hookType, parentId: parentWorkflow.id, targetId: hook.workflow_id, queueId }, 'Hook enqueued');
         } else {
-          // on_complete and on_fail hooks run sequentially
-          await this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo);
+          // Execute directly (no queue)
+          logger.info({ hookType, parentId: parentWorkflow.id, targetId: hook.workflow_id }, 'Executing hook');
+
+          // Create a match result for the child (empty if not passing context)
+          const childMatch: MatchResult = hook.pass_context !== false
+            ? { matched: true, groups: context.match }
+            : { matched: true, groups: {} };
+
+          // Execute the target workflow
+          if (hookType === 'on_start') {
+            // on_start hooks run in parallel (fire and forget)
+            this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo)
+              .catch((error) => {
+                logger.error({ hookType, workflowId: hook.workflow_id, error }, 'Hook workflow failed');
+              });
+          } else {
+            // on_complete and on_fail hooks run sequentially
+            await this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo);
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

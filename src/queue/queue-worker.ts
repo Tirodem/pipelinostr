@@ -39,10 +39,21 @@ export interface QueuedEventData {
   };
   // For hook type (triggered from workflow hooks)
   hookEvent?: {
+    hookType: 'on_start' | 'on_complete' | 'on_fail';
     parentWorkflowId: string;
     parentWorkflowName: string;
+    targetWorkflowId: string;
     triggerContext: unknown;
     matchGroups: Record<string, string>;
+    parentInfo: {
+      id: string;
+      name: string;
+      success: boolean;
+      actionsExecuted: number;
+      actionsFailed: number;
+      actionsSkipped: number;
+      error?: string | undefined;
+    };
   };
   // For manual type (replayed or manually added)
   manualEvent?: {
@@ -407,6 +418,21 @@ export function enqueueManualEvent(
   };
 
   return db.enqueueEvent('manual', eventData, originalEventId, {
+    priority: options?.priority ?? 0,
+    max_retries: options?.maxRetries ?? 3,
+  });
+}
+
+// Helper function to enqueue a hook event
+export function enqueueHookEvent(
+  hook: NonNullable<QueuedEventData['hookEvent']>,
+  options?: { priority?: number; maxRetries?: number }
+): number {
+  const db = getDatabase();
+  const eventData: QueuedEventData = { hookEvent: hook };
+  const eventId = `hook_${hook.parentWorkflowId}_${hook.hookType}_${Date.now()}`;
+
+  return db.enqueueEvent('hook', eventData, eventId, {
     priority: options?.priority ?? 0,
     max_retries: options?.maxRetries ?? 3,
   });
