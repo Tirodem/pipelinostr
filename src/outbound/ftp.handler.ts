@@ -4,6 +4,7 @@
 
 import { Client } from 'basic-ftp';
 import { Readable } from 'stream';
+import { createReadStream, existsSync } from 'fs';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
 interface FtpHandlerConfig {
@@ -19,6 +20,7 @@ interface FtpHandlerConfig {
 export interface FtpActionConfig extends HandlerConfig {
   operation?: 'upload' | 'append';
   remote_path: string;
+  local_path?: string;     // Upload from local file instead of content
   content?: string;
   create_dirs?: boolean;
 }
@@ -80,19 +82,41 @@ export class FtpHandler implements Handler {
         }
       }
 
-      // Contenu à uploader
-      const content = params.content || transformedContent;
-      const buffer = Buffer.from(content, 'utf-8');
-      const stream = Readable.from(buffer);
-
-      // Upload ou Append
       const operation = params.operation || 'upload';
-      if (operation === 'append') {
-        await client.appendFrom(stream, remotePath);
-        console.log(`[FTP] Contenu ajouté à: ${remotePath} (${buffer.length} bytes)`);
+      let size: number;
+
+      // Upload depuis fichier local ou depuis contenu
+      if (params.local_path) {
+        // Résoudre le chemin local (peut contenir des variables)
+        const localPath = this.resolveRemotePath(params.local_path, event || { id: 'unknown', pubkey: 'unknown', kind: 0, created_at: Math.floor(Date.now() / 1000) });
+
+        if (!existsSync(localPath)) {
+          return { success: false, error: `Fichier local non trouvé: ${localPath}` };
+        }
+
+        const localStream = createReadStream(localPath);
+        if (operation === 'append') {
+          await client.appendFrom(localStream, remotePath);
+          console.log(`[FTP] Fichier local ajouté à: ${remotePath} (from ${localPath})`);
+        } else {
+          await client.uploadFrom(localStream, remotePath);
+          console.log(`[FTP] Fichier local uploadé: ${remotePath} (from ${localPath})`);
+        }
+        size = 0; // Could get actual size with fs.stat if needed
       } else {
-        await client.uploadFrom(stream, remotePath);
-        console.log(`[FTP] Fichier uploadé: ${remotePath} (${buffer.length} bytes)`);
+        // Upload depuis contenu
+        const content = params.content || transformedContent;
+        const buffer = Buffer.from(content, 'utf-8');
+        const stream = Readable.from(buffer);
+
+        if (operation === 'append') {
+          await client.appendFrom(stream, remotePath);
+          console.log(`[FTP] Contenu ajouté à: ${remotePath} (${buffer.length} bytes)`);
+        } else {
+          await client.uploadFrom(stream, remotePath);
+          console.log(`[FTP] Fichier uploadé: ${remotePath} (${buffer.length} bytes)`);
+        }
+        size = buffer.length;
       }
 
       return {
@@ -100,7 +124,8 @@ export class FtpHandler implements Handler {
         data: {
           operation,
           remote_path: remotePath,
-          size: buffer.length,
+          local_path: params.local_path,
+          size,
         },
       };
     } catch (error) {

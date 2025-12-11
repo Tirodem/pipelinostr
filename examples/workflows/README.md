@@ -26,6 +26,7 @@ Then restart PipeliNostr to load the new workflow.
 | `dm-to-bluesky.yml` | Post to Bluesky via Nostr DM |
 | `dm-to-mongodb.yml` | Track events to MongoDB via Nostr DM |
 | `dm-to-ftp.yml` | Append DM content to FTP log file |
+| `dm-to-ftp-with-local-storage.yml` | DM to local log file + FTP sync |
 
 ## Template Variables
 

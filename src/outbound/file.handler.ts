@@ -44,12 +44,13 @@ export class FileHandler implements Handler {
 
   async execute(config: HandlerConfig, context: Record<string, unknown>): Promise<HandlerResult> {
     const params = config as FileActionConfig;
-    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][] };
-    const transformedContent = (context.transformedContent as string) || event.content;
+    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][] } | undefined;
+    const transformedContent = (context.transformedContent as string) || event?.content || '';
 
     try {
       // Résoudre le nom de fichier (peut contenir des variables)
-      const filename = this.resolveFilename(params.filename, event);
+      const defaultEvent = { id: 'unknown', pubkey: 'unknown', kind: 0, created_at: Math.floor(Date.now() / 1000) };
+      const filename = this.resolveFilename(params.filename, event || defaultEvent);
       const filepath = join(this.outputDir, filename);
 
       // S'assurer que le répertoire parent existe
@@ -58,12 +59,13 @@ export class FileHandler implements Handler {
       let content: string | Buffer;
       const format = params.format || 'text';
 
+      const eventForGeneration = event || { ...defaultEvent, content: '', tags: [] as string[][] };
       switch (format) {
         case 'json':
-          content = this.generateJson(event, transformedContent);
+          content = this.generateJson(eventForGeneration, transformedContent);
           break;
         case 'csv':
-          content = this.generateCsv(event, transformedContent, params);
+          content = this.generateCsv(eventForGeneration, transformedContent, params);
           break;
         case 'binary':
           content = Buffer.from(transformedContent, params.encoding || 'utf-8');
@@ -71,8 +73,8 @@ export class FileHandler implements Handler {
         case 'text':
         default:
           content = params.template
-            ? this.applyTemplate(params.template, event, transformedContent)
-            : transformedContent;
+            ? this.applyTemplate(params.template, eventForGeneration, transformedContent)
+            : (params.content || transformedContent);
           break;
       }
 
