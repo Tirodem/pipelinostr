@@ -17,6 +17,7 @@ interface FtpHandlerConfig {
 }
 
 export interface FtpActionConfig extends HandlerConfig {
+  operation?: 'upload' | 'append';
   remote_path: string;
   content?: string;
   create_dirs?: boolean;
@@ -53,8 +54,8 @@ export class FtpHandler implements Handler {
 
   async execute(config: HandlerConfig, context: Record<string, unknown>): Promise<HandlerResult> {
     const params = config as FtpActionConfig;
-    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string };
-    const transformedContent = (context.transformedContent as string) || event.content;
+    const event = context.event as { id: string; pubkey: string; kind: number; created_at: number; content: string } | undefined;
+    const transformedContent = (context.transformedContent as string) || event?.content || '';
 
     const client = new Client();
     client.ftp.verbose = false;
@@ -69,7 +70,7 @@ export class FtpHandler implements Handler {
       });
 
       // Résoudre le chemin distant
-      const remotePath = this.resolveRemotePath(params.remote_path, event);
+      const remotePath = this.resolveRemotePath(params.remote_path, event || { id: 'unknown', pubkey: 'unknown', kind: 0, created_at: Math.floor(Date.now() / 1000) });
 
       // Créer les répertoires si nécessaire
       if (params.create_dirs !== false) {
@@ -84,14 +85,20 @@ export class FtpHandler implements Handler {
       const buffer = Buffer.from(content, 'utf-8');
       const stream = Readable.from(buffer);
 
-      // Upload
-      await client.uploadFrom(stream, remotePath);
-
-      console.log(`[FTP] Fichier uploadé: ${remotePath} (${buffer.length} bytes)`);
+      // Upload ou Append
+      const operation = params.operation || 'upload';
+      if (operation === 'append') {
+        await client.appendFrom(stream, remotePath);
+        console.log(`[FTP] Contenu ajouté à: ${remotePath} (${buffer.length} bytes)`);
+      } else {
+        await client.uploadFrom(stream, remotePath);
+        console.log(`[FTP] Fichier uploadé: ${remotePath} (${buffer.length} bytes)`);
+      }
 
       return {
         success: true,
         data: {
+          operation,
           remote_path: remotePath,
           size: buffer.length,
         },

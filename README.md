@@ -19,6 +19,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `dm-to-mastodon.yml` | DM vers post Mastodon public |
 | `dm-to-bluesky.yml` | DM vers post Bluesky |
 | `dm-to-mongodb.yml` | DM vers MongoDB (event tracking) |
+| `dm-to-ftp.yml` | DM vers fichier log FTP (append) |
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash

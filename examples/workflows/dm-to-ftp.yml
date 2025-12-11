@@ -1,0 +1,48 @@
+# Append DM content to a log file on FTP server
+#
+# Send a DM with format "ftp: your message here" to append to a log file.
+#
+# Prerequisites:
+# 1. Configure config/handlers/ftp.yml with your FTP server details
+# 2. Add FTP credentials to .env
+#
+# Available variables:
+# - trigger.from       : Sender npub
+# - trigger.content    : Full message content
+# - trigger.timestamp  : Unix timestamp
+# - match.message      : Extracted message (after "ftp:")
+#
+# Path variables:
+# - {date}      : Current date (YYYY-MM-DD)
+# - {time}      : Current time (HH-MM-SS)
+# - {datetime}  : Full datetime
+# - {event_id}  : First 8 chars of event ID
+# - {pubkey}    : First 8 chars of pubkey
+
+id: dm-to-ftp
+name: Append DM to FTP Log
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    # Match "ftp: <message>" (case insensitive)
+    content_pattern: "^[Ff][Tt][Pp]:\\s*(?<message>.+)"
+
+actions:
+  - id: append_to_ftp
+    type: ftp
+    config:
+      operation: append
+      remote_path: "/logs/nostr-dm-{date}.log"
+      content: "[{{ trigger.timestamp }}] {{ trigger.from }}: {{ match.message }}\n"
+      create_dirs: true
+
+# Example usage:
+# Send DM: "ftp: Hello from Nostr!"
+# Result: Appends "[1733929200] npub1xxx...: Hello from Nostr!\n" to /logs/nostr-dm-2025-12-11.log
+
+# Alternative: Single log file (no date rotation)
+# remote_path: "/logs/nostr-dm.log"
