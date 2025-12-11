@@ -983,6 +983,54 @@ Intégrer un petit modèle directement dans PipeliNostr, sans service externe :
 - Qualité inférieure aux gros modèles cloud
 - Temps de chargement au démarrage
 
+#### Cas d'Usage LLM Embarqué
+
+**1. Routage en langage naturel** (runtime)
+```
+DM: "Allume la lumière du salon"
+ → LLM détecte intent: gpio, params: {pin: 17, state: high}
+ → Exécute workflow nostr-to-gpio
+```
+
+**2. Assistant rédaction de workflows** (dev time)
+```
+User: "Je veux recevoir un SMS quand quelqu'un me zap plus de 1000 sats"
+
+LLM génère:
+┌─────────────────────────────────────────────┐
+│ id: zap-sms-alert                           │
+│ name: Zap SMS Alert                         │
+│ trigger:                                    │
+│   type: nostr_event                         │
+│   filters:                                  │
+│     kinds: [9735]                           │
+│     zap_min_amount: 1000                    │
+│ actions:                                    │
+│   - id: send_sms                            │
+│     type: traccar_sms                       │
+│     config:                                 │
+│       to: "+33612345678"                    │
+│       message: "Zap reçu: {{ trigger... }}" │
+└─────────────────────────────────────────────┘
+```
+
+**3. Validation et suggestions** (dev time)
+```
+User: workflow avec erreur de syntaxe ou config manquante
+
+LLM: "Il manque le champ 'to' dans l'action email.
+      Voulez-vous utiliser l'email par défaut de config/handlers/email.yml ?"
+```
+
+**4. Documentation interactive** (runtime)
+```
+DM: "Comment envoyer un fichier sur FTP ?"
+
+LLM: "Utilisez le handler 'ftp' avec cette syntaxe:
+      [ftp] path:/data/file.txt content:Mon contenu
+      Ou créez un workflow avec trigger sur content_pattern..."
+```
+
 #### Configuration Envisagée
 
 ```yaml
