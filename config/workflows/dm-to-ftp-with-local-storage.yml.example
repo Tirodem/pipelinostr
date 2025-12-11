@@ -1,0 +1,62 @@
+# Append DM content to local log file, then sync to FTP
+#
+# This workflow:
+# 1. Appends each DM to a local log file (fast, reliable)
+# 2. Uploads the complete file to FTP after each append
+#
+# Benefits:
+# - Works with FTP servers that don't support APPE command
+# - Local file serves as cache/backup
+# - Can be used for multi-destination sync (FTP + S3)
+#
+# Prerequisites:
+# 1. Configure config/handlers/file.yml (output_dir)
+# 2. Configure config/handlers/ftp.yml with your FTP server
+#
+# Local files are stored in: {output_dir}/logs/dm-{date}.log
+# FTP files are uploaded to: /logs/nostr-dm-{date}.log
+
+id: dm-to-ftp-with-local-storage
+name: DM to FTP with Local Storage
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]              # NIP-04 DMs
+    from_whitelist: true    # Only from whitelisted npubs
+    content_pattern: "^[Ff][Tt][Pp]:\\s*(?<message>.+)"
+
+actions:
+  # Step 1: Append to local file
+  - id: append_local
+    type: file
+    config:
+      filename: "logs/dm-{date}.log"
+      format: text
+      content: "[{{ trigger.timestamp }}] {{ trigger.from }}: {{ match.message }}\n"
+      append: true
+
+  # Step 2: Upload complete local file to FTP
+  - id: upload_to_ftp
+    type: ftp
+    config:
+      operation: upload
+      local_path: "./data/files/logs/dm-{date}.log"
+      remote_path: "/logs/nostr-dm-{date}.log"
+      create_dirs: true
+
+# Example usage:
+# Send DM: "ftp: Hello from Nostr!"
+# Result:
+#   1. Appends to ./data/files/logs/dm-2025-12-11.log
+#   2. Uploads entire file to /logs/nostr-dm-2025-12-11.log on FTP
+
+# To add S3 backup, add a third action:
+#   - id: backup_to_s3
+#     type: s3
+#     config:
+#       operation: upload
+#       local_path: "./data/files/logs/dm-{date}.log"
+#       bucket: "my-bucket"
+#       key: "logs/nostr-dm-{date}.log"
