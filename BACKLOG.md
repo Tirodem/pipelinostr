@@ -521,6 +521,234 @@ This feature uses the existing email handler with an ICS attachment generated fr
 
 ---
 
+### Event Queue / Message Broker
+
+**Priority:** High
+**Status:** Proposed
+
+#### Description
+
+Add a message queue layer to handle events reliably with persistence, retry, and replay capabilities.
+
+#### Use Cases
+
+1. **Queue during high traffic:** Buffer events when handlers are busy
+2. **Replay failed events:** Re-execute workflows that failed due to handler unavailability
+3. **Process missed events:** Handle events that weren't processed (system restart, etc.)
+4. **Full audit trail:** Track every trigger from receipt to completion
+
+#### Current State
+
+The `event_log` table tracks events but doesn't support:
+- Queuing (pending → processing → done)
+- Automatic retry with backoff
+- Manual replay of failed events
+
+#### Proposed Implementation (SQLite-based)
+
+1. **New `event_queue` table:**
+   ```sql
+   CREATE TABLE event_queue (
+     id INTEGER PRIMARY KEY,
+     event_type TEXT NOT NULL,          -- nostr_dm, api_webhook, hook
+     event_data TEXT NOT NULL,          -- JSON payload
+     status TEXT DEFAULT 'pending',     -- pending, processing, completed, failed, dead
+     priority INTEGER DEFAULT 0,
+     retry_count INTEGER DEFAULT 0,
+     max_retries INTEGER DEFAULT 3,
+     next_retry_at DATETIME,
+     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+     started_at DATETIME,
+     completed_at DATETIME,
+     error_message TEXT,
+     workflow_id TEXT,
+     result_data TEXT
+   );
+   ```
+
+2. **Queue Worker:**
+   - Polls queue for pending events
+   - Marks as `processing` before execution
+   - Updates to `completed` or `failed` after
+   - Exponential backoff for retries
+   - Dead-letter after max retries
+
+3. **API Endpoints:**
+   - `GET /api/queue` - List queued events
+   - `POST /api/queue/:id/replay` - Replay a failed event
+   - `POST /api/queue/replay-failed` - Replay all failed events
+   - `DELETE /api/queue/:id` - Remove from queue
+
+4. **CLI Commands:**
+   ```bash
+   pipelinostr queue list
+   pipelinostr queue replay <id>
+   pipelinostr queue replay-failed
+   pipelinostr queue stats
+   ```
+
+#### Future: RabbitMQ/Redis Migration
+
+Design with abstraction layer to allow future migration:
+```typescript
+interface MessageBroker {
+  enqueue(event: QueuedEvent): Promise<string>;
+  dequeue(): Promise<QueuedEvent | null>;
+  ack(id: string): Promise<void>;
+  nack(id: string, requeue: boolean): Promise<void>;
+}
+```
+
+---
+
+### Hardware Controllable by PipeliNostr
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Identify hardware devices that can be controlled via PipeliNostr workflows.
+
+#### Categories
+
+**1. GPIO / Digital I/O**
+| Device | Connection | Handler | Use Case |
+|--------|------------|---------|----------|
+| LED | Raspberry Pi GPIO | `gpio` | Visual notifications |
+| Relay module | RPi/Arduino GPIO | `gpio` | Switch appliances on/off |
+| Servo motor | RPi/Arduino PWM | `gpio` | Physical movement |
+| Buzzer | GPIO | `gpio` | Audio alerts |
+
+**2. Serial / USB Devices**
+| Device | Connection | Handler | Use Case |
+|--------|------------|---------|----------|
+| Arduino | USB Serial | `serial` | Custom microcontroller commands |
+| ESP32/ESP8266 | USB Serial | `serial` | WiFi-enabled MCU |
+| 3D Printer | USB Serial | `serial` | Send GCode commands |
+| USB Relay | USB Serial | `serial` | Industrial relay control |
+
+**3. Network / IoT**
+| Device | Protocol | Handler | Use Case |
+|--------|----------|---------|----------|
+| Smart bulbs (Philips Hue, LIFX) | HTTP API | `http` | Lighting control |
+| Smart plugs (TP-Link, Tasmota) | HTTP/MQTT | `http`/`mqtt` | Power control |
+| Shelly devices | HTTP/MQTT | `http`/`mqtt` | Home automation |
+| Home Assistant | REST API | `http` | Hub for all devices |
+| Node-RED | HTTP | `http` | Flow automation |
+
+**4. MQTT Devices**
+| Device | Topic Structure | Handler | Use Case |
+|--------|-----------------|---------|----------|
+| Zigbee2MQTT bridge | `zigbee2mqtt/+/set` | `mqtt` | Zigbee device control |
+| Tasmota devices | `cmnd/+/POWER` | `mqtt` | Sonoff/ESP devices |
+| ESPHome devices | `esphome/+/command` | `mqtt` | Custom ESP firmware |
+
+**5. Display / Output**
+| Device | Connection | Handler | Use Case |
+|--------|------------|---------|----------|
+| E-ink display | SPI/I2C | `spi`/`i2c` | Low-power status display |
+| LCD/OLED | I2C | `i2c` | Real-time info display |
+| LED Matrix | SPI | `spi` | Scrolling text |
+| Thermal printer | Serial/USB | `serial` | Print notifications |
+
+**6. Audio**
+| Device | Method | Handler | Use Case |
+|--------|--------|---------|----------|
+| Speaker (local) | `aplay`/`mpg123` | `exec` | Text-to-speech, alerts |
+| Sonos | HTTP API | `http` | Multi-room audio |
+| Chromecast | Cast protocol | TBD | Cast audio/video |
+
+#### Implementation Priority
+
+1. **Phase 1:** HTTP-based (smart plugs, Home Assistant, APIs)
+2. **Phase 2:** MQTT (IoT ecosystem)
+3. **Phase 3:** Serial (Arduino, ESP32)
+4. **Phase 4:** GPIO (Raspberry Pi native)
+
+---
+
+### Minimal Hardware for Self-Hosted PipeliNostr
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Identify economical hardware configurations to run PipeliNostr locally (not on VPS).
+
+#### Requirements
+
+- Node.js 20+ support
+- 512MB+ RAM (1GB recommended)
+- Network connectivity (Ethernet or WiFi)
+- Low power consumption for 24/7 operation
+- Optional: GPIO for direct hardware control
+
+#### Hardware Options
+
+**Budget Tier (~20-40€)**
+
+| Device | RAM | Storage | Power | Notes |
+|--------|-----|---------|-------|-------|
+| **Raspberry Pi Zero 2 W** | 512MB | microSD | 1W | WiFi, compact, limited RAM |
+| **Orange Pi Zero 3** | 1GB | microSD | 2W | Good value, H618 SoC |
+| **Libre Computer Le Potato** | 2GB | microSD | 3W | RPi alternative |
+
+**Recommended Tier (~50-80€)**
+
+| Device | RAM | Storage | Power | Notes |
+|--------|-----|---------|-------|-------|
+| **Raspberry Pi 4 Model B 2GB** | 2GB | microSD/SSD | 3-6W | Best ecosystem, GPIO |
+| **Raspberry Pi 5 2GB** | 2GB | microSD/NVMe | 4-8W | Faster, PCIe support |
+| **Orange Pi 5** | 4GB | eMMC/NVMe | 5W | RK3588S, great perf |
+| **Odroid N2+** | 4GB | eMMC | 5W | Reliable, good cooling |
+
+**Mini PC Tier (~100-150€)**
+
+| Device | RAM | Storage | Power | Notes |
+|--------|-----|---------|-------|-------|
+| **Intel N100 Mini PC** | 8GB | 256GB SSD | 10-15W | x86, runs anything |
+| **Beelink Mini S12** | 8GB | 256GB | 15W | Compact, silent |
+| **Used Thin Client (HP T620/T630)** | 4-8GB | SSD | 10W | Very cheap used (~30€) |
+
+**Repurposed Hardware**
+
+| Device | Notes |
+|--------|-------|
+| Old Android phone | Termux + Node.js, free, has battery backup |
+| Old laptop | Already have it, overkill but works |
+| NAS (Synology/QNAP) | Docker support, always on |
+
+#### Recommended Setup
+
+**Best Value:** Raspberry Pi 4 2GB (~50€) + 32GB microSD (~10€)
+- Proven ecosystem
+- GPIO for hardware control
+- Large community support
+- Runs PipeliNostr comfortably
+
+**Most Economical:** Raspberry Pi Zero 2 W (~20€) + 16GB microSD (~5€)
+- Tight on RAM but functional
+- WiFi built-in
+- Ultra-low power (~1W)
+
+**Best Performance:** Intel N100 Mini PC (~100€)
+- x86 compatibility
+- 8GB RAM, SSD storage
+- Can run other services alongside
+
+#### Power Consumption Comparison
+
+| Device | Idle | Load | Monthly Cost (0.20€/kWh) |
+|--------|------|------|--------------------------|
+| RPi Zero 2 W | 0.5W | 1.5W | ~0.20€ |
+| RPi 4 2GB | 2.5W | 6W | ~1.00€ |
+| RPi 5 2GB | 3W | 8W | ~1.30€ |
+| N100 Mini PC | 6W | 15W | ~2.50€ |
+
+---
+
 ### Telegram Username/Alias Support
 
 **Priority:** Low
