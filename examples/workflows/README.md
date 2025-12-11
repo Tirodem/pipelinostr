@@ -27,6 +27,7 @@ Then restart PipeliNostr to load the new workflow.
 | `dm-to-mongodb.yml` | Track events to MongoDB via Nostr DM |
 | `dm-to-ftp.yml` | Append DM content to FTP log file |
 | `dm-to-ftp-with-local-storage.yml` | DM to local log file + FTP sync |
+| `mempool-tx-lookup.yml` | Lookup Bitcoin TX and reply via DM |
 
 ## Template Variables
 
