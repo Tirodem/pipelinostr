@@ -206,14 +206,13 @@ export class QueueWorker {
           }
           break;
 
-        case 'hook':
         case 'manual':
           if (eventData.nostrEvent) {
             processedEvent = eventData.nostrEvent;
           } else if (eventData.manualEvent?.data) {
             processedEvent = eventData.manualEvent.data as ProcessedEvent;
           } else {
-            throw new Error(`Unsupported event type: ${queuedEvent.event_type}`);
+            throw new Error('Missing manual event data');
           }
           break;
 
@@ -423,17 +422,3 @@ export function enqueueManualEvent(
   });
 }
 
-// Helper function to enqueue a hook event
-export function enqueueHookEvent(
-  hook: NonNullable<QueuedEventData['hookEvent']>,
-  options?: { priority?: number; maxRetries?: number }
-): number {
-  const db = getDatabase();
-  const eventData: QueuedEventData = { hookEvent: hook };
-  const eventId = `hook_${hook.parentWorkflowId}_${hook.hookType}_${Date.now()}`;
-
-  return db.enqueueEvent('hook', eventData, eventId, {
-    priority: options?.priority ?? 0,
-    max_retries: options?.maxRetries ?? 3,
-  });
-}

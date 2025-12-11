@@ -498,6 +498,39 @@ export class PipelinostrDatabase {
     return result.lastInsertRowid as number;
   }
 
+  // Record hook execution directly (for historical tracking, not processing)
+  recordHookExecution(
+    eventData: unknown,
+    eventId: string,
+    status: 'completed' | 'failed',
+    workflowId?: string,
+    workflowName?: string,
+    errorMessage?: string,
+    resultData?: unknown
+  ): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO event_queue (
+        event_type, event_id, event_data, status, started_at, completed_at,
+        workflow_id, workflow_name, error_message, result_data
+      ) VALUES (
+        'hook', @event_id, @event_data, @status, datetime('now'), datetime('now'),
+        @workflow_id, @workflow_name, @error_message, @result_data
+      )
+    `);
+
+    const result = stmt.run({
+      event_id: eventId,
+      event_data: JSON.stringify(eventData),
+      status,
+      workflow_id: workflowId ?? null,
+      workflow_name: workflowName ?? null,
+      error_message: errorMessage ?? null,
+      result_data: resultData ? JSON.stringify(resultData) : null,
+    });
+
+    return result.lastInsertRowid as number;
+  }
+
   // Get next event to process (respects priority and retry timing)
   dequeueEvent(): QueuedEvent | undefined {
     const stmt = this.db.prepare(`

@@ -8,7 +8,7 @@ import { WebhookServer, type WebhookServerConfig, type WebhookEvent } from './in
 import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from './inbound/api-poller.js';
 import { SchedulerManager, type SchedulerManagerConfig, type SchedulerEvent } from './inbound/scheduler.js';
 import { WorkflowEngine } from './core/workflow-engine.js';
-import { QueueWorker, enqueueNostrEvent, enqueueWebhookEvent, enqueueHookEvent } from './queue/queue-worker.js';
+import { QueueWorker, enqueueNostrEvent, enqueueWebhookEvent } from './queue/queue-worker.js';
 import { EmailHandler, type EmailHandlerOptions } from './outbound/email.handler.js';
 import { HttpHandler } from './outbound/http.handler.js';
 import { NostrDmHandler, NostrNoteHandler } from './outbound/nostr.handler.js';
@@ -1400,17 +1400,25 @@ async function main(): Promise<void> {
       });
       state.queueWorker = queueWorker;
 
-      // Configure hook enqueuer so hooks also go through the queue
-      workflowEngine.setHookEnqueuer((hookType, parentWorkflowId, parentWorkflowName, targetWorkflowId, context, parentInfo) => {
-        return enqueueHookEvent({
-          hookType,
-          parentWorkflowId,
-          parentWorkflowName,
+      // Configure hook recorder to log hook executions in the queue history
+      workflowEngine.setHookRecorder((hookType, parentWorkflowId, parentWorkflowName, targetWorkflowId, targetWorkflowName, success, error, context) => {
+        const db = getDatabase();
+        const eventId = `hook_${parentWorkflowId}_${hookType}_${Date.now()}`;
+        db.recordHookExecution(
+          {
+            hookType,
+            parentWorkflowId,
+            parentWorkflowName,
+            targetWorkflowId,
+          },
+          eventId,
+          success ? 'completed' : 'failed',
           targetWorkflowId,
-          triggerContext: context.trigger,
-          matchGroups: context.match,
-          parentInfo,
-        });
+          targetWorkflowName,
+          error,
+          context ? { trigger: context.trigger, match: context.match } : undefined
+        );
+        logger.debug({ hookType, parentId: parentWorkflowId, targetId: targetWorkflowId, success }, 'Hook execution recorded');
       });
 
       await queueWorker.start();
