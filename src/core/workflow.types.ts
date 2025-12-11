@@ -60,6 +60,31 @@ export interface WorkflowAction {
   } | undefined;
 }
 
+// Hook to trigger another workflow
+export interface WorkflowHook {
+  // ID of workflow to trigger
+  workflow_id: string;
+
+  // Optional condition (expression)
+  when?: string | undefined;
+
+  // Pass parent context to child workflow (default: true)
+  pass_context?: boolean | undefined;
+}
+
+// Workflow lifecycle hooks
+export interface WorkflowHooks {
+  // Triggered when workflow starts (before actions)
+  // Useful for launching parallel workflows
+  on_start?: WorkflowHook[] | undefined;
+
+  // Triggered when workflow completes successfully
+  on_complete?: WorkflowHook[] | undefined;
+
+  // Triggered when workflow fails (any action fails)
+  on_fail?: WorkflowHook[] | undefined;
+}
+
 export interface WorkflowDefinition {
   id: string;
   name: string;
@@ -71,6 +96,9 @@ export interface WorkflowDefinition {
 
   trigger: WorkflowTrigger;
   actions: WorkflowAction[];
+
+  // Lifecycle hooks for workflow chaining
+  hooks?: WorkflowHooks | undefined;
 }
 
 // Runtime context types
@@ -133,10 +161,24 @@ export interface ActionResult {
   skipped?: boolean;
 }
 
+// Parent workflow info (passed via hooks)
+export interface ParentWorkflowInfo {
+  id: string;
+  name: string;
+  success: boolean;
+  actionsExecuted: number;
+  actionsFailed: number;
+  actionsSkipped: number;
+  error?: string | undefined;
+}
+
 export interface WorkflowContext {
   trigger: TriggerContext;
   match: Record<string, string>;
   actions: Record<string, ActionResult>;
+
+  // Info about parent workflow (when triggered via hook)
+  parent?: ParentWorkflowInfo | undefined;
 }
 
 export interface WorkflowExecutionResult {

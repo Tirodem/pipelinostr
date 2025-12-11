@@ -14,6 +14,8 @@ import type {
   ActionResult,
   TriggerContext,
   MatchResult,
+  WorkflowHook,
+  ParentWorkflowInfo,
 } from './workflow.types.js';
 
 export class WorkflowEngine {
@@ -98,7 +100,8 @@ export class WorkflowEngine {
   private async executeWorkflow(
     workflow: WorkflowDefinition,
     match: MatchResult,
-    triggerContext: TriggerContext
+    triggerContext: TriggerContext,
+    parentInfo?: ParentWorkflowInfo
   ): Promise<WorkflowExecutionResult> {
     logger.info({ workflowId: workflow.id, workflowName: workflow.name }, 'Executing workflow');
 
@@ -106,11 +109,17 @@ export class WorkflowEngine {
       trigger: triggerContext,
       match: match.groups,
       actions: {},
+      parent: parentInfo,
     };
 
     let actionsExecuted = 0;
     let actionsFailed = 0;
     let actionsSkipped = 0;
+
+    // Execute on_start hooks (in parallel, don't wait)
+    if (workflow.hooks?.on_start) {
+      this.executeHooks(workflow.hooks.on_start, context, workflow, 'on_start');
+    }
 
     // Execute actions sequentially
     for (const action of workflow.actions) {
@@ -143,7 +152,7 @@ export class WorkflowEngine {
       'Workflow completed'
     );
 
-    return {
+    const result: WorkflowExecutionResult = {
       workflowId: workflow.id,
       workflowName: workflow.name,
       success,
@@ -152,6 +161,82 @@ export class WorkflowEngine {
       actionsSkipped,
       context,
     };
+
+    // Execute on_complete or on_fail hooks
+    if (success && workflow.hooks?.on_complete) {
+      await this.executeHooks(workflow.hooks.on_complete, context, workflow, 'on_complete', result);
+    } else if (!success && workflow.hooks?.on_fail) {
+      await this.executeHooks(workflow.hooks.on_fail, context, workflow, 'on_fail', result);
+    }
+
+    return result;
+  }
+
+  // Execute workflow hooks
+  private async executeHooks(
+    hooks: WorkflowHook[],
+    context: WorkflowContext,
+    parentWorkflow: WorkflowDefinition,
+    hookType: 'on_start' | 'on_complete' | 'on_fail',
+    executionResult?: WorkflowExecutionResult
+  ): Promise<void> {
+    for (const hook of hooks) {
+      try {
+        // Check condition if present
+        if (hook.when) {
+          const shouldExecute = expressionEvaluator.evaluate(hook.when, context);
+          if (!shouldExecute) {
+            logger.debug({ hookType, workflowId: hook.workflow_id, condition: hook.when }, 'Hook skipped (condition false)');
+            continue;
+          }
+        }
+
+        // Get the target workflow
+        const targetWorkflow = this.loader.getWorkflow(hook.workflow_id);
+        if (!targetWorkflow) {
+          logger.warn({ hookType, workflowId: hook.workflow_id }, 'Hook target workflow not found');
+          continue;
+        }
+
+        if (!targetWorkflow.enabled) {
+          logger.debug({ hookType, workflowId: hook.workflow_id }, 'Hook target workflow is disabled');
+          continue;
+        }
+
+        logger.info({ hookType, parentId: parentWorkflow.id, targetId: hook.workflow_id }, 'Executing hook');
+
+        // Build parent info for the child workflow
+        const parentInfo: ParentWorkflowInfo = {
+          id: parentWorkflow.id,
+          name: parentWorkflow.name,
+          success: executionResult?.success ?? true,
+          actionsExecuted: executionResult?.actionsExecuted ?? 0,
+          actionsFailed: executionResult?.actionsFailed ?? 0,
+          actionsSkipped: executionResult?.actionsSkipped ?? 0,
+          error: executionResult?.error,
+        };
+
+        // Create a match result for the child (empty if not passing context)
+        const childMatch: MatchResult = hook.pass_context !== false
+          ? { matched: true, groups: context.match }
+          : { matched: true, groups: {} };
+
+        // Execute the target workflow
+        if (hookType === 'on_start') {
+          // on_start hooks run in parallel (fire and forget)
+          this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo)
+            .catch((error) => {
+              logger.error({ hookType, workflowId: hook.workflow_id, error }, 'Hook workflow failed');
+            });
+        } else {
+          // on_complete and on_fail hooks run sequentially
+          await this.executeWorkflow(targetWorkflow, childMatch, context.trigger, parentInfo);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error({ hookType, workflowId: hook.workflow_id, error: errorMessage }, 'Hook execution failed');
+      }
+    }
   }
 
   private async executeAction(

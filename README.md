@@ -22,6 +22,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `dm-to-ftp.yml` | DM vers fichier log FTP (append) |
 | `dm-to-ftp-with-local-storage.yml` | DM vers fichier local + sync FTP |
 | `mempool-tx-lookup.yml` | Lookup TX Bitcoin via mempool.space |
+| `zulip-workflow-notification.yml` | Notification Zulip sur fin de workflow |
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash

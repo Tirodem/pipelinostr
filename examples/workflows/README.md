@@ -28,6 +28,7 @@ Then restart PipeliNostr to load the new workflow.
 | `dm-to-ftp.yml` | Append DM content to FTP log file |
 | `dm-to-ftp-with-local-storage.yml` | DM to local log file + FTP sync |
 | `mempool-tx-lookup.yml` | Lookup Bitcoin TX and reply via DM |
+| `zulip-workflow-notification.yml` | Notify Zulip on workflow completion |
 
 ## Template Variables
 
@@ -79,4 +80,66 @@ content: |
   First input: {{ actions.http.response.body.items[0].name }}
   Second output: {{ actions.http.response.body.outputs[1].value }}
   Total items: {{ actions.http.response.body.items | length }}
+```
+
+## Workflow Hooks (Chaining)
+
+Workflows can trigger other workflows using lifecycle hooks:
+
+```yaml
+hooks:
+  on_start:
+    - workflow_id: parallel-task      # Runs in parallel when workflow starts
+  on_complete:
+    - workflow_id: notify-success     # Runs after successful completion
+  on_fail:
+    - workflow_id: notify-failure     # Runs after failure
+```
+
+### Hook Options
+
+| Option | Description |
+|--------|-------------|
+| `workflow_id` | ID of the workflow to trigger (required) |
+| `when` | Condition expression (optional) |
+| `pass_context` | Pass parent context to child (default: true) |
+
+### Parent Context (`parent.*`)
+
+Child workflows triggered by hooks have access to parent info:
+
+| Variable | Description |
+|----------|-------------|
+| `parent.id` | Parent workflow ID |
+| `parent.name` | Parent workflow name |
+| `parent.success` | true/false |
+| `parent.actionsExecuted` | Number of successful actions |
+| `parent.actionsFailed` | Number of failed actions |
+| `parent.actionsSkipped` | Number of skipped actions |
+| `parent.error` | Error message (if failed) |
+
+### Example: Workflow with notifications
+
+```yaml
+id: my-workflow
+name: My Workflow
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    content_pattern: "^test"
+
+actions:
+  - id: do_something
+    type: http
+    config:
+      url: "https://api.example.com"
+
+hooks:
+  on_complete:
+    - workflow_id: zulip-workflow-notification
+  on_fail:
+    - workflow_id: zulip-workflow-notification
 ```

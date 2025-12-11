@@ -4,7 +4,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { logger } from '../persistence/logger.js';
-import type { WorkflowDefinition } from './workflow.types.js';
+import type { WorkflowDefinition, WorkflowHook, WorkflowHooks } from './workflow.types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -71,6 +71,9 @@ export class WorkflowLoader {
       return null;
     }
 
+    // Parse hooks if present
+    const hooks = this.parseHooks(raw['hooks'] as Record<string, unknown> | undefined);
+
     const workflow: WorkflowDefinition = {
       id: raw['id'] as string,
       name: (raw['name'] as string) ?? raw['id'],
@@ -88,11 +91,43 @@ export class WorkflowLoader {
           retry: a['retry'] as WorkflowDefinition['actions'][0]['retry'],
         };
       }),
+      hooks,
     };
 
-    logger.debug({ id: workflow.id, name: workflow.name, enabled: workflow.enabled }, 'Workflow loaded');
+    logger.debug({ id: workflow.id, name: workflow.name, enabled: workflow.enabled, hasHooks: !!hooks }, 'Workflow loaded');
 
     return workflow;
+  }
+
+  private parseHooks(raw: Record<string, unknown> | undefined): WorkflowHooks | undefined {
+    if (!raw) return undefined;
+
+    const parseHookArray = (arr: unknown[] | undefined): WorkflowHook[] | undefined => {
+      if (!arr || !Array.isArray(arr)) return undefined;
+      return arr.map((item) => {
+        const h = item as Record<string, unknown>;
+        return {
+          workflow_id: h['workflow_id'] as string,
+          when: h['when'] as string | undefined,
+          pass_context: h['pass_context'] !== false, // Default to true
+        };
+      });
+    };
+
+    const onStart = raw['on_start'] ? parseHookArray(raw['on_start'] as unknown[]) : undefined;
+    const onComplete = raw['on_complete'] ? parseHookArray(raw['on_complete'] as unknown[]) : undefined;
+    const onFail = raw['on_fail'] ? parseHookArray(raw['on_fail'] as unknown[]) : undefined;
+
+    // Return undefined if no hooks defined
+    if (!onStart && !onComplete && !onFail) {
+      return undefined;
+    }
+
+    return {
+      on_start: onStart,
+      on_complete: onComplete,
+      on_fail: onFail,
+    };
   }
 
   getWorkflow(id: string): WorkflowDefinition | undefined {

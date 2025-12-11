@@ -1,0 +1,69 @@
+# Zulip Workflow Notification
+#
+# This workflow is designed to be called by other workflows via hooks.
+# It posts a notification to Zulip when a parent workflow completes.
+#
+# Usage: Add this to your workflow's hooks section:
+#
+#   hooks:
+#     on_complete:
+#       - workflow_id: zulip-workflow-notification
+#     on_fail:
+#       - workflow_id: zulip-workflow-notification
+#
+# Available context from parent workflow:
+#   - parent.id: Parent workflow ID
+#   - parent.name: Parent workflow name
+#   - parent.success: true/false
+#   - parent.actionsExecuted: Number of successful actions
+#   - parent.actionsFailed: Number of failed actions
+#   - parent.actionsSkipped: Number of skipped actions
+#   - parent.error: Error message (if failed)
+#
+# Prerequisites:
+#   1. Configure config/handlers/zulip.yml with your Zulip server
+#   2. Enable this workflow
+
+id: zulip-workflow-notification
+name: Zulip Workflow Notification
+description: Posts workflow completion status to Zulip
+enabled: true
+
+# This workflow is triggered by hooks, not by Nostr events
+# We use a dummy trigger that never matches directly
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [99999]  # Never matches - only triggered via hooks
+
+actions:
+  # Post success notification
+  - id: notify_success
+    type: zulip
+    when: "parent.success == true"
+    config:
+      stream: "pipelinostr"
+      topic: "workflow-notifications"
+      content: |
+        **Workflow completed successfully**
+
+        - **ID:** {{ parent.id }}
+        - **Name:** {{ parent.name }}
+        - **Actions:** {{ parent.actionsExecuted }} executed, {{ parent.actionsSkipped }} skipped
+        - **Trigger:** {{ trigger.from | truncate:20 }}
+
+  # Post failure notification
+  - id: notify_failure
+    type: zulip
+    when: "parent.success == false"
+    config:
+      stream: "pipelinostr"
+      topic: "workflow-errors"
+      content: |
+        **Workflow failed**
+
+        - **ID:** {{ parent.id }}
+        - **Name:** {{ parent.name }}
+        - **Failed actions:** {{ parent.actionsFailed }}
+        - **Error:** {{ parent.error | default:No error message }}
+        - **Trigger:** {{ trigger.from | truncate:20 }}
