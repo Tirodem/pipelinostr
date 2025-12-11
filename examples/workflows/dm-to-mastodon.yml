@@ -32,7 +32,7 @@ actions:
   - id: post_mastodon
     type: mastodon
     config:
-      status: "{{ match.message }}"
+      status: "(ceci est un message automatique posté depuis un DM Nostr via PipeliNostr)\n\n{{ match.message }}"
       visibility: public    # public, unlisted, private, direct
       # Optional settings:
       # language: "en"
