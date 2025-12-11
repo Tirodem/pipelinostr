@@ -16,6 +16,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `nostr-to-email.yml` | Forward DM vers Email |
 | `nostr-to-calendar.yml` | DM vers invitation calendrier (iCal) |
 | `nostr-to-sms.yml` | DM vers SMS (via Traccar) |
+| `dm-to-mastodon.yml` | DM vers post Mastodon public |
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash

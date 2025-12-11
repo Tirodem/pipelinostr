@@ -18,6 +18,11 @@ Then restart PipeliNostr to load the new workflow.
 |------|-------------|
 | `zulip-forward.yml` | Forward all Nostr DMs to a Zulip stream |
 | `nostr-to-email.yml` | Send emails via Nostr DM command |
+| `nostr-to-telegram.yml` | Forward Nostr DMs to Telegram |
+| `nostr-to-calendar.yml` | Create calendar events via Nostr DM |
+| `nostr-to-sms.yml` | Send SMS via Nostr DM |
+| `zap-notification.yml` | Get notified when receiving zaps |
+| `dm-to-mastodon.yml` | Post to Mastodon via Nostr DM |
 
 ## Template Variables
 
