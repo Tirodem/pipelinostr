@@ -51,19 +51,54 @@ export class WorkflowEngine {
     this.matcher.updateWhitelist(npubs);
   }
 
-  // Process an incoming event
-  async processEvent(event: ProcessedEvent): Promise<WorkflowExecutionResult[]> {
-    const workflows = this.loader.getEnabledWorkflows();
-    const matches = this.matcher.findMatches(event, workflows);
+  // Result type for processEventWithMatchInfo
+  static readonly MATCH_STATUS = {
+    EXECUTED: 'executed',       // Workflows matched and executed
+    NO_MATCH: 'no_match',       // No workflow matched
+    ALL_DISABLED: 'all_disabled', // Workflows matched but all disabled
+  } as const;
 
-    if (matches.length === 0) {
+  // Process an incoming event with detailed match info
+  async processEventWithMatchInfo(event: ProcessedEvent): Promise<{
+    status: typeof WorkflowEngine.MATCH_STATUS[keyof typeof WorkflowEngine.MATCH_STATUS];
+    results: WorkflowExecutionResult[];
+    disabledMatches: Array<{ workflowId: string; workflowName: string }>;
+  }> {
+    const allWorkflows = this.loader.getAllWorkflows();
+    const { enabled, disabled } = this.matcher.findMatchesWithDisabled(event, allWorkflows);
+
+    const disabledMatches = disabled.map(({ workflow }) => ({
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+    }));
+
+    // No matches at all
+    if (enabled.length === 0 && disabled.length === 0) {
       logger.debug({ eventId: event.id }, 'No workflow matched');
-      return [];
+      return {
+        status: WorkflowEngine.MATCH_STATUS.NO_MATCH,
+        results: [],
+        disabledMatches: [],
+      };
     }
 
+    // Only disabled matches
+    if (enabled.length === 0) {
+      logger.debug(
+        { eventId: event.id, disabledWorkflows: disabledMatches.map((m) => m.workflowId) },
+        'Workflows matched but all disabled'
+      );
+      return {
+        status: WorkflowEngine.MATCH_STATUS.ALL_DISABLED,
+        results: [],
+        disabledMatches,
+      };
+    }
+
+    // Execute enabled workflows
     const results: WorkflowExecutionResult[] = [];
 
-    for (const { workflow, match, context } of matches) {
+    for (const { workflow, match, context } of enabled) {
       try {
         const result = await this.executeWorkflow(workflow, match, context);
         results.push(result);
@@ -94,6 +129,16 @@ export class WorkflowEngine {
       }
     }
 
+    return {
+      status: WorkflowEngine.MATCH_STATUS.EXECUTED,
+      results,
+      disabledMatches,
+    };
+  }
+
+  // Process an incoming event (legacy method)
+  async processEvent(event: ProcessedEvent): Promise<WorkflowExecutionResult[]> {
+    const { results } = await this.processEventWithMatchInfo(event);
     return results;
   }
 

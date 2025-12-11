@@ -7,7 +7,7 @@ import { logger } from '../persistence/logger.js';
 import { getDatabase } from '../persistence/database.js';
 import { WorkflowEngine } from '../core/workflow-engine.js';
 import type { ProcessedEvent } from '../inbound/nostr-listener.js';
-import type { QueuedEvent, QueuedEventType } from '../persistence/models/queued-event.js';
+import type { QueuedEvent, QueuedEventType, QueuedEventStatus } from '../persistence/models/queued-event.js';
 
 export interface QueueWorkerConfig {
   // Polling interval in milliseconds (default: 1000ms)
@@ -175,13 +175,13 @@ export class QueueWorker {
       // Parse the event data
       const eventData: QueuedEventData = JSON.parse(queuedEvent.event_data);
 
-      // Process based on event type
-      let results;
+      // Get the ProcessedEvent to process
+      let processedEvent: ProcessedEvent;
       switch (queuedEvent.event_type) {
         case 'nostr_dm':
         case 'nostr_event':
           if (eventData.nostrEvent) {
-            results = await this.workflowEngine.processEvent(eventData.nostrEvent);
+            processedEvent = eventData.nostrEvent;
           } else {
             throw new Error('Missing nostrEvent data');
           }
@@ -189,9 +189,7 @@ export class QueueWorker {
 
         case 'api_webhook':
           if (eventData.webhookEvent) {
-            // Convert webhook event to ProcessedEvent format
-            const processedEvent = this.convertWebhookToProcessedEvent(eventData.webhookEvent);
-            results = await this.workflowEngine.processEvent(processedEvent);
+            processedEvent = this.convertWebhookToProcessedEvent(eventData.webhookEvent);
           } else {
             throw new Error('Missing webhookEvent data');
           }
@@ -199,15 +197,10 @@ export class QueueWorker {
 
         case 'hook':
         case 'manual':
-          // These types may have custom processing logic
-          // For now, treat them as nostr events if they have the data
           if (eventData.nostrEvent) {
-            results = await this.workflowEngine.processEvent(eventData.nostrEvent);
+            processedEvent = eventData.nostrEvent;
           } else if (eventData.manualEvent?.data) {
-            // Try to process manual event data as ProcessedEvent
-            results = await this.workflowEngine.processEvent(
-              eventData.manualEvent.data as ProcessedEvent
-            );
+            processedEvent = eventData.manualEvent.data as ProcessedEvent;
           } else {
             throw new Error(`Unsupported event type: ${queuedEvent.event_type}`);
           }
@@ -217,61 +210,85 @@ export class QueueWorker {
           throw new Error(`Unknown event type: ${queuedEvent.event_type}`);
       }
 
-      // Check results
-      const successCount = results?.filter((r) => r.success).length ?? 0;
-      const failCount = results?.filter((r) => !r.success).length ?? 0;
-      const totalCount = results?.length ?? 0;
+      // Process with detailed match info
+      const { status, results, disabledMatches } = await this.workflowEngine.processEventWithMatchInfo(processedEvent);
 
-      if (totalCount === 0) {
-        // No workflow matched - still mark as completed
-        db.ackEvent(queuedEvent.id, undefined, undefined, { noMatch: true });
+      // Handle based on match status
+      if (status === WorkflowEngine.MATCH_STATUS.NO_MATCH) {
+        // No workflow matched at all
+        db.markEventStatus(queuedEvent.id, 'no_match', undefined, undefined, { noMatch: true });
         logger.debug(
           { queueId: queuedEvent.id, duration: Date.now() - startTime },
-          'Queued event completed (no workflow matched)'
+          'Queued event: no workflow matched'
         );
-      } else if (failCount === 0 && results && results.length > 0) {
-        // All workflows succeeded - firstResult is guaranteed to exist here
-        const firstResult = results[0]!;
-        db.ackEvent(
+      } else if (status === WorkflowEngine.MATCH_STATUS.ALL_DISABLED) {
+        // Workflows matched but all disabled - record the first disabled workflow
+        const firstDisabled = disabledMatches[0];
+        db.markEventStatus(
           queuedEvent.id,
-          firstResult.workflowId,
-          firstResult.workflowName,
-          {
-            successCount,
-            results: results.map((r) => ({
-              workflowId: r.workflowId,
-              success: r.success,
-              actionsExecuted: r.actionsExecuted,
-            })),
-          }
+          'skipped_disabled',
+          firstDisabled?.workflowId,
+          firstDisabled?.workflowName,
+          { disabledMatches }
         );
         logger.info(
           {
             queueId: queuedEvent.id,
-            workflowId: firstResult.workflowId,
-            successCount,
+            disabledWorkflows: disabledMatches.map((m) => m.workflowId),
             duration: Date.now() - startTime,
           },
-          'Queued event completed successfully'
+          'Queued event: matched workflows are disabled'
         );
       } else {
-        // Some workflows failed
-        const errorMessages = results!
-          .filter((r) => !r.success)
-          .map((r) => `${r.workflowId}: ${r.error}`)
-          .join('; ');
+        // Workflows executed
+        const successCount = results.filter((r) => r.success).length;
+        const failCount = results.filter((r) => !r.success).length;
 
-        db.nackEvent(queuedEvent.id, errorMessages, true);
-        logger.warn(
-          {
-            queueId: queuedEvent.id,
-            failCount,
-            successCount,
-            errors: errorMessages,
-            duration: Date.now() - startTime,
-          },
-          'Queued event partially failed'
-        );
+        if (failCount === 0 && results.length > 0) {
+          // All workflows succeeded
+          const firstResult = results[0]!;
+          db.ackEvent(
+            queuedEvent.id,
+            firstResult.workflowId,
+            firstResult.workflowName,
+            {
+              successCount,
+              results: results.map((r) => ({
+                workflowId: r.workflowId,
+                success: r.success,
+                actionsExecuted: r.actionsExecuted,
+              })),
+              disabledMatches: disabledMatches.length > 0 ? disabledMatches : undefined,
+            }
+          );
+          logger.info(
+            {
+              queueId: queuedEvent.id,
+              workflowId: firstResult.workflowId,
+              successCount,
+              duration: Date.now() - startTime,
+            },
+            'Queued event completed successfully'
+          );
+        } else {
+          // Some workflows failed
+          const errorMessages = results
+            .filter((r) => !r.success)
+            .map((r) => `${r.workflowId}: ${r.error}`)
+            .join('; ');
+
+          db.nackEvent(queuedEvent.id, errorMessages, true);
+          logger.warn(
+            {
+              queueId: queuedEvent.id,
+              failCount,
+              successCount,
+              errors: errorMessages,
+              duration: Date.now() - startTime,
+            },
+            'Queued event partially failed'
+          );
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

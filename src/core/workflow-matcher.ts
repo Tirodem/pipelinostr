@@ -37,12 +37,22 @@ export class WorkflowMatcher {
     );
   }
 
-  // Find matching workflows for an event
-  findMatches(
+  // Result type for findMatchesWithDisabled
+  public static readonly MATCH_RESULT = {
+    ENABLED: 'enabled',
+    DISABLED: 'disabled',
+  } as const;
+
+  // Find matching workflows for an event (including disabled ones)
+  findMatchesWithDisabled(
     event: ProcessedEvent,
     workflows: WorkflowDefinition[]
-  ): Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> {
-    const results: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> = [];
+  ): {
+    enabled: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }>;
+    disabled: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }>;
+  } {
+    const enabled: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> = [];
+    const disabled: Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> = [];
     const content = event.decryptedContent ?? event.rawContent;
 
     // Parse zap if kind 9735
@@ -91,31 +101,50 @@ export class WorkflowMatcher {
     };
 
     for (const workflow of workflows) {
-      if (!workflow.enabled) continue;
       if (workflow.trigger.type !== 'nostr_event') continue;
 
       const matchResult = this.matchWorkflow(event, workflow, content, parsedZap);
 
       if (matchResult.matched) {
-        results.push({
+        const matchData = {
           workflow,
           match: matchResult,
           context: triggerContext,
-        });
+        };
 
-        logger.debug(
-          { workflowId: workflow.id, groups: matchResult.groups },
-          'Workflow matched'
-        );
+        if (workflow.enabled) {
+          enabled.push(matchData);
 
-        // If workflow doesn't allow multiple, stop here
-        if (!workflow.multiple) {
-          break;
+          logger.debug(
+            { workflowId: workflow.id, groups: matchResult.groups },
+            'Workflow matched'
+          );
+
+          // If workflow doesn't allow multiple, stop checking enabled workflows
+          if (!workflow.multiple) {
+            // Continue checking for disabled matches
+            continue;
+          }
+        } else {
+          disabled.push(matchData);
+
+          logger.debug(
+            { workflowId: workflow.id, groups: matchResult.groups },
+            'Workflow matched but disabled'
+          );
         }
       }
     }
 
-    return results;
+    return { enabled, disabled };
+  }
+
+  // Find matching workflows for an event (legacy method, only enabled workflows)
+  findMatches(
+    event: ProcessedEvent,
+    workflows: WorkflowDefinition[]
+  ): Array<{ workflow: WorkflowDefinition; match: MatchResult; context: TriggerContext }> {
+    return this.findMatchesWithDisabled(event, workflows).enabled;
   }
 
   private matchWorkflow(

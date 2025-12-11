@@ -3,7 +3,14 @@
  * Represents an event in the processing queue
  */
 
-export type QueuedEventStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead';
+export type QueuedEventStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'dead'
+  | 'no_match'           // No workflow matched this event
+  | 'skipped_disabled';  // Matched workflow(s) but all were disabled
 
 export type QueuedEventType = 'nostr_dm' | 'nostr_event' | 'api_webhook' | 'hook' | 'manual';
 
@@ -48,5 +55,7 @@ export interface QueueStats {
   completed: number;
   failed: number;
   dead: number;
+  no_match: number;
+  skipped_disabled: number;
   total: number;
 }

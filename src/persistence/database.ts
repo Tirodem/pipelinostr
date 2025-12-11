@@ -542,6 +542,33 @@ export class PipelinostrDatabase {
     });
   }
 
+  // Mark event with a specific final status (no_match, skipped_disabled)
+  markEventStatus(
+    id: number,
+    status: QueuedEventStatus,
+    workflowId?: string,
+    workflowName?: string,
+    resultData?: unknown
+  ): void {
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = @status,
+          completed_at = datetime('now'),
+          workflow_id = @workflow_id,
+          workflow_name = @workflow_name,
+          result_data = @result_data
+      WHERE id = @id
+    `);
+
+    stmt.run({
+      id,
+      status,
+      workflow_id: workflowId ?? null,
+      workflow_name: workflowName ?? null,
+      result_data: resultData ? JSON.stringify(resultData) : null,
+    });
+  }
+
   // Mark event as failed (will retry if under max_retries)
   nackEvent(id: number, errorMessage: string, requeue = true): void {
     // Get current event to check retry count
@@ -661,6 +688,8 @@ export class PipelinostrDatabase {
       completed: 0,
       failed: 0,
       dead: 0,
+      no_match: 0,
+      skipped_disabled: 0,
       total: 0,
     };
 
