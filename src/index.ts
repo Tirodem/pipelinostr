@@ -8,6 +8,7 @@ import { WebhookServer, type WebhookServerConfig, type WebhookEvent } from './in
 import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from './inbound/api-poller.js';
 import { SchedulerManager, type SchedulerManagerConfig, type SchedulerEvent } from './inbound/scheduler.js';
 import { WorkflowEngine } from './core/workflow-engine.js';
+import { QueueWorker, enqueueNostrEvent, enqueueWebhookEvent } from './queue/queue-worker.js';
 import { EmailHandler, type EmailHandlerOptions } from './outbound/email.handler.js';
 import { HttpHandler } from './outbound/http.handler.js';
 import { NostrDmHandler, NostrNoteHandler } from './outbound/nostr.handler.js';
@@ -47,6 +48,9 @@ interface AppState {
   relayManager: RelayManager;
   nostrListener: NostrListener;
   workflowEngine: WorkflowEngine;
+  // Queue worker
+  queueWorker?: QueueWorker | undefined;
+  queueEnabled: boolean;
   // Relay discovery
   relayDiscovery?: RelayDiscovery | undefined;
   // Inbound handlers
@@ -1344,12 +1348,16 @@ async function main(): Promise<void> {
       relayManager
     );
 
+    // Check if queue is enabled
+    const queueEnabled = config.queue?.enabled ?? false;
+
     // Build app state
     const state: AppState = {
       config,
       relayManager,
       nostrListener,
       workflowEngine,
+      queueEnabled,
       relayDiscovery,
       handlers: {
         http: undefined as unknown as HttpHandler,
@@ -1365,28 +1373,49 @@ async function main(): Promise<void> {
     // Initialize inbound handlers
     await initializeInboundHandlers(state, workflowEngine);
 
-    // Connect listener to workflow engine
+    // Initialize queue worker if enabled
+    if (queueEnabled) {
+      const queueWorker = new QueueWorker(workflowEngine, {
+        pollIntervalMs: config.queue?.poll_interval_ms ?? 1000,
+        concurrency: config.queue?.concurrency ?? 1,
+        stuckTimeoutMinutes: config.queue?.stuck_timeout_minutes ?? 10,
+        cleanupDays: config.queue?.cleanup_days ?? 7,
+        cleanupInterval: config.queue?.cleanup_interval ?? 100,
+        enabled: true,
+      });
+      state.queueWorker = queueWorker;
+      await queueWorker.start();
+      logger.info('Queue worker started');
+    }
+
+    // Connect listener to workflow engine (with or without queue)
     nostrListener.onEvent(async (event) => {
       logger.debug(
         { eventId: event.id, kind: event.kind, from: event.pubkeyNpub.slice(0, 20) },
         'Event received'
       );
 
-      // Process through workflow engine
-      const results = await workflowEngine.processEvent(event);
+      if (state.queueEnabled && state.queueWorker) {
+        // Enqueue for async processing
+        const queueId = enqueueNostrEvent(event);
+        logger.debug({ eventId: event.id, queueId }, 'Event enqueued');
+      } else {
+        // Process directly (legacy mode)
+        const results = await workflowEngine.processEvent(event);
 
-      if (results.length > 0) {
-        for (const result of results) {
-          if (result.success) {
-            logger.info(
-              { workflowId: result.workflowId, actions: result.actionsExecuted },
-              'Workflow executed successfully'
-            );
-          } else {
-            logger.error(
-              { workflowId: result.workflowId, error: result.error },
-              'Workflow execution failed'
-            );
+        if (results.length > 0) {
+          for (const result of results) {
+            if (result.success) {
+              logger.info(
+                { workflowId: result.workflowId, actions: result.actionsExecuted },
+                'Workflow executed successfully'
+              );
+            } else {
+              logger.error(
+                { workflowId: result.workflowId, error: result.error },
+                'Workflow execution failed'
+              );
+            }
           }
         }
       }
@@ -1398,12 +1427,15 @@ async function main(): Promise<void> {
     // Log stats
     const relayStats = relayManager.getStats();
     const workflowStats = workflowEngine.getStats();
+    const queueStats = queueEnabled ? getDatabase().getQueueStats() : null;
     logger.info(
       {
         relays: `${relayStats.connected}/${relayStats.total}`,
         workflows: `${workflowStats.enabledWorkflows}/${workflowStats.totalWorkflows}`,
         handlers: workflowStats.handlers,
         publicKey: nostrListener.getPublicKeyNpub(),
+        queueEnabled,
+        ...(queueStats && { queuePending: queueStats.pending }),
       },
       'PipeliNostr started successfully'
     );
@@ -1421,6 +1453,12 @@ async function shutdown(): Promise<void> {
   logger.info('Shutting down PipeliNostr...');
 
   if (appState) {
+    // Stop queue worker first (let it finish processing)
+    if (appState.queueWorker) {
+      logger.info('Stopping queue worker...');
+      await appState.queueWorker.stop();
+    }
+
     // Stop relay discovery
     if (appState.relayDiscovery) {
       appState.relayDiscovery.stopAutoDiscovery();

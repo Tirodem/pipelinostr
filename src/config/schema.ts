@@ -80,6 +80,14 @@ export interface PipelinostrConfig {
       max_delay_ms: number;
     };
   };
+  queue?: {
+    enabled: boolean;
+    poll_interval_ms?: number;
+    concurrency?: number;
+    stuck_timeout_minutes?: number;
+    cleanup_days?: number;
+    cleanup_interval?: number;
+  };
 }
 
 const configSchema = {
@@ -236,6 +244,18 @@ const configSchema = {
         },
       },
       required: ['max_attempts', 'backoff'],
+    },
+    queue: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        poll_interval_ms: { type: 'integer' },
+        concurrency: { type: 'integer' },
+        stuck_timeout_minutes: { type: 'integer' },
+        cleanup_days: { type: 'integer' },
+        cleanup_interval: { type: 'integer' },
+      },
+      required: ['enabled'],
     },
   },
   required: ['pipelinostr', 'nostr', 'whitelist', 'relays', 'database', 'logging'],

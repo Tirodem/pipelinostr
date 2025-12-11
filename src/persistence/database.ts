@@ -5,6 +5,7 @@ import { logger } from './logger.js';
 import type { EventLog } from './models/event-log.js';
 import type { RelayState } from './models/relay-state.js';
 import type { WorkflowExecution } from './models/workflow-execution.js';
+import type { QueuedEvent, QueuedEventStatus, QueuedEventType, QueueStats, EnqueueOptions } from './models/queued-event.js';
 
 export class PipelinostrDatabase {
   private db: Database.Database;
@@ -89,6 +90,30 @@ export class PipelinostrDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_workflow_execution_event ON workflow_execution(event_log_id);
       CREATE INDEX IF NOT EXISTS idx_workflow_execution_workflow ON workflow_execution(workflow_id);
+
+      -- Table file d'attente des événements
+      CREATE TABLE IF NOT EXISTS event_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        event_id TEXT,
+        event_data TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority INTEGER DEFAULT 0,
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 3,
+        next_retry_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        started_at DATETIME,
+        completed_at DATETIME,
+        workflow_id TEXT,
+        workflow_name TEXT,
+        error_message TEXT,
+        result_data TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_event_queue_status ON event_queue(status);
+      CREATE INDEX IF NOT EXISTS idx_event_queue_next_retry ON event_queue(next_retry_at);
+      CREATE INDEX IF NOT EXISTS idx_event_queue_priority ON event_queue(priority DESC, created_at ASC);
     `);
 
     logger.debug('Database tables initialized');
@@ -441,6 +466,264 @@ export class PipelinostrDatabase {
     };
   }
 
+  // ==================== EventQueue ====================
+
+  enqueueEvent(
+    eventType: QueuedEventType,
+    eventData: unknown,
+    eventId?: string,
+    options: EnqueueOptions = {}
+  ): number {
+    const nextRetryAt = options.delay_ms
+      ? new Date(Date.now() + options.delay_ms)
+      : null;
+
+    const stmt = this.db.prepare(`
+      INSERT INTO event_queue (
+        event_type, event_id, event_data, priority, max_retries, next_retry_at
+      ) VALUES (
+        @event_type, @event_id, @event_data, @priority, @max_retries, @next_retry_at
+      )
+    `);
+
+    const result = stmt.run({
+      event_type: eventType,
+      event_id: eventId ?? null,
+      event_data: JSON.stringify(eventData),
+      priority: options.priority ?? 0,
+      max_retries: options.max_retries ?? 3,
+      next_retry_at: nextRetryAt?.toISOString() ?? null,
+    });
+
+    return result.lastInsertRowid as number;
+  }
+
+  // Get next event to process (respects priority and retry timing)
+  dequeueEvent(): QueuedEvent | undefined {
+    const stmt = this.db.prepare(`
+      SELECT * FROM event_queue
+      WHERE status = 'pending'
+        AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))
+      ORDER BY priority DESC, created_at ASC
+      LIMIT 1
+    `);
+
+    const row = stmt.get() as Record<string, unknown> | undefined;
+    if (!row) return undefined;
+
+    // Mark as processing
+    const updateStmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = 'processing', started_at = datetime('now')
+      WHERE id = ?
+    `);
+    updateStmt.run(row['id']);
+
+    return this.rowToQueuedEvent(row);
+  }
+
+  // Mark event as completed
+  ackEvent(id: number, workflowId?: string, workflowName?: string, resultData?: unknown): void {
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = 'completed',
+          completed_at = datetime('now'),
+          workflow_id = @workflow_id,
+          workflow_name = @workflow_name,
+          result_data = @result_data
+      WHERE id = @id
+    `);
+
+    stmt.run({
+      id,
+      workflow_id: workflowId ?? null,
+      workflow_name: workflowName ?? null,
+      result_data: resultData ? JSON.stringify(resultData) : null,
+    });
+  }
+
+  // Mark event as failed (will retry if under max_retries)
+  nackEvent(id: number, errorMessage: string, requeue = true): void {
+    // Get current event to check retry count
+    const event = this.getQueuedEvent(id);
+    if (!event) return;
+
+    const newRetryCount = event.retry_count + 1;
+    const shouldRetry = requeue && newRetryCount < event.max_retries;
+
+    // Exponential backoff: 2^retry * 1000ms (1s, 2s, 4s, 8s, 16s...)
+    const backoffMs = Math.min(Math.pow(2, newRetryCount) * 1000, 300000); // Max 5 minutes
+    const nextRetryAt = new Date(Date.now() + backoffMs);
+
+    const newStatus: QueuedEventStatus = shouldRetry ? 'pending' : (newRetryCount >= event.max_retries ? 'dead' : 'failed');
+
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = @status,
+          retry_count = @retry_count,
+          next_retry_at = @next_retry_at,
+          error_message = @error_message,
+          completed_at = CASE WHEN @status IN ('failed', 'dead') THEN datetime('now') ELSE NULL END
+      WHERE id = @id
+    `);
+
+    stmt.run({
+      id,
+      status: newStatus,
+      retry_count: newRetryCount,
+      next_retry_at: shouldRetry ? nextRetryAt.toISOString() : null,
+      error_message: errorMessage,
+    });
+
+    if (shouldRetry) {
+      logger.debug({ id, retryCount: newRetryCount, nextRetryAt }, 'Event requeued for retry');
+    } else {
+      logger.warn({ id, retryCount: newRetryCount, status: newStatus }, 'Event moved to dead letter');
+    }
+  }
+
+  getQueuedEvent(id: number): QueuedEvent | undefined {
+    const stmt = this.db.prepare('SELECT * FROM event_queue WHERE id = ?');
+    const row = stmt.get(id) as Record<string, unknown> | undefined;
+    return row ? this.rowToQueuedEvent(row) : undefined;
+  }
+
+  getQueuedEventsByStatus(status: QueuedEventStatus, limit = 100): QueuedEvent[] {
+    const stmt = this.db.prepare('SELECT * FROM event_queue WHERE status = ? ORDER BY created_at DESC LIMIT ?');
+    const rows = stmt.all(status, limit) as Record<string, unknown>[];
+    return rows.map((row) => this.rowToQueuedEvent(row));
+  }
+
+  getRecentQueuedEvents(limit = 100): QueuedEvent[] {
+    const stmt = this.db.prepare('SELECT * FROM event_queue ORDER BY created_at DESC LIMIT ?');
+    const rows = stmt.all(limit) as Record<string, unknown>[];
+    return rows.map((row) => this.rowToQueuedEvent(row));
+  }
+
+  // Replay a failed/dead event
+  replayEvent(id: number): boolean {
+    const event = this.getQueuedEvent(id);
+    if (!event || (event.status !== 'failed' && event.status !== 'dead')) {
+      return false;
+    }
+
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = 'pending',
+          retry_count = 0,
+          next_retry_at = NULL,
+          started_at = NULL,
+          completed_at = NULL,
+          error_message = NULL
+      WHERE id = ?
+    `);
+    stmt.run(id);
+
+    logger.info({ id }, 'Event replayed');
+    return true;
+  }
+
+  // Replay all failed events
+  replayFailedEvents(): number {
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = 'pending',
+          retry_count = 0,
+          next_retry_at = NULL,
+          started_at = NULL,
+          completed_at = NULL,
+          error_message = NULL
+      WHERE status IN ('failed', 'dead')
+    `);
+    const result = stmt.run();
+    const count = result.changes;
+
+    if (count > 0) {
+      logger.info({ count }, 'Failed events replayed');
+    }
+    return count;
+  }
+
+  // Get queue statistics
+  getQueueStats(): QueueStats {
+    const stmt = this.db.prepare(`
+      SELECT
+        status,
+        COUNT(*) as count
+      FROM event_queue
+      GROUP BY status
+    `);
+    const rows = stmt.all() as Array<{ status: string; count: number }>;
+
+    const stats: QueueStats = {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      dead: 0,
+      total: 0,
+    };
+
+    for (const row of rows) {
+      const status = row.status as keyof QueueStats;
+      if (status in stats && status !== 'total') {
+        stats[status] = row.count;
+        stats.total += row.count;
+      }
+    }
+
+    return stats;
+  }
+
+  // Clean up old completed events (keep last N days)
+  cleanupQueue(keepDays = 7): number {
+    const stmt = this.db.prepare(`
+      DELETE FROM event_queue
+      WHERE status = 'completed'
+        AND completed_at < datetime('now', '-' || ? || ' days')
+    `);
+    const result = stmt.run(keepDays);
+    return result.changes;
+  }
+
+  // Reset stuck processing events (for recovery after crash)
+  resetStuckEvents(stuckMinutes = 10): number {
+    const stmt = this.db.prepare(`
+      UPDATE event_queue
+      SET status = 'pending',
+          started_at = NULL
+      WHERE status = 'processing'
+        AND started_at < datetime('now', '-' || ? || ' minutes')
+    `);
+    const result = stmt.run(stuckMinutes);
+
+    if (result.changes > 0) {
+      logger.warn({ count: result.changes }, 'Reset stuck events');
+    }
+    return result.changes;
+  }
+
+  private rowToQueuedEvent(row: Record<string, unknown>): QueuedEvent {
+    return {
+      id: row['id'] as number,
+      event_type: row['event_type'] as QueuedEventType,
+      event_id: row['event_id'] as string | undefined,
+      event_data: row['event_data'] as string,
+      status: row['status'] as QueuedEventStatus,
+      priority: row['priority'] as number,
+      retry_count: row['retry_count'] as number,
+      max_retries: row['max_retries'] as number,
+      next_retry_at: row['next_retry_at'] ? new Date(row['next_retry_at'] as string) : undefined,
+      created_at: new Date(row['created_at'] as string),
+      started_at: row['started_at'] ? new Date(row['started_at'] as string) : undefined,
+      completed_at: row['completed_at'] ? new Date(row['completed_at'] as string) : undefined,
+      workflow_id: row['workflow_id'] as string | undefined,
+      workflow_name: row['workflow_name'] as string | undefined,
+      error_message: row['error_message'] as string | undefined,
+      result_data: row['result_data'] as string | undefined,
+    };
+  }
+
   // ==================== Utilities ====================
 
   close(): void {
@@ -448,11 +731,12 @@ export class PipelinostrDatabase {
     logger.info('Database connection closed');
   }
 
-  getStats(): { events: number; relays: number; executions: number } {
+  getStats(): { events: number; relays: number; executions: number; queue: QueueStats } {
     const events = (this.db.prepare('SELECT COUNT(*) as count FROM event_log').get() as { count: number }).count;
     const relays = (this.db.prepare('SELECT COUNT(*) as count FROM relay_state').get() as { count: number }).count;
     const executions = (this.db.prepare('SELECT COUNT(*) as count FROM workflow_execution').get() as { count: number }).count;
-    return { events, relays, executions };
+    const queue = this.getQueueStats();
+    return { events, relays, executions, queue };
   }
 }
 
