@@ -553,19 +553,22 @@ async function initializeHandlers(
       mongodbConfig?.mongodb?.enabled !== false &&
       mongodbConfig?.mongodb?.connection_string
     ) {
+      logger.debug('Creating MongoDB handler...');
       state.handlers.mongodb = new MongoDbHandler({
         enabled: true,
         connection_string: mongodbConfig.mongodb.connection_string,
         database: mongodbConfig.mongodb.database || 'pipelinostr',
         default_collection: mongodbConfig.mongodb.default_collection || 'nostr_events',
       });
+      logger.debug('Connecting to MongoDB...');
       await state.handlers.mongodb.initialize();
       state.workflowEngine.registerHandler('mongodb', state.handlers.mongodb);
       logger.info('MongoDB handler enabled');
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.warn({ error: errorMessage }, 'MongoDB handler failed to initialize');
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.warn({ error: errorMessage, stack: errorStack, errorType: typeof error }, 'MongoDB handler failed to initialize');
   }
 
   // MySQL Handler (optional, needs config)
