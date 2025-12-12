@@ -58,7 +58,8 @@ export class OdooHandler implements Handler {
       await this.ensureDefaultPartner();
       logger.info({ url: this.config.url, database: this.config.database }, 'Odoo handler initialized');
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize Odoo handler');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, stack: error instanceof Error ? error.stack : undefined }, 'Failed to initialize Odoo handler');
     }
   }
 
