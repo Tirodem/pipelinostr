@@ -95,28 +95,32 @@ export class BeBopHandler implements Handler {
     // Try multiple patterns to extract SvelteKit data
     logger.debug({ htmlLength: html.length }, 'parseOrderPage: Starting');
 
-    // Pattern 1: const data = [...] in SvelteKit script - extract and parse manually
-    const constDataStart = html.indexOf('const data = [');
-    logger.debug({ constDataStart }, 'parseOrderPage: Looking for const data pattern');
+    // Pattern 1: const data = [{...}] - SvelteKit hydration data (must start with array of objects)
+    // Look for "const data = [{" which is the SvelteKit pattern, not just "const data"
+    const constDataPattern = /const\s+data\s*=\s*\[\s*\{/g;
+    let match;
+    while ((match = constDataPattern.exec(html)) !== null) {
+      const arrayStart = html.indexOf('[', match.index);
+      logger.debug({ position: arrayStart }, 'parseOrderPage: Found potential SvelteKit data array');
 
-    if (constDataStart !== -1) {
-      const arrayStart = html.indexOf('[', constDataStart);
       const extracted = this.extractJsonArray(html, arrayStart);
-      logger.debug({ extractedLength: extracted?.length ?? 0 }, 'parseOrderPage: Extracted JSON array');
+      if (extracted && extracted.length > 1000) { // SvelteKit data is usually large
+        logger.debug({ extractedLength: extracted.length }, 'parseOrderPage: Extracted JSON array');
 
-      if (extracted) {
         try {
           const dataArray = JSON.parse(extracted);
-          logger.debug({ arrayLength: dataArray.length }, 'parseOrderPage: Parsed data array');
-          const orderData = this.findOrderInDataArray(dataArray);
-          if (orderData) {
-            logger.debug({ hasOrder: true }, 'Found order data using const data pattern');
-            return this.normalizeOrderData(orderData);
-          } else {
-            logger.debug('parseOrderPage: No order found in data array');
+          if (Array.isArray(dataArray)) {
+            logger.debug({ arrayLength: dataArray.length }, 'parseOrderPage: Parsed data array');
+            const orderData = this.findOrderInDataArray(dataArray);
+            if (orderData) {
+              logger.debug({ hasOrder: true }, 'Found order data using const data pattern');
+              return this.normalizeOrderData(orderData);
+            } else {
+              logger.debug('parseOrderPage: No order found in this data array, trying next');
+            }
           }
         } catch (parseError) {
-          logger.warn({ error: parseError instanceof Error ? parseError.message : String(parseError) }, 'Failed to parse const data pattern');
+          logger.debug({ error: parseError instanceof Error ? parseError.message : String(parseError) }, 'Failed to parse this data array, trying next');
         }
       }
     }
