@@ -236,13 +236,15 @@ export class OdooHandler implements Handler {
     logger.info({ odooOrderId, bebopOrder: orderData.orderNumber }, 'Created Odoo sale order');
 
     // Create order lines
-    for (const item of orderData.items) {
-      await this.createOrderLine(odooOrderId, item, orderData.totals.currency);
+    if (orderData.items && Array.isArray(orderData.items)) {
+      for (const item of orderData.items) {
+        await this.createOrderLine(odooOrderId, item, orderData.totals?.currency || 'EUR');
+      }
     }
 
     // Add shipping if present
-    if (orderData.totals.shipping > 0) {
-      await this.createShippingLine(odooOrderId, orderData.totals.shipping, orderData.totals.currency);
+    if (orderData.totals?.shipping && orderData.totals.shipping > 0) {
+      await this.createShippingLine(odooOrderId, orderData.totals.shipping, orderData.totals.currency || 'EUR');
     }
 
     // Confirm the order (move to 'sale' state)
@@ -260,7 +262,7 @@ export class OdooHandler implements Handler {
         bebop_order_number: orderData.orderNumber,
         bebop_order_id: orderData.orderId,
         partner_id: effectivePartnerId,
-        items_count: orderData.items.length,
+        items_count: orderData.items?.length || 0,
       },
     };
   }
