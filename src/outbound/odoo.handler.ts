@@ -103,23 +103,52 @@ export class OdooHandler implements Handler {
   }
 
   private async authenticate(): Promise<void> {
-    const response = await this.jsonRpcCall('/web/session/authenticate', {
-      db: this.config.database,
-      login: this.config.username,
-      password: this.config.api_key,
-    }) as OdooAuthResponse;
+    const url = `${this.config.url}/web/session/authenticate`;
 
-    if (response.uid === false || !response.uid) {
+    const body = {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {
+        db: this.config.database,
+        login: this.config.username,
+        password: this.config.api_key,
+      },
+      id: Date.now(),
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'PipeliNostr/0.1.0',
+      },
+      body: JSON.stringify(body),
+    });
+
+    // Extract session_id from Set-Cookie header
+    const setCookie = response.headers.get('set-cookie') || '';
+    const sessionMatch = setCookie.match(/session_id=([^;]+)/);
+    const sessionId = sessionMatch && sessionMatch[1] ? sessionMatch[1] : '';
+
+    const result = await response.json() as { result?: OdooAuthResponse; error?: { message?: string; data?: { message?: string } } };
+
+    if (result.error) {
+      const errorMsg = result.error.data?.message || result.error.message || 'Unknown Odoo error';
+      throw new Error(errorMsg);
+    }
+
+    const authResult = result.result;
+    if (!authResult || authResult.uid === false || !authResult.uid) {
       throw new Error('Odoo authentication failed: invalid credentials');
     }
 
     this.session = {
-      uid: response.uid as number,
-      sessionId: response.session_id || '',
+      uid: authResult.uid as number,
+      sessionId: sessionId,
       expiresAt: Date.now() + 3600000, // 1 hour
     };
 
-    logger.debug({ uid: response.uid }, 'Odoo authentication successful');
+    logger.info({ uid: authResult.uid, hasSession: !!sessionId }, 'Odoo authentication successful');
   }
 
   private async ensureAuthenticated(): Promise<void> {
