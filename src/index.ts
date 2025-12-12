@@ -41,6 +41,8 @@ import { UsbHidHandler } from './outbound/usb-hid.handler.js';
 import { I2cHandler } from './outbound/i2c.handler.js';
 import { TraccarSmsHandler, type TraccarSmsHandlerOptions } from './outbound/traccar-sms.handler.js';
 import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calendar.handler.js';
+import { BeBopHandler } from './outbound/bebop.handler.js';
+import { OdooHandler, type OdooConfig } from './outbound/odoo.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -92,6 +94,8 @@ interface AppState {
     i2c?: I2cHandler;
     traccarSms?: TraccarSmsHandler;
     calendar?: CalendarHandler;
+    bebop?: BeBopHandler;
+    odoo?: OdooHandler;
   };
 }
 
@@ -1106,6 +1110,55 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('Calendar handler not configured, skipping');
   }
+
+  // be-BOP Parser Handler (always available, no config needed)
+  state.handlers.bebop = new BeBopHandler();
+  await state.handlers.bebop.initialize();
+  state.workflowEngine.registerHandler('bebop_parser', state.handlers.bebop);
+  logger.info('be-BOP parser handler enabled');
+
+  // Odoo Handler (optional, needs config)
+  try {
+    interface OdooConfigFile {
+      odoo?: {
+        enabled?: boolean;
+        url?: string;
+        database?: string;
+        username?: string;
+        api_key?: string;
+        default_partner_id?: number;
+        default_partner_name?: string;
+      };
+    }
+    const odooConfig = await loadHandlerConfig<OdooConfigFile>('odoo');
+    if (
+      odooConfig?.odoo?.enabled !== false &&
+      odooConfig?.odoo?.url &&
+      odooConfig?.odoo?.database &&
+      odooConfig?.odoo?.username &&
+      odooConfig?.odoo?.api_key
+    ) {
+      const odooOptions: OdooConfig = {
+        url: odooConfig.odoo.url,
+        database: odooConfig.odoo.database,
+        username: odooConfig.odoo.username,
+        api_key: odooConfig.odoo.api_key,
+      };
+      if (odooConfig.odoo.default_partner_id !== undefined) {
+        odooOptions.default_partner_id = odooConfig.odoo.default_partner_id;
+      }
+      if (odooConfig.odoo.default_partner_name !== undefined) {
+        odooOptions.default_partner_name = odooConfig.odoo.default_partner_name;
+      }
+
+      state.handlers.odoo = new OdooHandler(odooOptions);
+      await state.handlers.odoo.initialize();
+      state.workflowEngine.registerHandler('odoo', state.handlers.odoo);
+      logger.info('Odoo handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Odoo handler not configured, skipping');
+  }
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1602,6 +1655,12 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.calendar) {
       await appState.handlers.calendar.shutdown();
+    }
+    if (appState.handlers.bebop) {
+      await appState.handlers.bebop.shutdown();
+    }
+    if (appState.handlers.odoo) {
+      await appState.handlers.odoo.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

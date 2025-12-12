@@ -1,0 +1,79 @@
+# Configuration Odoo Handler
+odoo:
+  enabled: false
+
+  # URL de l'instance Odoo (sans slash final)
+  # Pour Odoo.sh: https://votre-instance.odoo.com
+  url: ${ODOO_URL}
+
+  # Nom de la base de données
+  database: ${ODOO_DATABASE}
+
+  # Identifiants de connexion
+  # Utilisateur avec droits sur sale.order et res.partner
+  username: ${ODOO_USERNAME}
+
+  # API Key recommandee (Settings > Users > API Keys)
+  # Ou mot de passe standard
+  api_key: ${ODOO_API_KEY}
+
+  # Client par defaut pour les commandes be-BOP
+  # Si non specifie, un client "Ventes be-BOP" sera cree automatiquement
+  # default_partner_id: 123
+  default_partner_name: "Ventes be-BOP"
+
+# Configuration des variables d'environnement:
+# ODOO_URL=https://votre-instance.odoo.com
+# ODOO_DATABASE=votre-database
+# ODOO_USERNAME=admin
+# ODOO_API_KEY=votre-api-key
+
+# Obtenir une API Key Odoo:
+# 1. Settings > Users & Companies > Users
+# 2. Selectionner votre utilisateur
+# 3. Onglet "Account Security" ou "Preferences"
+# 4. Section "API Keys" > "New API Key"
+# 5. Nommer la cle (ex: "PipeliNostr") et copier
+
+# Droits requis pour l'utilisateur:
+# - Sales / User: All Documents (pour sale.order)
+# - Contacts / User (pour res.partner)
+# - Inventory / User (pour product.product, optionnel)
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Creer une commande depuis des donnees be-BOP parsees
+#   - type: odoo
+#     config:
+#       action: create_sale_order
+#       data: "{{ actions.parse_bebop.response }}"
+#
+#   # Rechercher un partenaire
+#   - type: odoo
+#     config:
+#       action: search_partner
+#       domain: [["email", "=", "client@example.com"]]
+#       fields: ["id", "name", "email"]
+#
+#   # Creer un partenaire
+#   - type: odoo
+#     config:
+#       action: create_partner
+#       data:
+#         name: "Nouveau Client"
+#         email: "nouveau@example.com"
+#         comment: "Cree via Nostr"
+#
+#   # Rechercher un produit
+#   - type: odoo
+#     config:
+#       action: search_product
+#       domain: [["default_code", "=", "PROD001"]]
+#       fields: ["id", "name", "list_price"]
+
+# Mapping des donnees be-BOP vers Odoo:
+# - order.items       -> sale.order.line (lignes de commande)
+# - order.customer    -> note de la commande (npub, email, login)
+# - order.totals      -> calcule automatiquement par Odoo
+# - order.payment     -> inclus dans les notes
