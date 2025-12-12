@@ -26,7 +26,8 @@
       "WebFetch(domain:mempool.space)",
       "Bash(git restore:*)",
       "Bash(done)",
-      "WebFetch(domain:dev-bootik2.pvh-labs.ch)"
+      "WebFetch(domain:dev-bootik2.pvh-labs.ch)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

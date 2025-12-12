@@ -185,13 +185,28 @@ export class BeBopHandler implements Handler {
         else if (char === ']') {
           depth--;
           if (depth === 0) {
-            return html.substring(startIndex, i + 1);
+            const extracted = html.substring(startIndex, i + 1);
+            // Convert JavaScript to valid JSON
+            return this.convertJsToJson(extracted);
           }
         }
       }
     }
 
     return null;
+  }
+
+  private convertJsToJson(jsString: string): string {
+    // Convert JavaScript object notation to valid JSON
+    return jsString
+      // Replace void 0 with null
+      .replace(/void\s+0/g, 'null')
+      // Replace new Date(...) with the timestamp number
+      .replace(/new\s+Date\((\d+)\)/g, '$1')
+      // Replace undefined with null
+      .replace(/:\s*undefined\b/g, ':null')
+      // Handle unquoted object keys (basic support)
+      .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
   }
 
   private findOrderInDataArray(dataArray: unknown[]): Record<string, unknown> | null {
