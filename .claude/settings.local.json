@@ -27,7 +27,8 @@
       "Bash(git restore:*)",
       "Bash(done)",
       "WebFetch(domain:dev-bootik2.pvh-labs.ch)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []
