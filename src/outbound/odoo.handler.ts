@@ -168,8 +168,7 @@ export class OdooHandler implements Handler {
     // Search for existing partner
     const searchResult = await this.executeKw('res.partner', 'search_read', [
       [['name', '=', partnerName]],
-      { fields: ['id'], limit: 1 },
-    ]) as OdooSearchResult[] | null;
+    ], { fields: ['id'], limit: 1 }) as OdooSearchResult[] | null;
 
     if (searchResult && searchResult.length > 0 && searchResult[0]) {
       this.defaultPartnerId = searchResult[0].id;
@@ -275,8 +274,7 @@ export class OdooHandler implements Handler {
     // Search for product by default_code (ref)
     const productSearch = await this.executeKw('product.product', 'search_read', [
       [['default_code', '=', item.productId]],
-      { fields: ['id'], limit: 1 },
-    ]) as OdooSearchResult[] | null;
+    ], { fields: ['id'], limit: 1 }) as OdooSearchResult[] | null;
 
     if (productSearch && productSearch.length > 0 && productSearch[0]) {
       productId = productSearch[0].id;
@@ -331,8 +329,7 @@ export class OdooHandler implements Handler {
   ): Promise<HandlerResult> {
     const result = await this.executeKw('res.partner', 'search_read', [
       domain,
-      { fields: fields || ['id', 'name', 'email', 'ref'] },
-    ]);
+    ], { fields: fields || ['id', 'name', 'email', 'ref'] });
 
     return {
       success: true,
@@ -355,8 +352,7 @@ export class OdooHandler implements Handler {
   ): Promise<HandlerResult> {
     const result = await this.executeKw('product.product', 'search_read', [
       domain,
-      { fields: fields || ['id', 'name', 'default_code', 'list_price'] },
-    ]);
+    ], { fields: fields || ['id', 'name', 'default_code', 'list_price'] });
 
     return {
       success: true,
