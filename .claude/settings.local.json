@@ -13,7 +13,20 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm install:*)",
       "Bash(gh issue create:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(dir:*)",
+      "Bash(git rm:*)",
+      "WebFetch(domain:api.nostr.watch)",
+      "Bash(git update-index:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(git reset:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:mempool.space)",
+      "Bash(git restore:*)",
+      "Bash(done)",
+      "WebFetch(domain:dev-bootik2.pvh-labs.ch)"
     ],
     "deny": [],
     "ask": []

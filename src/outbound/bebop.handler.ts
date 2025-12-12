@@ -84,53 +84,116 @@ export class BeBopHandler implements Handler {
   }
 
   private parseOrderPage(html: string): BeBopOrderData | null {
-    // Extract SvelteKit data from script tag
-    // Pattern: looks for the data array in script containing order info
-    const scriptPattern = /<script[^>]*>[\s\S]*?\[[\s\S]*?"type"\s*:\s*"data"[\s\S]*?order[\s\S]*?\][\s\S]*?<\/script>/i;
-    const scriptMatch = html.match(scriptPattern);
+    // Try multiple patterns to extract SvelteKit data
 
-    if (!scriptMatch) {
-      // Try alternative pattern for inline JSON data
-      return this.parseAlternativeFormat(html);
+    // Pattern 1: const data = [...] in SvelteKit script - extract and parse manually
+    const constDataStart = html.indexOf('const data = [');
+    if (constDataStart !== -1) {
+      const arrayStart = html.indexOf('[', constDataStart);
+      const extracted = this.extractJsonArray(html, arrayStart);
+      if (extracted) {
+        try {
+          const dataArray = JSON.parse(extracted);
+          const orderData = this.findOrderInDataArray(dataArray);
+          if (orderData) {
+            logger.debug('Found order data using const data pattern');
+            return this.normalizeOrderData(orderData);
+          }
+        } catch (parseError) {
+          logger.debug({ error: parseError }, 'Failed to parse const data pattern');
+        }
+      }
     }
 
-    try {
-      // Extract JSON array from script content
-      const jsonPattern = /\[[\s\S]*\]/;
-      const jsonMatch = scriptMatch[0].match(jsonPattern);
-
-      if (!jsonMatch) {
-        return this.parseAlternativeFormat(html);
-      }
-
-      const dataArray = JSON.parse(jsonMatch[0]);
-
-      // Find the data entry containing the order
-      let orderData = null;
-      for (const entry of dataArray) {
-        if (entry?.data?.order) {
-          orderData = entry.data.order;
-          break;
-        }
-        // Check nested structure
-        if (entry?.type === 'data' && entry?.data) {
-          const nested = entry.data;
-          if (nested.order) {
-            orderData = nested.order;
-            break;
+    // Pattern 2: Look for data array with type:"data" structure
+    const typeDataIndex = html.indexOf('"type":"data"');
+    if (typeDataIndex !== -1) {
+      // Find the array start before this
+      const searchStart = Math.max(0, typeDataIndex - 1000);
+      const beforeTypeData = html.substring(searchStart, typeDataIndex);
+      const lastBracket = beforeTypeData.lastIndexOf('[');
+      if (lastBracket !== -1) {
+        const arrayStart = searchStart + lastBracket;
+        const extracted = this.extractJsonArray(html, arrayStart);
+        if (extracted) {
+          try {
+            const dataArray = JSON.parse(extracted);
+            const orderData = this.findOrderInDataArray(dataArray);
+            if (orderData) {
+              logger.debug('Found order data using type:data pattern');
+              return this.normalizeOrderData(orderData);
+            }
+          } catch (parseError) {
+            logger.debug({ error: parseError }, 'Failed to parse type:data pattern');
           }
         }
       }
+    }
 
-      if (!orderData) {
-        return this.parseAlternativeFormat(html);
+    // Pattern 3: Try alternative formats
+    return this.parseAlternativeFormat(html);
+  }
+
+  private extractJsonArray(html: string, startIndex: number): string | null {
+    // Extract a JSON array by counting brackets
+    if (html[startIndex] !== '[') return null;
+
+    let depth = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (let i = startIndex; i < html.length; i++) {
+      const char = html[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
       }
 
-      return this.normalizeOrderData(orderData);
-    } catch (parseError) {
-      logger.warn({ error: parseError }, 'Failed to parse SvelteKit JSON, trying alternative format');
-      return this.parseAlternativeFormat(html);
+      if (char === '\\' && inString) {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '[') depth++;
+        else if (char === ']') {
+          depth--;
+          if (depth === 0) {
+            return html.substring(startIndex, i + 1);
+          }
+        }
+      }
     }
+
+    return null;
+  }
+
+  private findOrderInDataArray(dataArray: unknown[]): Record<string, unknown> | null {
+    for (const entry of dataArray) {
+      if (!entry || typeof entry !== 'object') continue;
+
+      const entryObj = entry as Record<string, unknown>;
+
+      // Direct order property
+      if (entryObj.data && typeof entryObj.data === 'object') {
+        const dataObj = entryObj.data as Record<string, unknown>;
+        if (dataObj.order) {
+          return dataObj.order as Record<string, unknown>;
+        }
+      }
+
+      // Check for order in nested structures
+      if (entryObj.order) {
+        return entryObj.order as Record<string, unknown>;
+      }
+    }
+    return null;
   }
 
   private parseAlternativeFormat(html: string): BeBopOrderData | null {
