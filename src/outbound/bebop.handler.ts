@@ -208,6 +208,8 @@ export class BeBopHandler implements Handler {
       .replace(/new\s+Date\((\d+)\)/g, '$1')
       // Replace undefined with null
       .replace(/:\s*undefined\b/g, ':null')
+      // Fix numbers starting with decimal point (e.g., .00025 -> 0.00025)
+      .replace(/([:\[,]\s*)(\.\d+)/g, '$10$2')
       // Handle unquoted object keys (basic support)
       .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
   }
