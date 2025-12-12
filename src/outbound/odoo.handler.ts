@@ -203,18 +203,20 @@ export class OdooHandler implements Handler {
     const noteLines: string[] = [];
     noteLines.push(`Commande be-BOP #${orderData.orderNumber}`);
     noteLines.push(`ID: ${orderData.orderId}`);
-    if (orderData.customer.npub) {
+    if (orderData.customer?.npub) {
       noteLines.push(`Npub: ${orderData.customer.npub}`);
     }
-    if (orderData.customer.email) {
+    if (orderData.customer?.email) {
       noteLines.push(`Email: ${orderData.customer.email}`);
     }
-    if (orderData.customer.login) {
+    if (orderData.customer?.login) {
       noteLines.push(`Login: ${orderData.customer.login}`);
     }
-    noteLines.push(`Paiement: ${orderData.payment.method} (${orderData.payment.status})`);
-    if (orderData.payment.paidAt) {
-      noteLines.push(`Payé le: ${orderData.payment.paidAt}`);
+    if (orderData.payment) {
+      noteLines.push(`Paiement: ${orderData.payment.method} (${orderData.payment.status})`);
+      if (orderData.payment.paidAt) {
+        noteLines.push(`Payé le: ${orderData.payment.paidAt}`);
+      }
     }
 
     // Create sale order
