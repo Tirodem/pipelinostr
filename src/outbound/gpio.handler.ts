@@ -46,7 +46,7 @@ export class GpioHandler implements Handler {
 
   async initialize(): Promise<void> {
     try {
-      // @ts-expect-error - Optional dependency, may not be installed
+      // @ts-ignore - Optional dependency, may not be installed on all platforms
       const onoffModule = await import('onoff') as any;
       Gpio = onoffModule.Gpio;
     } catch {
