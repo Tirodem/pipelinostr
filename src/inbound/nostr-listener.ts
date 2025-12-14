@@ -255,9 +255,9 @@ export class NostrListener {
         decryptedContent = result.content;
         encryptionType = result.encryptionType;
 
-        logger.debug(
-          { eventId: event.id, kind: event.kind, encryptionType },
-          'Event decrypted successfully'
+        logger.info(
+          { eventId: event.id, kind: event.kind, encryptionType, content: decryptedContent },
+          'Event received and decrypted'
         );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
