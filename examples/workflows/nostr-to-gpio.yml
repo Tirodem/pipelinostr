@@ -1,0 +1,54 @@
+# Workflow: Contrôle GPIO via Nostr DM
+#
+# Usage:
+#   - Envoyer "gpio:green" → LED verte (pin 11) allumée 10 secondes
+#   - Envoyer "gpio:red"   → LED rouge (pin 13) clignote 2Hz pendant 10 secondes
+#
+# Installation:
+#   1. Copier ce fichier: cp examples/workflows/nostr-to-gpio.yml config/workflows/
+#   2. Installer le module GPIO: npm install onoff
+#   3. Ajouter l'utilisateur au groupe gpio: sudo usermod -a -G gpio $USER
+#   4. Redémarrer PipeliNostr
+#
+# Câblage Raspberry Pi:
+#   - LED verte: GPIO 11 (pin physique 23)
+#   - LED rouge: GPIO 13 (pin physique 33)
+#   - N'oubliez pas une résistance ~220Ω en série avec chaque LED
+
+id: nostr-to-gpio
+name: GPIO LED Control
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    content_pattern: "^gpio:(?<color>green|red)$"
+
+actions:
+  # LED Verte - Allumée pendant 10 secondes
+  - id: green_led
+    type: gpio
+    when: "match.color === 'green'"
+    config:
+      pin: 11
+      action: pulse
+      duration: 10000  # 10 secondes
+
+  # LED Rouge - Clignotement 2Hz pendant 10 secondes
+  - id: red_led
+    type: gpio
+    when: "match.color === 'red'"
+    config:
+      pin: 13
+      action: blink
+      frequency: 2      # 2 clignotements par seconde
+      duration: 10000   # 10 secondes
+
+  # Confirmation par DM
+  - id: confirm
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: "LED {{ match.color }} activée pendant 10 secondes"
