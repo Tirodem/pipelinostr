@@ -19,10 +19,11 @@ interface GpioHandlerConfig {
 
 export interface GpioActionConfig extends HandlerConfig {
   pin: number | string;
-  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm';
+  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink';
   duration?: number | undefined;
   duty_cycle?: number | undefined;
   pwm_frequency?: number | undefined;
+  frequency?: number | undefined;  // For blink action (Hz)
   direction?: 'in' | 'out' | undefined;
 }
 
@@ -125,6 +126,12 @@ export class GpioHandler implements Handler {
             pinNumber,
             params.duty_cycle || 50,
             params.pwm_frequency || 100
+          );
+        case 'blink':
+          return this.blinkPin(
+            pinNumber,
+            params.frequency || 2,
+            params.duration || 1000
           );
         default:
           return { success: false, error: `Action inconnue: ${params.action}` };
@@ -263,6 +270,42 @@ export class GpioHandler implements Handler {
         action: 'pwm',
         duty_cycle: dutyCycle,
         frequency,
+      },
+    };
+  }
+
+  private async blinkPin(
+    pinNumber: number,
+    frequency: number,
+    duration: number
+  ): Promise<HandlerResult> {
+    const pinObj = this.getOrCreatePin(pinNumber, 'out');
+
+    // Calculate timing: frequency is blinks per second
+    // Each blink = on + off, so half-period = 500/frequency ms
+    const halfPeriod = Math.floor(500 / frequency);
+    const totalBlinks = Math.floor((duration / 1000) * frequency);
+
+    console.log(`[GPIO] Pin ${pinNumber} blinking @ ${frequency}Hz for ${duration}ms (${totalBlinks} blinks)`);
+
+    // Perform the blinking
+    for (let i = 0; i < totalBlinks; i++) {
+      await pinObj.gpio.write(1);
+      await new Promise((resolve) => setTimeout(resolve, halfPeriod));
+      await pinObj.gpio.write(0);
+      await new Promise((resolve) => setTimeout(resolve, halfPeriod));
+    }
+
+    console.log(`[GPIO] Pin ${pinNumber} blink complete`);
+
+    return {
+      success: true,
+      data: {
+        pin: pinNumber,
+        action: 'blink',
+        frequency,
+        duration,
+        total_blinks: totalBlinks,
       },
     };
   }
