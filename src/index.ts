@@ -1,3 +1,7 @@
+// WebSocket polyfill for Node.js (required by nostr-tools)
+import WebSocket from 'ws';
+(globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
+
 import { loadConfig, loadHandlerConfig } from './config/loader.js';
 import { logger } from './persistence/logger.js';
 import { initDatabase, getDatabase } from './persistence/database.js';
