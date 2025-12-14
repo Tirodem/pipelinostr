@@ -24,7 +24,7 @@ relays:
 
   # Decouverte automatique de relays via nostr.watch
   discovery:
-    enabled: true                 # true = auto, false = manuel
+    enabled: false                # true = auto, false = manuel
     sources:
       - "https://api.nostr.watch/v1/online"
     max_relays: 10                # Nombre max de relays a ajouter
