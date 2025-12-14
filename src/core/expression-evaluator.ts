@@ -105,14 +105,26 @@ export class ExpressionEvaluator {
         i++;
       } else if (char === '=' && expression[i + 1] === '=') {
         if (current.trim()) tokens.push(current.trim());
-        tokens.push('==');
+        // Support both == and === (treat === as ==)
+        if (expression[i + 2] === '=') {
+          tokens.push('==');
+          i += 2;
+        } else {
+          tokens.push('==');
+          i++;
+        }
         current = '';
-        i++;
       } else if (char === '!' && expression[i + 1] === '=') {
         if (current.trim()) tokens.push(current.trim());
-        tokens.push('!=');
+        // Support both != and !== (treat !== as !=)
+        if (expression[i + 2] === '=') {
+          tokens.push('!=');
+          i += 2;
+        } else {
+          tokens.push('!=');
+          i++;
+        }
         current = '';
-        i++;
       } else if (char === '!' && expression[i + 1] !== '=') {
         if (current.trim()) tokens.push(current.trim());
         tokens.push('!');

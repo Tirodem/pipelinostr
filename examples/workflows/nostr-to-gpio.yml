@@ -30,7 +30,7 @@ actions:
   # LED Verte - Allumée pendant 10 secondes
   - id: green_led
     type: gpio
-    when: "match.color === 'green'"
+    when: "match.color == 'green'"
     config:
       pin: 11
       action: pulse
@@ -39,16 +39,9 @@ actions:
   # LED Rouge - Clignotement 2Hz pendant 10 secondes
   - id: red_led
     type: gpio
-    when: "match.color === 'red'"
+    when: "match.color == 'red'"
     config:
       pin: 13
       action: blink
       frequency: 2      # 2 clignotements par seconde
       duration: 10000   # 10 secondes
-
-  # Confirmation par DM
-  - id: confirm
-    type: nostr_dm
-    config:
-      to: "{{ trigger.from }}"
-      content: "LED {{ match.color }} activée pendant 10 secondes"
