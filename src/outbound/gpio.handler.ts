@@ -19,12 +19,15 @@ interface GpioHandlerConfig {
 
 export interface GpioActionConfig extends HandlerConfig {
   pin: number | string;
-  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink';
+  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo';
   duration?: number | undefined;
   duty_cycle?: number | undefined;
   pwm_frequency?: number | undefined;
   frequency?: number | undefined;  // For blink action (Hz)
   direction?: 'in' | 'out' | undefined;
+  // Servo-specific options
+  angle?: number | undefined;      // Servo angle 0-180 degrees
+  return_angle?: number | undefined; // Angle to return to after duration (default: don't return)
 }
 
 interface GpioPin {
@@ -132,6 +135,13 @@ export class GpioHandler implements Handler {
             pinNumber,
             params.frequency || 2,
             params.duration || 1000
+          );
+        case 'servo':
+          return this.servoMove(
+            pinNumber,
+            params.angle ?? 90,
+            params.duration,
+            params.return_angle
           );
         default:
           return { success: false, error: `Action inconnue: ${params.action}` };
@@ -306,6 +316,93 @@ export class GpioHandler implements Handler {
         frequency,
         duration,
         total_blinks: totalBlinks,
+      },
+    };
+  }
+
+  /**
+   * Control a servo motor (like SG90) using software PWM.
+   *
+   * SG90 specs:
+   * - PWM frequency: 50Hz (20ms period)
+   * - 0° = 0.5ms pulse = 2.5% duty cycle
+   * - 90° = 1.5ms pulse = 7.5% duty cycle
+   * - 180° = 2.5ms pulse = 12.5% duty cycle
+   *
+   * Note: Software PWM may have some jitter. For precise control,
+   * consider using hardware PWM (GPIO 12, 13, 18, 19 on RPi).
+   */
+  private async servoMove(
+    pinNumber: number,
+    angle: number,
+    duration?: number,
+    returnAngle?: number
+  ): Promise<HandlerResult> {
+    const pinObj = this.getOrCreatePin(pinNumber, 'out');
+
+    // Clamp angle to 0-180
+    const clampedAngle = Math.max(0, Math.min(180, angle));
+
+    // Convert angle to duty cycle for SG90
+    // Formula: duty = (angle / 180) * 10 + 2.5 (gives 2.5% to 12.5%)
+    const dutyCycle = (clampedAngle / 180) * 10 + 2.5;
+    const frequency = 50; // 50Hz for servo
+
+    console.log(`[GPIO] Servo pin ${pinNumber} -> ${clampedAngle}° (duty: ${dutyCycle.toFixed(1)}%)`);
+
+    // Stop any existing PWM on this pin
+    const existingInterval = this.pwmIntervals.get(pinNumber);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+      this.pwmIntervals.delete(pinNumber);
+    }
+
+    // Start PWM for servo
+    const period = 1000 / frequency; // 20ms
+    const onTime = (period * dutyCycle) / 100;
+    const offTime = period - onTime;
+
+    // Run PWM cycles
+    const cycles = duration ? Math.floor((duration / 1000) * frequency) : 25; // Default ~500ms
+
+    for (let i = 0; i < cycles; i++) {
+      await pinObj.gpio.write(1);
+      await new Promise((resolve) => setTimeout(resolve, onTime));
+      await pinObj.gpio.write(0);
+      await new Promise((resolve) => setTimeout(resolve, offTime));
+    }
+
+    // If returnAngle is specified, move back to that position
+    if (returnAngle !== undefined) {
+      const returnClamped = Math.max(0, Math.min(180, returnAngle));
+      const returnDuty = (returnClamped / 180) * 10 + 2.5;
+      const returnOnTime = (period * returnDuty) / 100;
+      const returnOffTime = period - returnOnTime;
+
+      console.log(`[GPIO] Servo pin ${pinNumber} returning to ${returnClamped}°`);
+
+      // Move to return position
+      for (let i = 0; i < 25; i++) { // ~500ms to reach position
+        await pinObj.gpio.write(1);
+        await new Promise((resolve) => setTimeout(resolve, returnOnTime));
+        await pinObj.gpio.write(0);
+        await new Promise((resolve) => setTimeout(resolve, returnOffTime));
+      }
+    }
+
+    // Stop PWM signal (servo will hold position due to internal gearing)
+    await pinObj.gpio.write(0);
+
+    console.log(`[GPIO] Servo pin ${pinNumber} move complete`);
+
+    return {
+      success: true,
+      data: {
+        pin: pinNumber,
+        action: 'servo',
+        angle: clampedAngle,
+        return_angle: returnAngle,
+        duration: duration || 500,
       },
     };
   }

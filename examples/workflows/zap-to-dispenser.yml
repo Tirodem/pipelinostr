@@ -1,0 +1,75 @@
+# Workflow: Zap-activated Dispenser
+#
+# Activates a servo-based dispenser when receiving a zap above the threshold,
+# then logs the transaction to an FTP server.
+#
+# Use case: Bitcoin/Lightning vending machine, candy dispenser, etc.
+#
+# Prerequisites:
+# 1. GPIO handler enabled (config/handlers/gpio.yml)
+# 2. FTP handler configured (config/handlers/ftp.yml)
+# 3. Servo SG90 connected to GPIO pin
+# 4. npm install onoff
+#
+# Hardware setup (SG90 servo):
+#   - Signal (orange): GPIO 18 (pin 12) - supports hardware PWM
+#   - VCC (red): 5V (pin 2 or 4)
+#   - GND (brown): GND (pin 6)
+#
+# Configurable values:
+#   - zap_min_amount: Minimum sats to trigger (default: 21)
+#   - servo pin: GPIO pin for servo (default: 18)
+#   - dispense_angle: Angle to move servo for dispensing (default: 180)
+#   - rest_angle: Angle to return to after dispensing (default: 0)
+
+id: zap-to-dispenser
+name: Zap Dispenser
+description: Activate dispenser on zap, log to FTP
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [9735]           # Zap receipts only
+    zap_min_amount: 21      # Minimum sats to trigger (change this!)
+
+actions:
+  # 1. Activate servo to dispense
+  - id: dispense
+    type: gpio
+    config:
+      pin: 18                 # GPIO 18 (hardware PWM capable)
+      action: servo
+      angle: 180              # Move to dispense position
+      duration: 1000          # Hold for 1 second
+      return_angle: 0         # Return to rest position
+
+  # 2. Log to FTP
+  - id: log_to_ftp
+    type: ftp
+    config:
+      operation: append
+      remote_path: "/logs/dispenser-{date}.log"
+      content: |
+        [{{ trigger.timestamp }}] ZAP DISPENSED
+        Amount: {{ trigger.zap.amount }} sats
+        From: {{ trigger.zap.sender }}
+        Message: {{ trigger.zap.message }}
+        ---
+      create_dirs: true
+
+  # 3. Optional: Send confirmation DM back to zapper
+  - id: confirm_dm
+    type: nostr_dm
+    config:
+      to: "{{ trigger.zap.sender }}"
+      content: |
+        Merci pour votre zap de {{ trigger.zap.amount }} sats!
+        Votre distribution a ete activee.
+
+# Example log output in /logs/dispenser-2025-12-15.log:
+# [1734260400] ZAP DISPENSED
+# Amount: 100 sats
+# From: npub1abc...
+# Message: For the candy!
+# ---
