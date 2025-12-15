@@ -113,7 +113,7 @@ Create example workflow templates for each handler in `examples/workflows/`.
 ### Meta-Workflows (Workflow Orchestration)
 
 **Priority:** Medium
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
