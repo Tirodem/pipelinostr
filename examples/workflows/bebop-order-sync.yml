@@ -1,0 +1,90 @@
+# Workflow: be-BOP Order Sync to Odoo
+# Receive payment notification via Nostr DM, fetch order details, sync to Odoo
+
+id: bebop-order-sync
+name: be-BOP Order Sync to Odoo
+description: Sync paid be-BOP orders to Odoo ERP via Nostr DM notifications
+enabled: false  # Enable when Odoo is configured
+multiple: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]  # NIP-04 DM and Gift-wrapped
+    # Uncomment and set the be-BOP npub to filter messages
+    # from_npubs:
+    #   - npub1bebop...
+    content_pattern: "Payment for order #(?<order_number>\\d+) is paid, see (?<order_url>https://[^\\s]+)"
+
+actions:
+  # Step 1: Fetch the order page from be-BOP
+  - id: fetch_order_page
+    type: http
+    config:
+      url: "{{ match.order_url }}"
+      method: GET
+      timeout_ms: 15000
+    retry:
+      max_attempts: 3
+      backoff:
+        type: exponential
+        initial_delay_ms: 1000
+        max_delay_ms: 10000
+
+  # Step 2: Parse the be-BOP HTML to extract order data
+  - id: parse_bebop_data
+    type: bebop_parser
+    when: "actions.fetch_order_page.success"
+    config:
+      html: "{{ actions.fetch_order_page.response.body }}"
+
+  # Step 3: Create the order in Odoo
+  - id: create_odoo_order
+    type: odoo
+    when: "actions.parse_bebop_data.success"
+    config:
+      action: create_sale_order
+      data: "{{ actions.parse_bebop_data.response }}"
+    retry:
+      max_attempts: 2
+      backoff:
+        type: fixed
+        initial_delay_ms: 2000
+
+  # Step 4a: Notify success (optional - reply to be-BOP)
+  - id: notify_success
+    type: nostr_dm
+    when: "actions.create_odoo_order.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Commande #{{ match.order_number }} synchronisee vers Odoo (ID: {{ actions.create_odoo_order.response.odoo_order_id }})"
+
+  # Step 4b: Notify failure to admin
+  - id: notify_failure_fetch
+    type: nostr_dm
+    when: "!actions.fetch_order_page.success"
+    config:
+      # Replace with your admin npub
+      to: "{{ trigger.from }}"
+      content: "Erreur sync Odoo - Impossible de recuperer la commande #{{ match.order_number }}: {{ actions.fetch_order_page.error }}"
+
+  - id: notify_failure_parse
+    type: nostr_dm
+    when: "actions.fetch_order_page.success && !actions.parse_bebop_data.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Erreur sync Odoo - Impossible de parser la commande #{{ match.order_number }}: {{ actions.parse_bebop_data.error }}"
+
+  - id: notify_failure_odoo
+    type: nostr_dm
+    when: "actions.parse_bebop_data.success && !actions.create_odoo_order.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Erreur sync Odoo - Impossible de creer la commande #{{ match.order_number }}: {{ actions.create_odoo_order.error }}"
+
+# Configuration requise:
+# 1. Definir les variables d'environnement Odoo:
+#    - ODOO_URL, ODOO_DATABASE, ODOO_USERNAME, ODOO_API_KEY
+# 2. Activer le handler Odoo dans config/handlers/odoo.yml
+# 3. Configurer from_npubs avec le npub de be-BOP
+# 4. Mettre enabled: true ci-dessus
