@@ -3,6 +3,7 @@
 # Usage:
 #   - Envoyer "gpio:green" → LED verte allumée 10 secondes
 #   - Envoyer "gpio:red"   → LED rouge clignote 2Hz pendant 10 secondes
+#   - Envoyer "gpio:servo" → Servo 0°→180°, maintient 5s, retour 0°
 #
 # Installation:
 #   1. Copier ce fichier: cp examples/workflows/nostr-to-gpio.yml config/workflows/
@@ -28,7 +29,7 @@ trigger:
   filters:
     kinds: [4]
     from_whitelist: true
-    content_pattern: "^gpio:(?<color>green|red)$"
+    content_pattern: "^gpio:(?<color>green|red|servo)$"
 
 actions:
   # LED Verte - Allumée pendant 10 secondes
@@ -49,3 +50,14 @@ actions:
       action: blink
       frequency: 2       # 2 clignotements par seconde
       duration: 10000    # 10 secondes
+
+  # Servo - Mouvement aller-retour
+  - id: servo_move
+    type: gpio
+    when: "match.color == 'servo'"
+    config:
+      pin: 18            # GPIO18 = Pin physique 12
+      action: servo
+      angle: 180         # Position finale (2500µs)
+      duration: 5000     # Maintenir 5 secondes
+      return_angle: 0    # Retour position initiale (500µs)
