@@ -4,14 +4,10 @@
 # Command: "Send vocal to TG: your message here"
 #
 # Prerequisites:
-# 1. Piper TTS installed: pip install piper-tts
-#    or download from: https://github.com/rhasspy/piper/releases
-# 2. French voice model downloaded:
-#    piper --download-model fr_FR-siwis-medium
-# 3. ffmpeg installed for OGG conversion (apt install ffmpeg)
-# 4. Telegram bot created via @BotFather
-# 5. config/handlers/telegram.yml configured with bot_token
-# 6. config/handlers/tts.yml configured (optional, has defaults)
+# 1. espeak-ng installed: sudo apt install espeak-ng
+# 2. Telegram bot created via @BotFather
+# 3. config/handlers/telegram.yml configured with bot_token
+# 4. config/handlers/tts.yml configured (copy from tts.yml.example)
 #
 # Telegram setup:
 # 1. Create bot with @BotFather, get token
@@ -41,8 +37,8 @@ actions:
     type: tts
     config:
       text: "{{ match.message }}"
-      voice: "fr_FR-siwis-medium"  # French voice (change for other languages)
-      format: ogg                   # OGG Opus for Telegram voice messages
+      # voice: fr (uses config default, or override here)
+      format: wav  # espeak outputs WAV directly
 
   # 2. Send voice message to Telegram
   - id: send_to_telegram
@@ -62,7 +58,6 @@ actions:
       to: "{{ trigger.from }}"
       content: |
         Message vocal envoye sur Telegram!
-        Duree: {{ actions.send_to_telegram.response.duration }}s
 
   # 4. Notify on TTS failure
   - id: notify_tts_failure
@@ -72,7 +67,7 @@ actions:
       to: "{{ trigger.from }}"
       content: |
         Erreur TTS: {{ actions.generate_audio.error }}
-        Verifiez que Piper est installe.
+        Verifiez que espeak-ng est installe.
 
   # 5. Notify on Telegram failure
   - id: notify_telegram_failure
@@ -84,16 +79,5 @@ actions:
         Erreur Telegram: {{ actions.send_to_telegram.error }}
         Verifiez la configuration du bot.
 
-# Available voices for Piper TTS:
-# French:
-#   - fr_FR-siwis-medium (female, natural)
-#   - fr_FR-upmc-medium (male)
-# English:
-#   - en_US-lessac-medium (female)
-#   - en_GB-alba-medium (female, British)
-# German:
-#   - de_DE-thorsten-medium (male)
-# Spanish:
-#   - es_ES-davefx-medium (male)
-#
-# Full list: https://rhasspy.github.io/piper-samples/
+# espeak voices: fr, en, de, es, it, pt, ru, zh, ja, ko
+# For higher quality, use Piper TTS (pip install piper-tts)
