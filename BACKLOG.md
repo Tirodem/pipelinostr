@@ -5,7 +5,7 @@
 ### DPO / RGPD Data Processing Report
 
 **Priority:** High
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
