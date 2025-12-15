@@ -69,6 +69,12 @@ Généré le : 2025-12-16 14:30:00
 | Montants de paiement | Zap receipts | zap-notification, zap-to-dispenser |
 ```
 
+#### Spécifications
+
+- **Langue** : Français (multilingue à terme)
+- **Niveau de détail** : Générique ("identifiant utilisateur", "contenu du message") plutôt que technique ("npub", "trigger.content")
+- **Métadonnées RGPD** : Inclure si disponibles (finalité, rétention, base légale), sinon omettre
+
 #### Implémentation
 
 **Approche : Auto-détection par le code (pas de config supplémentaire)**
