@@ -216,7 +216,10 @@ Généré le : ${now}
     }
 
     const files = await readdir(this.workflowsDir);
-    const yamlFiles = files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
+    const yamlFiles = files.filter(f =>
+      (f.endsWith('.yml') || f.endsWith('.yaml')) &&
+      !f.endsWith('.example')
+    );
 
     for (const file of yamlFiles) {
       try {
