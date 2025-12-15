@@ -46,19 +46,32 @@ actions:
       duration: 1000          # Hold for 1 second
       return_angle: 0         # Return to rest position
 
-  # 2. Log to FTP
-  - id: log_to_ftp
-    type: ftp
+  # 2. Log to local file (append mode)
+  - id: log_to_file
+    type: file
     config:
-      operation: append
-      remote_path: "/logs/dispenser-{date}.log"
+      path: "./logs/dispenser.log"
       content: |
         [{{ trigger.timestamp }}] ZAP DISPENSED
         Amount: {{ trigger.zap.amount }} sats
         From: {{ trigger.zap.sender }}
         Message: {{ trigger.zap.message }}
         ---
-      create_dirs: true
+      append: true
+
+  # 2b. Alternative: Log to FTP (uncomment if needed)
+  # - id: log_to_ftp
+  #   type: ftp
+  #   config:
+  #     operation: append
+  #     remote_path: "/logs/dispenser-{date}.log"
+  #     content: |
+  #       [{{ trigger.timestamp }}] ZAP DISPENSED
+  #       Amount: {{ trigger.zap.amount }} sats
+  #       From: {{ trigger.zap.sender }}
+  #       Message: {{ trigger.zap.message }}
+  #       ---
+  #     create_dirs: true
 
   # 3. Optional: Send confirmation DM back to zapper
   - id: confirm_dm
