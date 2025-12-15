@@ -6,7 +6,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (17/23)
+### Workflows testés et fonctionnels (19/23)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -27,8 +27,10 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `mempool-tx-lookup.yml` | Lookup TX Bitcoin | `mempool: <txid>` |
 | `zulip-workflow-notification.yml` | Notification workflow Zulip | Via hooks |
 | `api-to-nostr-dm.yml` | API HTTP vers DM | POST `/api/notify` |
+| `webhook-notifier.yml` | Forward DMs vers webhook | Tous DMs |
+| `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 
-### Workflows non testés (6/23)
+### Workflows non testés (4/23)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -36,8 +38,6 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `auto-reply.yml` | Réponse automatique | `hello`, `bonjour`, etc. |
 | `command-handler.yml` | Commandes slash | `/ping`, `/help`, `/status` |
 | `email-forward.yml` | Forward DMs par email | Tous DMs |
-| `webhook-notifier.yml` | Forward DMs vers webhook | Tous DMs |
-| `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 
 Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 

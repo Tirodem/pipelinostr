@@ -205,7 +205,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Webhook server enabled |
 
 ### 20. Webhook Notifier (`webhook-notifier`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | All DMs |
 | **Command** | Any DM |
@@ -234,7 +234,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Calendar handler + SMTP |
 
 ### 23. be-BOP Order Sync (`bebop-order-sync`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Payment for order #123 is paid, see https://...` |
@@ -253,9 +253,9 @@ Complete list of available workflows with testing status.
 | Messaging & Social | 7 | 6 | 1 |
 | Zulip Integration | 3 | 3 | 0 |
 | Storage & Archiving | 3 | 3 | 0 |
-| APIs & Webhooks | 3 | 2 | 1 |
-| Calendar & ERP | 2 | 1 | 1 |
-| **Total** | **23** | **17** | **6** |
+| APIs & Webhooks | 3 | 3 | 0 |
+| Calendar & ERP | 2 | 2 | 0 |
+| **Total** | **23** | **19** | **4** |
 
 ---
 
