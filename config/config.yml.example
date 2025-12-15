@@ -6,6 +6,9 @@ pipelinostr:
 # Identite Nostr du bot
 nostr:
   private_key: ${NOSTR_PRIVATE_KEY}
+  # Surveiller les zaps pour d'autres npubs (en plus de la npub du bot)
+  # zapRecipients:
+  #   - "npub1..."
 
 # Whitelist des npub autorisees
 whitelist:
