@@ -103,7 +103,9 @@ export class WorkflowMatcher {
     for (const workflow of workflows) {
       if (workflow.trigger.type !== 'nostr_event') continue;
 
-      const matchResult = this.matchWorkflow(event, workflow, content, parsedZap);
+      // Skip expensive regex checks for disabled workflows (just basic filter matching for visibility)
+      const skipExpensiveChecks = !workflow.enabled;
+      const matchResult = this.matchWorkflow(event, workflow, content, parsedZap, skipExpensiveChecks);
 
       if (matchResult.matched) {
         const matchData = {
@@ -151,7 +153,8 @@ export class WorkflowMatcher {
     event: ProcessedEvent,
     workflow: WorkflowDefinition,
     content: string,
-    parsedZap: ParsedZap | null
+    parsedZap: ParsedZap | null,
+    skipExpensiveChecks: boolean = false
   ): MatchResult {
     const filters = workflow.trigger.filters;
     if (!filters) {
@@ -226,6 +229,10 @@ export class WorkflowMatcher {
 
     // Check regex pattern
     if (filters.content_pattern) {
+      // Skip expensive regex matching for disabled workflows (used only for visibility)
+      if (skipExpensiveChecks) {
+        return { matched: true, groups: {} };
+      }
       const regexResult = this.matchRegex(content, filters.content_pattern);
       if (!regexResult.matched) {
         return { matched: false, groups: {} };
@@ -264,7 +271,9 @@ export class WorkflowMatcher {
 
   private matchRegex(content: string, pattern: string): MatchResult {
     try {
-      const regex = new RegExp(pattern, 's'); // 's' flag for dotAll
+      // Convert PCRE-style inline flags to JS flags
+      const { cleanPattern, flags } = this.convertPcreFlags(pattern);
+      const regex = new RegExp(cleanPattern, flags);
       const match = regex.exec(content);
 
       if (!match) {
@@ -290,5 +299,33 @@ export class WorkflowMatcher {
       logger.error({ pattern, error: errorMessage }, 'Invalid regex pattern');
       return { matched: false, groups: {} };
     }
+  }
+
+  /**
+   * Convert PCRE-style inline flags to JavaScript RegExp flags.
+   * Supports: (?i) → case insensitive, (?s) → dotAll, (?m) → multiline
+   * Example: "(?i)^hello" → { cleanPattern: "^hello", flags: "si" }
+   */
+  private convertPcreFlags(pattern: string): { cleanPattern: string; flags: string } {
+    let flags = 's'; // Always include dotAll for consistency
+    let cleanPattern = pattern;
+
+    // Match PCRE-style inline flags at the start: (?i), (?s), (?m), (?is), etc.
+    const inlineFlagMatch = cleanPattern.match(/^\(\?([ismx]+)\)/);
+    if (inlineFlagMatch && inlineFlagMatch[1]) {
+      const pcreFlags = inlineFlagMatch[1];
+      // Remove the inline flag from pattern
+      cleanPattern = cleanPattern.slice(inlineFlagMatch[0].length);
+
+      // Convert PCRE flags to JS flags
+      if (pcreFlags.includes('i')) flags += 'i';
+      if (pcreFlags.includes('m')) flags += 'm';
+      // 's' is already included, 'x' (extended) not supported in JS
+    }
+
+    // Deduplicate flags
+    flags = [...new Set(flags.split(''))].join('');
+
+    return { cleanPattern, flags };
   }
 }
