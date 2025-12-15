@@ -47,6 +47,7 @@ import { TraccarSmsHandler, type TraccarSmsHandlerOptions } from './outbound/tra
 import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calendar.handler.js';
 import { BeBopHandler } from './outbound/bebop.handler.js';
 import { OdooHandler, type OdooConfig } from './outbound/odoo.handler.js';
+import { TTSHandler } from './outbound/tts.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -100,6 +101,7 @@ interface AppState {
     calendar?: CalendarHandler;
     bebop?: BeBopHandler;
     odoo?: OdooHandler;
+    tts?: TTSHandler;
   };
 }
 
@@ -1162,6 +1164,35 @@ async function initializeHandlers(
     }
   } catch (error) {
     logger.debug('Odoo handler not configured, skipping');
+  }
+
+  // TTS Handler (optional, needs config)
+  try {
+    interface TTSConfigFile {
+      tts?: {
+        enabled?: boolean;
+        engine?: 'piper' | 'espeak';
+        piper_path?: string;
+        piper_model?: string;
+        espeak_voice?: string;
+        output_dir?: string;
+      };
+    }
+    const ttsConfig = await loadHandlerConfig<TTSConfigFile>('tts');
+    if (ttsConfig?.tts?.enabled !== false) {
+      state.handlers.tts = new TTSHandler({
+        engine: ttsConfig?.tts?.engine ?? 'piper',
+        piperPath: ttsConfig?.tts?.piper_path,
+        piperModel: ttsConfig?.tts?.piper_model,
+        espeakVoice: ttsConfig?.tts?.espeak_voice,
+        outputDir: ttsConfig?.tts?.output_dir,
+      });
+      await state.handlers.tts.initialize();
+      state.workflowEngine.registerHandler('tts', state.handlers.tts);
+      logger.info('TTS handler enabled');
+    }
+  } catch (error) {
+    logger.debug('TTS handler not configured, skipping');
   }
 }
 

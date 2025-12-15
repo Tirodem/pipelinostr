@@ -32,6 +32,7 @@ nano config/workflows/nostr-to-gpio.yml
 | `zap-to-dispenser.yml` | Trigger servo on Lightning zap |
 | `zap-notification.yml` | Notify on incoming zaps |
 | `dm-to-ftp.yml` | Log DMs to FTP server |
+| `dm-to-voice-telegram.yml` | Convert DM to audio, send via Telegram |
 | `auto-reply.yml` | Auto-respond to keywords |
 | `email-forward.yml` | Forward DMs to email |
 

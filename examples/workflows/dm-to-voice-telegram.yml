@@ -1,0 +1,99 @@
+# Workflow: DM to Voice Telegram
+# Convert Nostr DM to audio and send via Telegram bot
+#
+# Command: "Send vocal to TG: your message here"
+#
+# Prerequisites:
+# 1. Piper TTS installed: pip install piper-tts
+#    or download from: https://github.com/rhasspy/piper/releases
+# 2. French voice model downloaded:
+#    piper --download-model fr_FR-siwis-medium
+# 3. ffmpeg installed for OGG conversion (apt install ffmpeg)
+# 4. Telegram bot created via @BotFather
+# 5. config/handlers/telegram.yml configured with bot_token
+# 6. config/handlers/tts.yml configured (optional, has defaults)
+#
+# Telegram setup:
+# 1. Create bot with @BotFather, get token
+# 2. Add bot to your group (or start a private chat)
+# 3. Get chat_id: https://api.telegram.org/bot<TOKEN>/getUpdates
+#    (send a message in the group/chat first, then check the response)
+#
+# Environment variables (or config files):
+#   TELEGRAM_BOT_TOKEN - Your Telegram bot token
+#   TELEGRAM_CHAT_ID - Target chat/group ID
+
+id: dm-to-voice-telegram
+name: DM to Voice Telegram
+description: Convert DM to audio and send to Telegram
+enabled: false  # Enable after configuring Telegram and TTS
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    from_whitelist: true
+    content_pattern: "^Send vocal to TG:\\s*(?<message>.+)$"
+
+actions:
+  # 1. Convert text to speech
+  - id: generate_audio
+    type: tts
+    config:
+      text: "{{ match.message }}"
+      voice: "fr_FR-siwis-medium"  # French voice (change for other languages)
+      format: ogg                   # OGG Opus for Telegram voice messages
+
+  # 2. Send voice message to Telegram
+  - id: send_to_telegram
+    type: telegram
+    when: "actions.generate_audio.success"
+    config:
+      action: voice
+      chat_id: "${TELEGRAM_CHAT_ID}"
+      voice_file: "{{ actions.generate_audio.response.file_path }}"
+      caption: "Message vocal de {{ trigger.from }}"
+
+  # 3. Confirm success to user
+  - id: confirm_success
+    type: nostr_dm
+    when: "actions.send_to_telegram.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Message vocal envoye sur Telegram!
+        Duree: {{ actions.send_to_telegram.response.duration }}s
+
+  # 4. Notify on TTS failure
+  - id: notify_tts_failure
+    type: nostr_dm
+    when: "!actions.generate_audio.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Erreur TTS: {{ actions.generate_audio.error }}
+        Verifiez que Piper est installe.
+
+  # 5. Notify on Telegram failure
+  - id: notify_telegram_failure
+    type: nostr_dm
+    when: "actions.generate_audio.success && !actions.send_to_telegram.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Erreur Telegram: {{ actions.send_to_telegram.error }}
+        Verifiez la configuration du bot.
+
+# Available voices for Piper TTS:
+# French:
+#   - fr_FR-siwis-medium (female, natural)
+#   - fr_FR-upmc-medium (male)
+# English:
+#   - en_US-lessac-medium (female)
+#   - en_GB-alba-medium (female, British)
+# German:
+#   - de_DE-thorsten-medium (male)
+# Spanish:
+#   - es_ES-davefx-medium (male)
+#
+# Full list: https://rhasspy.github.io/piper-samples/

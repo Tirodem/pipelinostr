@@ -28,7 +28,9 @@
       "Bash(done)",
       "WebFetch(domain:dev-bootik2.pvh-labs.ch)",
       "Bash(curl:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
