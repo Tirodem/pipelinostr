@@ -49,7 +49,7 @@ export class TTSHandler implements Handler {
         logger.info({ engine: 'piper', model: this.piperModel }, 'TTS handler initialized with Piper');
       } else {
         await this.checkCommand('espeak-ng', ['--version']);
-        logger.info({ engine: 'espeak-ng', voice: this.espeakVoice }, 'TTS handler initialized with espeak-ng');
+        logger.info({ engine: 'espeak-ng', voice: this.espeakVoice, outputDir: this.outputDir }, 'TTS handler initialized with espeak-ng');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -208,8 +208,9 @@ export class TTSHandler implements Handler {
     speed?: number
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      const actualVoice = voice ?? this.espeakVoice;
       const args = [
-        '-v', voice ?? this.espeakVoice,
+        '-v', actualVoice,
         '-w', outputFile,
       ];
 
@@ -219,7 +220,7 @@ export class TTSHandler implements Handler {
 
       args.push(text);
 
-      logger.debug({ command: 'espeak-ng', args }, 'Running espeak-ng TTS');
+      logger.info({ command: 'espeak-ng', voice: actualVoice, args }, 'Running espeak-ng TTS');
 
       const proc = spawn('espeak-ng', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
