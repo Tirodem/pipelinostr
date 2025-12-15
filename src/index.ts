@@ -48,6 +48,7 @@ import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calenda
 import { BeBopHandler } from './outbound/bebop.handler.js';
 import { OdooHandler, type OdooConfig } from './outbound/odoo.handler.js';
 import { TTSHandler } from './outbound/tts.handler.js';
+import { DPOHandler } from './outbound/dpo.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -102,6 +103,7 @@ interface AppState {
     bebop?: BeBopHandler;
     odoo?: OdooHandler;
     tts?: TTSHandler;
+    dpo?: DPOHandler;
   };
 }
 
@@ -1194,6 +1196,12 @@ async function initializeHandlers(
   } catch (error) {
     logger.debug('TTS handler not configured, skipping');
   }
+
+  // DPO Report Handler (always available, no config needed)
+  state.handlers.dpo = new DPOHandler();
+  await state.handlers.dpo.initialize();
+  state.workflowEngine.registerHandler('dpo_report', state.handlers.dpo);
+  logger.info('DPO report handler enabled');
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1696,6 +1704,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.odoo) {
       await appState.handlers.odoo.shutdown();
+    }
+    if (appState.handlers.dpo) {
+      await appState.handlers.dpo.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

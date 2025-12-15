@@ -30,7 +30,8 @@
       "Bash(curl:*)",
       "Bash(node -e:*)",
       "Bash(git check-ignore:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(node dist/cli/dpo-report.js:*)"
     ],
     "deny": [],
     "ask": []

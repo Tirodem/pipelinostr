@@ -1,0 +1,49 @@
+# Workflow: DPO Report Command
+# Generate GDPR/DPO compliance report via Nostr DM
+#
+# Command: "/dpo"
+#
+# Returns a Markdown report listing:
+# - All workflows (active/inactive) with data they process
+# - All handlers (active/inactive) with their destinations
+# - Summary of personal data categories used
+#
+# Use case: Include this report in Terms of Use / Privacy pages
+# for services interfaced with PipeliNostr (e.g., be-BOP)
+
+id: dpo-command
+name: DPO Report Command
+description: Generate GDPR data processing report
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    from_whitelist: true
+    content_pattern: "^/dpo$"
+
+actions:
+  # 1. Generate DPO report
+  - id: generate_report
+    type: dpo_report
+    config:
+      format: markdown
+
+  # 2. Send report as DM
+  - id: send_report
+    type: nostr_dm
+    when: "actions.generate_report.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: "{{ actions.generate_report.response.report }}"
+
+  # 3. Notify on failure
+  - id: notify_failure
+    type: nostr_dm
+    when: "!actions.generate_report.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Erreur lors de la generation du rapport DPO:
+        {{ actions.generate_report.error }}
