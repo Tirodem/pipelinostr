@@ -46,7 +46,7 @@ actions:
     when: "actions.generate_audio.success"
     config:
       action: voice
-      chat_id: "${TELEGRAM_CHAT_ID}"
+      # chat_id uses default_chat_id from config/handlers/telegram.yml
       voice_file: "{{ actions.generate_audio.response.file_path }}"
       caption: "Message vocal de {{ trigger.from }}"
 
