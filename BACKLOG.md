@@ -180,7 +180,7 @@ steps:
 ### Hardware Testing Protocol
 
 **Priority:** High
-**Status:** Proposed
+**Status:** DONE
 
 #### Description
 
