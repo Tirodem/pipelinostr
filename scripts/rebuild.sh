@@ -13,3 +13,7 @@ npm run build || { echo "Build failed"; exit 1; }
 echo ""
 echo "=== Restarting PipeliNostr ==="
 ./scripts/restart.sh
+
+echo ""
+echo "=== Logs (Ctrl+C to exit) ==="
+tail -f logs/pipelinostr.log
