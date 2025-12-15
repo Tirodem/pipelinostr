@@ -32,6 +32,8 @@ trigger:
   filters:
     kinds: [9735]           # Zap receipts only
     zap_min_amount: 21      # Minimum sats to trigger (change this!)
+    # zap_recipients:       # Uncomment to filter by recipient
+    #   - "npub1..."        # Only trigger for zaps to this npub
 
 actions:
   # 1. Activate servo to dispense
