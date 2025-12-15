@@ -6,24 +6,26 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels
+### Workflows testés et fonctionnels (3/23)
 
-| Fichier | Description |
-|---------|-------------|
-| `zulip-forward.yml` | Forward DM vers Zulip |
-| `zap-notification.yml` | Notification sur zap recu |
-| `nostr-to-telegram.yml` | Forward DM vers Telegram |
-| `nostr-to-email.yml` | Forward DM vers Email |
-| `nostr-to-calendar.yml` | DM vers invitation calendrier (iCal) |
-| `nostr-to-sms.yml` | DM vers SMS (via Traccar) |
-| `dm-to-mastodon.yml` | DM vers post Mastodon public |
-| `dm-to-bluesky.yml` | DM vers post Bluesky |
-| `dm-to-mongodb.yml` | DM vers MongoDB (event tracking) |
-| `dm-to-ftp.yml` | DM vers fichier log FTP (append) |
-| `dm-to-ftp-with-local-storage.yml` | DM vers fichier local + sync FTP |
-| `mempool-tx-lookup.yml` | Lookup TX Bitcoin via mempool.space |
-| `zulip-workflow-notification.yml` | Notification Zulip sur fin de workflow |
-| `api-to-nostr-dm.yml` | Forward appel API HTTP vers Nostr DM |
+| Fichier | Description | Commande |
+|---------|-------------|----------|
+| `nostr-to-gpio.yml` | Contrôle GPIO LEDs/servo Raspberry Pi | `gpio:green`, `gpio:red`, `gpio:servo` |
+| `zap-to-dispenser.yml` | Distributeur servo sur zap Lightning | Zap >= 21 sats |
+| `dm-to-voice-telegram.yml` | Message vocal sur Telegram | `Send vocal to TG: <msg>` |
+
+### Workflows disponibles (non testés)
+
+| Catégorie | Workflows |
+|-----------|-----------|
+| **Nostr** | `publish-note`, `auto-reply`, `command-handler` |
+| **Messaging** | `nostr-to-telegram`, `dm-to-bluesky`, `dm-to-mastodon`, `nostr-to-sms`, `nostr-to-email`, `email-forward` |
+| **Zulip** | `zulip-forward`, `zap-notification`, `zulip-workflow-notification` |
+| **Storage** | `dm-to-ftp`, `dm-to-ftp-with-local-storage`, `dm-to-mongodb` |
+| **API** | `api-to-nostr-dm`, `webhook-notifier`, `mempool-tx-lookup` |
+| **Calendar/ERP** | `nostr-to-calendar`, `bebop-order-sync` |
+
+Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 
 Les exemples sont dans `examples/workflows/`. Pour les utiliser :
 ```bash
@@ -410,6 +412,9 @@ src/
 
 ## Documentation
 
+- [Workflow Catalog](docs/WORKFLOW-CATALOG.md) - Liste complète des 23 workflows avec statut de test
+- [GPIO Raspberry Pi Setup](docs/GPIO-RASPBERRY-PI-SETUP.md) - Configuration GPIO sur Raspberry Pi
+- [TTS + Telegram Setup](docs/TTS-TELEGRAM-SETUP.md) - Configuration Text-to-Speech et Telegram
 - [DM Cheat Sheet](docs/DM-CHEATSHEET.md) - Formats de DM pour tester tous les workflows
 - [FAQ](docs/FAQ.md) - Questions fréquentes et réponses
 - [Self-Hosted Hardware Guide](docs/self-hosted-hardware.md) - Choisir le matériel pour héberger PipeliNostr localement (Raspberry Pi, Mini PC, etc.)
