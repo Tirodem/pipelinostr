@@ -8,8 +8,8 @@ tts:
   engine: espeak
 
   # === Configuration espeak (recommande) ===
-  # Voix espeak (fr, en, de, es, etc.)
-  espeak_voice: fr
+  # Voix espeak (fr-fr, en-us, de, es, etc.) - voir: espeak-ng --voices
+  espeak_voice: fr-fr
 
   # === Configuration Piper (optionnel) ===
   # Chemin vers l'executable piper (defaut: "piper" dans le PATH)

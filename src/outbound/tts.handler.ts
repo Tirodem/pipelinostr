@@ -34,7 +34,7 @@ export class TTSHandler implements Handler {
     this.engine = options.engine ?? 'piper';
     this.piperPath = options.piperPath ?? 'piper';
     this.piperModel = options.piperModel ?? 'fr_FR-siwis-medium';
-    this.espeakVoice = options.espeakVoice ?? 'fr';
+    this.espeakVoice = options.espeakVoice ?? 'fr-fr';
     this.outputDir = options.outputDir ?? './data/tts';
   }
 
