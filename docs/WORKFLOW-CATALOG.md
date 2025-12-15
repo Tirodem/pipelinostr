@@ -76,7 +76,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | espeak-ng, Telegram bot configured |
 
 ### 7. Nostr to Telegram (`nostr-to-telegram`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | All DMs |
 | **Command** | Any DM |
@@ -85,7 +85,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Telegram bot configured |
 
 ### 8. DM to Bluesky (`dm-to-bluesky`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Bluesky: <message>` |
@@ -94,7 +94,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Bluesky app password |
 
 ### 9. DM to Mastodon (`dm-to-mastodon`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Mastodon: <message>` |
@@ -103,7 +103,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Mastodon access token |
 
 ### 10. Send SMS (`nostr-to-sms`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Send SMS to +33...: <message>` |
@@ -112,7 +112,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Traccar SMS Gateway app |
 
 ### 11. Send Email (`nostr-to-email`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Send email to x@y.com: <message>` |
@@ -134,7 +134,7 @@ Complete list of available workflows with testing status.
 ## Zulip Integration
 
 ### 13. Zulip Forward (`zulip-forward`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | All DMs |
 | **Command** | Any DM |
@@ -143,7 +143,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Zulip bot configured |
 
 ### 14. Zap Notification (`zap-notification`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | Zap receipt |
 | **Command** | Any zap received |
@@ -152,7 +152,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | Zulip bot configured |
 
 ### 15. Zulip Workflow Notification (`zulip-workflow-notification`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | Workflow hooks |
 | **Command** | Via `on_complete`/`on_fail` hooks |
@@ -165,7 +165,7 @@ Complete list of available workflows with testing status.
 ## Storage & Archiving
 
 ### 16. DM to FTP (`dm-to-ftp`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `ftp: <message>` |
@@ -174,7 +174,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | FTP server configured |
 
 ### 17. DM to FTP with Local (`dm-to-ftp-with-local-storage`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `ftp: <message>` |
@@ -183,7 +183,7 @@ Complete list of available workflows with testing status.
 | **Prerequisites** | FTP server configured |
 
 ### 18. DM to MongoDB (`dm-to-mongodb`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `mongo: <data>` or `mongo:category: <data>` |
@@ -196,7 +196,7 @@ Complete list of available workflows with testing status.
 ## APIs & Webhooks
 
 ### 19. API to Nostr DM (`api-to-nostr-dm`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | HTTP POST to `/api/notify` |
 | **Command** | JSON body |
@@ -213,7 +213,7 @@ Complete list of available workflows with testing status.
 | **Output** | HTTP POST to webhook URL |
 
 ### 21. Mempool TX Lookup (`mempool-tx-lookup`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `mempool: <txid>` (64 hex chars) |
@@ -225,7 +225,7 @@ Complete list of available workflows with testing status.
 ## Calendar & ERP
 
 ### 22. Calendar Invite (`nostr-to-calendar`)
-| Status | **Untested** |
+| Status | **Tested** |
 |--------|-----------|
 | **Trigger** | DM Nostr |
 | **Command** | `Invite x@y.com: Title @ 2025-12-15 14:00 (1h) @ Location` |
@@ -250,12 +250,12 @@ Complete list of available workflows with testing status.
 |----------|-------|--------|----------|
 | GPIO & Hardware | 2 | 2 | 0 |
 | Communication Nostr | 3 | 0 | 3 |
-| Messaging & Social | 7 | 1 | 6 |
-| Zulip Integration | 3 | 0 | 3 |
-| Storage & Archiving | 3 | 0 | 3 |
-| APIs & Webhooks | 3 | 0 | 3 |
-| Calendar & ERP | 2 | 0 | 2 |
-| **Total** | **23** | **3** | **20** |
+| Messaging & Social | 7 | 6 | 1 |
+| Zulip Integration | 3 | 3 | 0 |
+| Storage & Archiving | 3 | 3 | 0 |
+| APIs & Webhooks | 3 | 2 | 1 |
+| Calendar & ERP | 2 | 1 | 1 |
+| **Total** | **23** | **17** | **6** |
 
 ---
 

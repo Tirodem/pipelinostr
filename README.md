@@ -6,24 +6,38 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (3/23)
+### Workflows testés et fonctionnels (17/23)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
 | `nostr-to-gpio.yml` | Contrôle GPIO LEDs/servo Raspberry Pi | `gpio:green`, `gpio:red`, `gpio:servo` |
 | `zap-to-dispenser.yml` | Distributeur servo sur zap Lightning | Zap >= 21 sats |
 | `dm-to-voice-telegram.yml` | Message vocal sur Telegram | `Send vocal to TG: <msg>` |
+| `zulip-forward.yml` | Forward DM vers Zulip | Tous DMs |
+| `zap-notification.yml` | Notification zap sur Zulip | Tous zaps |
+| `nostr-to-telegram.yml` | Forward DM vers Telegram | Tous DMs |
+| `nostr-to-email.yml` | Envoi email via DM | `Send email to x@y.com: <msg>` |
+| `nostr-to-calendar.yml` | Invitation calendrier | `Invite x@y.com: Titre @ date (dur)` |
+| `nostr-to-sms.yml` | Envoi SMS (Traccar) | `Send SMS to +33...: <msg>` |
+| `dm-to-mastodon.yml` | Post Mastodon | `Mastodon: <msg>` |
+| `dm-to-bluesky.yml` | Post Bluesky | `Bluesky: <msg>` |
+| `dm-to-mongodb.yml` | Log MongoDB | `mongo: <data>` |
+| `dm-to-ftp.yml` | Archive FTP | `ftp: <msg>` |
+| `dm-to-ftp-with-local-storage.yml` | Archive local + FTP | `ftp: <msg>` |
+| `mempool-tx-lookup.yml` | Lookup TX Bitcoin | `mempool: <txid>` |
+| `zulip-workflow-notification.yml` | Notification workflow Zulip | Via hooks |
+| `api-to-nostr-dm.yml` | API HTTP vers DM | POST `/api/notify` |
 
-### Workflows disponibles (non testés)
+### Workflows non testés (6/23)
 
-| Catégorie | Workflows |
-|-----------|-----------|
-| **Nostr** | `publish-note`, `auto-reply`, `command-handler` |
-| **Messaging** | `nostr-to-telegram`, `dm-to-bluesky`, `dm-to-mastodon`, `nostr-to-sms`, `nostr-to-email`, `email-forward` |
-| **Zulip** | `zulip-forward`, `zap-notification`, `zulip-workflow-notification` |
-| **Storage** | `dm-to-ftp`, `dm-to-ftp-with-local-storage`, `dm-to-mongodb` |
-| **API** | `api-to-nostr-dm`, `webhook-notifier`, `mempool-tx-lookup` |
-| **Calendar/ERP** | `nostr-to-calendar`, `bebop-order-sync` |
+| Fichier | Description | Commande |
+|---------|-------------|----------|
+| `publish-note.yml` | Publier note publique | `/publish <content>` |
+| `auto-reply.yml` | Réponse automatique | `hello`, `bonjour`, etc. |
+| `command-handler.yml` | Commandes slash | `/ping`, `/help`, `/status` |
+| `email-forward.yml` | Forward DMs par email | Tous DMs |
+| `webhook-notifier.yml` | Forward DMs vers webhook | Tous DMs |
+| `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 
 Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 
