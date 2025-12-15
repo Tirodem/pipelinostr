@@ -24,7 +24,7 @@ nano config/workflows/nostr-to-gpio.yml
 - Set `enabled: true` to activate a workflow
 - Restart PipeliNostr after changes: `./scripts/restart.sh`
 
-## Available Workflows (23)
+## Available Workflows (24)
 
 ### GPIO & Hardware
 | Workflow | Description | Command |
@@ -76,6 +76,11 @@ nano config/workflows/nostr-to-gpio.yml
 |----------|-------------|---------|
 | `nostr-to-calendar.yml` | Send calendar invite | `Invite x@y.com: Title @ date (dur)` |
 | `bebop-order-sync.yml` | Sync be-BOP to Odoo | `Payment for order #...` |
+
+### System & Administration
+| Workflow | Description | Command |
+|----------|-------------|---------|
+| `dpo-command.yml` | Generate GDPR/DPO report | `/dpo` |
 
 ## Full Documentation
 

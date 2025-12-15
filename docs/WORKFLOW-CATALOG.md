@@ -244,6 +244,19 @@ Complete list of available workflows with testing status.
 
 ---
 
+## System & Administration
+
+### 24. DPO Report (`dpo-command`)
+| Status | **Tested** |
+|--------|------------|
+| **Trigger** | DM Nostr |
+| **Command** | `/dpo` |
+| **Action** | Generate GDPR data processing report |
+| **Output** | DM with Markdown report |
+| **Prerequisites** | None |
+
+---
+
 ## Summary
 
 | Category | Total | Tested | Untested |
@@ -255,8 +268,9 @@ Complete list of available workflows with testing status.
 | Storage & Archiving | 3 | 3 | 0 |
 | APIs & Webhooks | 3 | 3 | 0 |
 | Calendar & ERP | 2 | 2 | 0 |
-| **Total** | **23** | **19** | **4** |
+| System & Administration | 1 | 1 | 0 |
+| **Total** | **24** | **20** | **4** |
 
 ---
 
-*Last updated: 2025-12-15*
+*Last updated: 2025-12-16*

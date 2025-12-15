@@ -6,7 +6,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (19/23)
+### Workflows testés et fonctionnels (20/24)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -29,8 +29,9 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `api-to-nostr-dm.yml` | API HTTP vers DM | POST `/api/notify` |
 | `webhook-notifier.yml` | Forward DMs vers webhook | Tous DMs |
 | `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
+| `dpo-command.yml` | Rapport RGPD/DPO | `/dpo` |
 
-### Workflows non testés (4/23)
+### Workflows non testés (4/24)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
