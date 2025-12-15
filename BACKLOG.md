@@ -2,6 +2,109 @@
 
 ## Features
 
+### DPO / RGPD Data Processing Report
+
+**Priority:** High
+**Status:** Proposed
+
+#### Description
+
+Générer un rapport Markdown décrivant tous les traitements de données effectués par PipeliNostr, pour conformité RGPD et intégration dans les pages Terms of Use / Privacy d'un be-BOP.
+
+#### Déclencheurs
+
+1. **Script CLI** : `./scripts/DPO.sh` → génère le rapport dans `reports/dpo-report.md`
+2. **Commande Nostr** : DM `/dpo` à la npub de PipeliNostr → répond avec le rapport
+
+#### Contenu du rapport (Markdown)
+
+```markdown
+# Rapport de traitement des données - PipeliNostr
+
+Généré le : 2025-12-16 14:30:00
+
+## Workflows
+
+### Workflows actifs (12)
+
+| Workflow | Description | Données traitées | Destination |
+|----------|-------------|------------------|-------------|
+| zulip-forward | Forward DMs to Zulip | npub expéditeur, contenu message | Zulip (stream: nostr) |
+| nostr-to-email | Send email via DM | npub, contenu, adresse email destinataire | SMTP (smtp.example.com) |
+| ... | ... | ... | ... |
+
+### Workflows inactifs (11)
+
+| Workflow | Description | Données traitées (si activé) |
+|----------|-------------|------------------------------|
+| auto-reply | Auto-respond to greetings | npub expéditeur |
+| ... | ... | ... |
+
+## Handlers
+
+### Handlers actifs
+
+| Handler | Type | Destination | Données envoyées |
+|---------|------|-------------|------------------|
+| email | SMTP | smtp.example.com:587 | to, subject, body |
+| telegram | API | api.telegram.org | chat_id, message |
+| zulip | API | zulip.example.com | stream, topic, content |
+| ... | ... | ... | ... |
+
+### Handlers inactifs
+
+| Handler | Type | Destination (si activé) |
+|---------|------|-------------------------|
+| mastodon | API | mastodon.social |
+| ... | ... | ... |
+
+## Résumé des données personnelles traitées
+
+| Catégorie | Source | Utilisé par |
+|-----------|--------|-------------|
+| Identifiant Nostr (npub) | Événements Nostr | Tous les workflows |
+| Contenu des messages | DMs chiffrés | zulip-forward, nostr-to-email, ... |
+| Adresses email | Contenu DM | nostr-to-email, nostr-to-calendar |
+| Numéros de téléphone | Contenu DM | nostr-to-sms |
+| Montants de paiement | Zap receipts | zap-notification, zap-to-dispenser |
+```
+
+#### Implémentation
+
+**Approche : Auto-détection par le code (pas de config supplémentaire)**
+
+1. **Lire tous les workflows** (`config/workflows/*.yml`)
+   - Extraire `id`, `name`, `description`, `enabled`
+   - Parser les templates `{{ trigger.xxx }}` et `{{ match.xxx }}` pour détecter les données utilisées
+   - Identifier le type d'action et sa destination
+
+2. **Lire tous les handlers** (`config/handlers/*.yml`)
+   - Extraire type, `enabled`, configuration (host, URL, etc.)
+   - Masquer les secrets (tokens, passwords)
+
+3. **Générer le rapport Markdown**
+   - Grouper par état (actif/inactif)
+   - Lister les données personnelles par catégorie
+
+#### Fichiers à créer
+
+- `src/core/dpo-reporter.ts` - Génération du rapport
+- `scripts/DPO.sh` - Script CLI
+- `examples/workflows/dpo-command.yml` - Workflow pour commande `/dpo`
+
+#### Évolutions futures (optionnelles)
+
+Permettre d'enrichir les workflows avec des métadonnées RGPD explicites :
+
+```yaml
+privacy:
+  purpose: "Notification de paiement"
+  retention: "30 jours"
+  legal_basis: "consentement"
+```
+
+---
+
 ### Dynamic Relay Discovery from nostr.watch
 
 **Priority:** Low
