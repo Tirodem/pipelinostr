@@ -1,19 +1,23 @@
 # Workflow: Contrôle GPIO via Nostr DM
 #
 # Usage:
-#   - Envoyer "gpio:green" → LED verte (pin 11) allumée 10 secondes
-#   - Envoyer "gpio:red"   → LED rouge (pin 13) clignote 2Hz pendant 10 secondes
+#   - Envoyer "gpio:green" → LED verte allumée 10 secondes
+#   - Envoyer "gpio:red"   → LED rouge clignote 2Hz pendant 10 secondes
 #
 # Installation:
 #   1. Copier ce fichier: cp examples/workflows/nostr-to-gpio.yml config/workflows/
-#   2. Installer le module GPIO: npm install onoff
-#   3. Ajouter l'utilisateur au groupe gpio: sudo usermod -a -G gpio $USER
-#   4. Redémarrer PipeliNostr
+#   2. Activer pigpiod: sudo systemctl enable pigpiod && sudo systemctl start pigpiod
+#   3. Redémarrer PipeliNostr
 #
-# Câblage Raspberry Pi:
-#   - LED verte: GPIO 11 (pin physique 23)
-#   - LED rouge: GPIO 13 (pin physique 33)
-#   - N'oubliez pas une résistance ~220Ω en série avec chaque LED
+# Câblage Raspberry Pi (numérotation BCM):
+#   - LED verte: GPIO17 (pin physique 11) → résistance 220Ω → GND
+#   - LED rouge: GPIO27 (pin physique 13) → résistance 220Ω → GND
+#
+# Correspondance GPIO BCM ↔ Pin Physique:
+#   GPIO17 = Pin 11
+#   GPIO27 = Pin 13
+#   GPIO18 = Pin 12 (pour servo)
+#   GND    = Pin 6, 9, 14, 20, 25, 30, 34, 39
 
 id: nostr-to-gpio
 name: GPIO LED Control
@@ -32,16 +36,16 @@ actions:
     type: gpio
     when: "match.color == 'green'"
     config:
-      pin: 11
+      pin: 17            # GPIO17 = Pin physique 11
       action: pulse
-      duration: 10000  # 10 secondes
+      duration: 10000    # 10 secondes
 
   # LED Rouge - Clignotement 2Hz pendant 10 secondes
   - id: red_led
     type: gpio
     when: "match.color == 'red'"
     config:
-      pin: 13
+      pin: 27            # GPIO27 = Pin physique 13
       action: blink
-      frequency: 2      # 2 clignotements par seconde
-      duration: 10000   # 10 secondes
+      frequency: 2       # 2 clignotements par seconde
+      duration: 10000    # 10 secondes

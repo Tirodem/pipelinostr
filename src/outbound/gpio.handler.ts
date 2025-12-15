@@ -1,20 +1,33 @@
 /**
- * GPIO Handler - Contrôle des GPIO (Raspberry Pi, etc.)
- * Compatible avec les SBCs utilisant sysfs ou gpiod
+ * GPIO Handler - Contrôle des GPIO via pigpiod
+ * Compatible Raspberry Pi OS Bookworm et versions antérieures
+ * Requiert: sudo apt install pigpio && sudo systemctl enable pigpiod
  */
 
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// Variable pour le module onoff (chargé dynamiquement)
-let Gpio: any;
+// pigpio-client types
+interface PigpioClient {
+  gpio(pin: number): PigpioGpio;
+  end(): void;
+}
+
+interface PigpioGpio {
+  modeSet(mode: string): void;
+  write(value: number): void;
+  read(): Promise<number>;
+  setServoPulsewidth(width: number): void;
+}
 
 interface GpioHandlerConfig {
   enabled: boolean;
   pins?: Record<string, number> | undefined;
   default_direction?: 'in' | 'out' | undefined;
   active_low?: boolean | undefined;
+  host?: string | undefined;  // pigpiod host (default: localhost)
+  port?: number | undefined;  // pigpiod port (default: 8888)
 }
 
 export interface GpioActionConfig extends HandlerConfig {
@@ -30,18 +43,13 @@ export interface GpioActionConfig extends HandlerConfig {
   return_angle?: number | undefined; // Angle to return to after duration (default: don't return)
 }
 
-interface GpioPin {
-  gpio: any;
-  direction: 'in' | 'out';
-}
-
 export class GpioHandler implements Handler {
   readonly name = 'GPIO Handler';
   readonly type = 'gpio';
 
   private config: GpioHandlerConfig;
-  private pins: Map<number, GpioPin> = new Map();
-  private pwmIntervals: Map<number, NodeJS.Timeout> = new Map();
+  private client: PigpioClient | null = null;
+  private connected: boolean = false;
 
   constructor(config: GpioHandlerConfig) {
     this.config = config;
@@ -49,19 +57,40 @@ export class GpioHandler implements Handler {
 
   async initialize(): Promise<void> {
     try {
-      // @ts-ignore - Optional dependency, may not be installed on all platforms
-      const onoffModule = await import('onoff') as any;
-      Gpio = onoffModule.Gpio;
-    } catch {
-      throw new Error(
-        'onoff module not found. Install it with: npm install onoff'
-      );
-    }
+      // Dynamic import of pigpio-client
+      const pigpioModule = await import('pigpio-client') as any;
+      const pigpio = pigpioModule.pigpio || pigpioModule.default?.pigpio || pigpioModule;
 
-    if (!Gpio.accessible) {
-      console.warn('[GPIO] GPIO non accessible sur cette plateforme (simulation mode)');
-    } else {
-      console.log('[GPIO] GPIO accessible, handler initialisé');
+      const host = this.config.host || 'localhost';
+      const port = this.config.port || 8888;
+
+      // Connect to pigpiod daemon
+      this.client = pigpio({ host, port });
+
+      // Wait for connection
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout connecting to pigpiod'));
+        }, 5000);
+
+        (this.client as any).once('connected', () => {
+          clearTimeout(timeout);
+          this.connected = true;
+          console.log(`[GPIO] Connected to pigpiod on ${host}:${port}`);
+          resolve();
+        });
+
+        (this.client as any).once('error', (err: Error) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`[GPIO] Failed to connect to pigpiod: ${msg}`);
+      console.warn('[GPIO] Make sure pigpiod is running: sudo systemctl start pigpiod');
+      // Don't throw - allow handler to work in simulation mode
     }
   }
 
@@ -82,30 +111,13 @@ export class GpioHandler implements Handler {
     throw new Error(`Pin inconnu: ${pin}`);
   }
 
-  private getOrCreatePin(pinNumber: number, direction: 'in' | 'out'): GpioPin {
-    let pinObj = this.pins.get(pinNumber);
-
-    if (pinObj) {
-      if (pinObj.direction !== direction) {
-        pinObj.gpio.unexport();
-        pinObj = undefined;
-      }
-    }
-
-    if (!pinObj) {
-      const gpio = new Gpio(pinNumber, direction, 'both', {
-        activeLow: this.config.active_low || false,
-      });
-      pinObj = { gpio, direction };
-      this.pins.set(pinNumber, pinObj);
-    }
-
-    return pinObj;
-  }
-
   async execute(config: HandlerConfig, context: Record<string, unknown>): Promise<HandlerResult> {
-    if (!Gpio) {
-      return { success: false, error: 'GPIO non initialisé' };
+    if (!this.client || !this.connected) {
+      console.warn('[GPIO] Not connected to pigpiod, simulating action');
+      return {
+        success: true,
+        data: { simulated: true, message: 'pigpiod not available' }
+      };
     }
 
     const params = config as GpioActionConfig;
@@ -153,8 +165,9 @@ export class GpioHandler implements Handler {
   }
 
   private async setPin(pinNumber: number, value: 0 | 1): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
-    await pinObj.gpio.write(value);
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
+    gpio.write(value);
 
     console.log(`[GPIO] Pin ${pinNumber} -> ${value}`);
 
@@ -169,10 +182,12 @@ export class GpioHandler implements Handler {
   }
 
   private async togglePin(pinNumber: number): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
-    const currentValue = await pinObj.gpio.read();
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
+
+    const currentValue = await gpio.read();
     const newValue = currentValue === 0 ? 1 : 0;
-    await pinObj.gpio.write(newValue);
+    gpio.write(newValue);
 
     console.log(`[GPIO] Pin ${pinNumber} toggled -> ${newValue}`);
 
@@ -188,11 +203,12 @@ export class GpioHandler implements Handler {
   }
 
   private async pulsePin(pinNumber: number, duration: number): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
 
-    await pinObj.gpio.write(1);
+    gpio.write(1);
     await new Promise((resolve) => setTimeout(resolve, duration));
-    await pinObj.gpio.write(0);
+    gpio.write(0);
 
     console.log(`[GPIO] Pin ${pinNumber} pulsed for ${duration}ms`);
 
@@ -207,8 +223,9 @@ export class GpioHandler implements Handler {
   }
 
   private async readPin(pinNumber: number): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'in');
-    const value = await pinObj.gpio.read();
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('input');
+    const value = await gpio.read();
 
     console.log(`[GPIO] Pin ${pinNumber} read -> ${value}`);
 
@@ -227,49 +244,36 @@ export class GpioHandler implements Handler {
     dutyCycle: number,
     frequency: number
   ): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
-
-    const existingInterval = this.pwmIntervals.get(pinNumber);
-    if (existingInterval) {
-      clearInterval(existingInterval);
-      this.pwmIntervals.delete(pinNumber);
-    }
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
 
     if (dutyCycle <= 0) {
-      await pinObj.gpio.write(0);
+      gpio.write(0);
       return {
         success: true,
         data: { pin: pinNumber, action: 'pwm', duty_cycle: 0 },
       };
     }
     if (dutyCycle >= 100) {
-      await pinObj.gpio.write(1);
+      gpio.write(1);
       return {
         success: true,
         data: { pin: pinNumber, action: 'pwm', duty_cycle: 100 },
       };
     }
 
+    // Software PWM simulation (limited precision)
     const period = 1000 / frequency;
     const onTime = (period * dutyCycle) / 100;
     const offTime = period - onTime;
+    const cycles = 50; // Run for ~50 cycles
 
-    let isOn = true;
-    await pinObj.gpio.write(1);
-
-    const toggle = async () => {
-      if (isOn) {
-        await pinObj.gpio.write(0);
-        isOn = false;
-        setTimeout(toggle, offTime);
-      } else {
-        await pinObj.gpio.write(1);
-        isOn = true;
-        setTimeout(toggle, onTime);
-      }
-    };
-
-    setTimeout(toggle, onTime);
+    for (let i = 0; i < cycles; i++) {
+      gpio.write(1);
+      await new Promise((resolve) => setTimeout(resolve, onTime));
+      gpio.write(0);
+      await new Promise((resolve) => setTimeout(resolve, offTime));
+    }
 
     console.log(`[GPIO] Pin ${pinNumber} PWM @ ${frequency}Hz, ${dutyCycle}% duty`);
 
@@ -289,7 +293,8 @@ export class GpioHandler implements Handler {
     frequency: number,
     duration: number
   ): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
 
     // Calculate timing: frequency is blinks per second
     // Each blink = on + off, so half-period = 500/frequency ms
@@ -300,9 +305,9 @@ export class GpioHandler implements Handler {
 
     // Perform the blinking
     for (let i = 0; i < totalBlinks; i++) {
-      await pinObj.gpio.write(1);
+      gpio.write(1);
       await new Promise((resolve) => setTimeout(resolve, halfPeriod));
-      await pinObj.gpio.write(0);
+      gpio.write(0);
       await new Promise((resolve) => setTimeout(resolve, halfPeriod));
     }
 
@@ -321,16 +326,12 @@ export class GpioHandler implements Handler {
   }
 
   /**
-   * Control a servo motor (like SG90) using software PWM.
+   * Control a servo motor (like SG90) using pigpiod hardware PWM.
    *
    * SG90 specs:
-   * - PWM frequency: 50Hz (20ms period)
-   * - 0° = 0.5ms pulse = 2.5% duty cycle
-   * - 90° = 1.5ms pulse = 7.5% duty cycle
-   * - 180° = 2.5ms pulse = 12.5% duty cycle
-   *
-   * Note: Software PWM may have some jitter. For precise control,
-   * consider using hardware PWM (GPIO 12, 13, 18, 19 on RPi).
+   * - 0° = 500µs pulse
+   * - 90° = 1500µs pulse
+   * - 180° = 2500µs pulse
    */
   private async servoMove(
     pinNumber: number,
@@ -338,60 +339,37 @@ export class GpioHandler implements Handler {
     duration?: number,
     returnAngle?: number
   ): Promise<HandlerResult> {
-    const pinObj = this.getOrCreatePin(pinNumber, 'out');
+    const gpio = this.client!.gpio(pinNumber);
 
     // Clamp angle to 0-180
     const clampedAngle = Math.max(0, Math.min(180, angle));
 
-    // Convert angle to duty cycle for SG90
-    // Formula: duty = (angle / 180) * 10 + 2.5 (gives 2.5% to 12.5%)
-    const dutyCycle = (clampedAngle / 180) * 10 + 2.5;
-    const frequency = 50; // 50Hz for servo
+    // Convert angle to pulse width in microseconds
+    // 0° = 500µs, 180° = 2500µs
+    const pulseWidth = Math.round(500 + (clampedAngle / 180) * 2000);
 
-    console.log(`[GPIO] Servo pin ${pinNumber} -> ${clampedAngle}° (duty: ${dutyCycle.toFixed(1)}%)`);
+    console.log(`[GPIO] Servo pin ${pinNumber} -> ${clampedAngle}° (pulse: ${pulseWidth}µs)`);
 
-    // Stop any existing PWM on this pin
-    const existingInterval = this.pwmIntervals.get(pinNumber);
-    if (existingInterval) {
-      clearInterval(existingInterval);
-      this.pwmIntervals.delete(pinNumber);
-    }
+    // Set servo position
+    gpio.setServoPulsewidth(pulseWidth);
 
-    // Start PWM for servo
-    const period = 1000 / frequency; // 20ms
-    const onTime = (period * dutyCycle) / 100;
-    const offTime = period - onTime;
-
-    // Run PWM cycles
-    const cycles = duration ? Math.floor((duration / 1000) * frequency) : 25; // Default ~500ms
-
-    for (let i = 0; i < cycles; i++) {
-      await pinObj.gpio.write(1);
-      await new Promise((resolve) => setTimeout(resolve, onTime));
-      await pinObj.gpio.write(0);
-      await new Promise((resolve) => setTimeout(resolve, offTime));
-    }
+    // Hold position for duration
+    const holdTime = duration || 500;
+    await new Promise((resolve) => setTimeout(resolve, holdTime));
 
     // If returnAngle is specified, move back to that position
     if (returnAngle !== undefined) {
       const returnClamped = Math.max(0, Math.min(180, returnAngle));
-      const returnDuty = (returnClamped / 180) * 10 + 2.5;
-      const returnOnTime = (period * returnDuty) / 100;
-      const returnOffTime = period - returnOnTime;
+      const returnPulse = Math.round(500 + (returnClamped / 180) * 2000);
 
       console.log(`[GPIO] Servo pin ${pinNumber} returning to ${returnClamped}°`);
 
-      // Move to return position
-      for (let i = 0; i < 25; i++) { // ~500ms to reach position
-        await pinObj.gpio.write(1);
-        await new Promise((resolve) => setTimeout(resolve, returnOnTime));
-        await pinObj.gpio.write(0);
-        await new Promise((resolve) => setTimeout(resolve, returnOffTime));
-      }
+      gpio.setServoPulsewidth(returnPulse);
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    // Stop PWM signal (servo will hold position due to internal gearing)
-    await pinObj.gpio.write(0);
+    // Stop servo signal (servo will hold position)
+    gpio.setServoPulsewidth(0);
 
     console.log(`[GPIO] Servo pin ${pinNumber} move complete`);
 
@@ -401,26 +379,23 @@ export class GpioHandler implements Handler {
         pin: pinNumber,
         action: 'servo',
         angle: clampedAngle,
+        pulse_width: pulseWidth,
         return_angle: returnAngle,
-        duration: duration || 500,
+        duration: holdTime,
       },
     };
   }
 
   async shutdown(): Promise<void> {
-    for (const [, interval] of this.pwmIntervals) {
-      clearInterval(interval);
-    }
-    this.pwmIntervals.clear();
-
-    for (const [, pinObj] of this.pins) {
+    if (this.client) {
       try {
-        pinObj.gpio.unexport();
+        this.client.end();
       } catch {
-        // Ignorer les erreurs de cleanup
+        // Ignore cleanup errors
       }
+      this.client = null;
+      this.connected = false;
     }
-    this.pins.clear();
 
     console.log('[GPIO] Handler arrêté');
   }
