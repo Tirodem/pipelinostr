@@ -436,6 +436,7 @@ src/
 - [DM Cheat Sheet](docs/DM-CHEATSHEET.md) - Formats de DM pour tester tous les workflows
 - [FAQ](docs/FAQ.md) - Questions fréquentes et réponses
 - [Self-Hosted Hardware Guide](docs/self-hosted-hardware.md) - Choisir le matériel pour héberger PipeliNostr localement (Raspberry Pi, Mini PC, etc.)
+- [Meshtastic Integration](docs/MESHTASTIC-INTEGRATION.md) - Recevoir/envoyer des messages via réseau mesh LoRa
 - [QA Sessions](docs/qa-sessions/) - Historique des sessions de développement
 
 ## Licence
