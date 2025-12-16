@@ -14,6 +14,7 @@ export interface MorseAudioHandlerOptions {
   defaultFrequency?: number | undefined;  // Tone frequency in Hz (default: 700)
   defaultUnitMs?: number | undefined;     // Base unit duration (default: 100ms = ~12 WPM)
   sampleRate?: number | undefined;        // Audio sample rate (default: 44100)
+  maxTextLength?: number | undefined;     // Max characters (default: 100)
 }
 
 export interface MorseAudioActionConfig extends HandlerConfig {
@@ -47,12 +48,14 @@ export class MorseAudioHandler implements Handler {
   private defaultFrequency: number;
   private defaultUnitMs: number;
   private sampleRate: number;
+  private maxTextLength: number;
 
   constructor(options: MorseAudioHandlerOptions = {}) {
     this.outputDir = options.outputDir ?? './data/morse-audio';
     this.defaultFrequency = options.defaultFrequency ?? 700;  // 700Hz is classic CW tone
     this.defaultUnitMs = options.defaultUnitMs ?? 100;
     this.sampleRate = options.sampleRate ?? 44100;
+    this.maxTextLength = options.maxTextLength ?? 100;  // ~30-60 seconds of audio
   }
 
   async initialize(): Promise<void> {
@@ -71,6 +74,14 @@ export class MorseAudioHandler implements Handler {
     const text = morseConfig.text.trim();
     if (!text) {
       return { success: false, error: 'Text cannot be empty' };
+    }
+
+    // Limit text length to avoid huge files (Telegram has ~50MB limit)
+    if (text.length > this.maxTextLength) {
+      return {
+        success: false,
+        error: `Text too long: ${text.length} characters (max: ${this.maxTextLength}). Shorten your message.`
+      };
     }
 
     const unitMs = morseConfig.unit_ms ?? this.defaultUnitMs;
