@@ -63,14 +63,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files for long messages)
   - id: send_telegram_normal
     type: telegram
     when: "!match.speed && actions.generate_audio_normal.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_normal.response.file_path }}"
-      caption: "Morse (~12 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_normal.response.files }}"
 
   # Confirmation DM
   - id: confirm_normal
@@ -109,14 +108,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files for long messages)
   - id: send_telegram_slow
     type: telegram
     when: "match.speed === 'slow' && actions.generate_audio_slow.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_slow.response.file_path }}"
-      caption: "Morse lent (~6 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_slow.response.files }}"
 
   # Confirmation DM
   - id: confirm_slow
@@ -155,14 +153,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files for long messages)
   - id: send_telegram_fast
     type: telegram
     when: "match.speed === 'fast' && actions.generate_audio_fast.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_fast.response.file_path }}"
-      caption: "Morse rapide (~20 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_fast.response.files }}"
 
   # Confirmation DM
   - id: confirm_fast

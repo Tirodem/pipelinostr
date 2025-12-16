@@ -2,6 +2,7 @@
 #
 # Converts text from Nostr DM to Morse code audio and sends it to Telegram.
 # No GPIO/buzzer required - works on any machine.
+# Long messages are automatically split into chunks of ~100 chars.
 #
 # Command format:
 #   morse:tg: <text>
@@ -12,10 +13,11 @@
 #   morse:tg: SOS
 #   morse:tg: Hello World
 #   morse:tg:slow: CQ CQ CQ
+#   morse:tg: Long text will be split into multiple audio messages automatically
 #
 # Prerequisites:
 #   - Telegram bot configured (config/handlers/telegram.yml)
-#   - ffmpeg installed (for OGG conversion)
+#   - ffmpeg installed (for OGG conversion, optional - falls back to WAV)
 #
 # Morse timing at default speed (100ms unit = ~12 WPM):
 #   - Dot: 100ms
@@ -40,7 +42,7 @@ actions:
   # STANDARD SPEED (~12 WPM)
   # ============================================
 
-  # Generate audio file
+  # Generate audio file(s)
   - id: generate_audio_normal
     type: morse_audio
     when: "!match.speed"
@@ -50,14 +52,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files)
   - id: send_telegram_normal
     type: telegram
     when: "!match.speed && actions.generate_audio_normal.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_normal.response.file_path }}"
-      caption: "Morse (~12 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_normal.response.files }}"
 
   # Confirmation DM
   - id: confirm_normal
@@ -70,11 +71,13 @@ actions:
 
         {{ actions.generate_audio_normal.response.morse }}
 
+        ({{ actions.generate_audio_normal.response.total_chunks }} partie(s))
+
   # ============================================
   # SLOW SPEED (~6 WPM)
   # ============================================
 
-  # Generate audio file
+  # Generate audio file(s)
   - id: generate_audio_slow
     type: morse_audio
     when: "match.speed === 'slow'"
@@ -84,14 +87,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files)
   - id: send_telegram_slow
     type: telegram
     when: "match.speed === 'slow' && actions.generate_audio_slow.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_slow.response.file_path }}"
-      caption: "Morse lent (~6 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_slow.response.files }}"
 
   # Confirmation DM
   - id: confirm_slow
@@ -100,15 +102,17 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        Morse envoyé sur Telegram (~6 WPM): "{{ match.text }}"
+        Morse lent envoyé sur Telegram (~6 WPM): "{{ match.text }}"
 
         {{ actions.generate_audio_slow.response.morse }}
+
+        ({{ actions.generate_audio_slow.response.total_chunks }} partie(s))
 
   # ============================================
   # FAST SPEED (~20 WPM)
   # ============================================
 
-  # Generate audio file
+  # Generate audio file(s)
   - id: generate_audio_fast
     type: morse_audio
     when: "match.speed === 'fast'"
@@ -118,14 +122,13 @@ actions:
       frequency: 700
       format: ogg
 
-  # Send audio to Telegram
+  # Send audio to Telegram (supports multiple files)
   - id: send_telegram_fast
     type: telegram
     when: "match.speed === 'fast' && actions.generate_audio_fast.success"
     config:
       action: voice
-      voice_file: "{{ actions.generate_audio_fast.response.file_path }}"
-      caption: "Morse rapide (~20 WPM): {{ match.text }}"
+      voice_files: "{{ actions.generate_audio_fast.response.files }}"
 
   # Confirmation DM
   - id: confirm_fast
@@ -134,6 +137,8 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        Morse envoyé sur Telegram (~20 WPM): "{{ match.text }}"
+        Morse rapide envoyé sur Telegram (~20 WPM): "{{ match.text }}"
 
         {{ actions.generate_audio_fast.response.morse }}
+
+        ({{ actions.generate_audio_fast.response.total_chunks }} partie(s))

@@ -76,64 +76,96 @@ export class MorseAudioHandler implements Handler {
       return { success: false, error: 'Text cannot be empty' };
     }
 
-    // Limit text length to avoid huge files (Telegram has ~50MB limit)
-    if (text.length > this.maxTextLength) {
-      return {
-        success: false,
-        error: `Text too long: ${text.length} characters (max: ${this.maxTextLength}). Shorten your message.`
-      };
-    }
-
     const unitMs = morseConfig.unit_ms ?? this.defaultUnitMs;
     const frequency = morseConfig.frequency ?? this.defaultFrequency;
     const format = morseConfig.format ?? 'ogg';
 
-    const outputId = randomUUID();
-    const wavFile = join(this.outputDir, `${outputId}.wav`);
-    let finalFile = format === 'wav' ? wavFile : join(this.outputDir, `${outputId}.${format}`);
-    let finalFormat = format;
+    // Split text into chunks if too long
+    const chunks = this.splitTextIntoChunks(text, this.maxTextLength);
+    const files: Array<{
+      file_path: string;
+      format: string;
+      size: number;
+      text: string;
+      morse: string;
+      chunk_index: number;
+      total_chunks: number;
+    }> = [];
 
     try {
-      // Generate Morse audio
-      const audioData = this.generateMorseAudio(text, unitMs, frequency);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        const outputId = randomUUID();
+        const wavFile = join(this.outputDir, `${outputId}.wav`);
+        let finalFile = format === 'wav' ? wavFile : join(this.outputDir, `${outputId}.${format}`);
+        let finalFormat = format;
 
-      // Write WAV file
-      await this.writeWavFile(wavFile, audioData);
+        // Generate Morse audio for this chunk
+        const audioData = this.generateMorseAudio(chunk, unitMs, frequency);
 
-      // Convert to OGG if needed (for Telegram voice compatibility)
-      if (format === 'ogg') {
-        try {
-          await this.convertToOgg(wavFile, finalFile);
-          await fs.unlink(wavFile);  // Clean up WAV
-        } catch (convError) {
-          // If conversion fails, keep WAV file
-          logger.warn({ error: convError }, 'OGG conversion failed, using WAV');
-          finalFile = wavFile;
-          finalFormat = 'wav';
+        // Write WAV file
+        await this.writeWavFile(wavFile, audioData);
+
+        // Convert to OGG if needed (for Telegram voice compatibility)
+        if (format === 'ogg') {
+          try {
+            await this.convertToOgg(wavFile, finalFile);
+            await fs.unlink(wavFile);  // Clean up WAV
+          } catch (convError) {
+            // If conversion fails, keep WAV file
+            if (i === 0) {
+              logger.warn({ error: convError }, 'OGG conversion failed, using WAV');
+            }
+            finalFile = wavFile;
+            finalFormat = 'wav';
+          }
         }
+
+        // Verify file was created
+        const stats = await fs.stat(finalFile);
+        const morseSequence = this.textToMorse(chunk);
+
+        files.push({
+          file_path: finalFile,
+          format: finalFormat,
+          size: stats.size,
+          text: chunk,
+          morse: morseSequence,
+          chunk_index: i + 1,
+          total_chunks: chunks.length,
+        });
+
+        logger.info(
+          {
+            chunk: `${i + 1}/${chunks.length}`,
+            text: chunk.substring(0, 30),
+            outputFile: finalFile,
+            size: stats.size,
+            frequency,
+            unitMs
+          },
+          'Morse audio chunk generated'
+        );
       }
 
-      // Verify file was created
-      const stats = await fs.stat(finalFile);
-
-      const morseSequence = this.textToMorse(text);
-
-      logger.info(
-        { text: text.substring(0, 50), outputFile: finalFile, size: stats.size, frequency, unitMs },
-        'Morse audio generated successfully'
-      );
+      // Combine all morse sequences
+      const fullMorse = files.map(f => f.morse).join(' / ');
 
       return {
         success: true,
         data: {
-          file_path: finalFile,
-          format: finalFormat,
-          size: stats.size,
+          // Single file compatibility (first file)
+          file_path: files[0]!.file_path,
+          format: files[0]!.format,
+          size: files.reduce((sum, f) => sum + f.size, 0),
           text,
-          morse: morseSequence,
+          morse: fullMorse,
           frequency,
           unit_ms: unitMs,
           wpm: Math.round(1200 / unitMs),
+          // Multi-file support
+          files,
+          total_chunks: chunks.length,
         },
       };
     } catch (error) {
@@ -328,6 +360,53 @@ export class MorseAudioHandler implements Handler {
       })
       .filter(m => m)
       .join(' ');
+  }
+
+  /**
+   * Split text into chunks at word boundaries
+   */
+  private splitTextIntoChunks(text: string, maxLength: number): string[] {
+    if (text.length <= maxLength) {
+      return [text];
+    }
+
+    const chunks: string[] = [];
+    const words = text.split(/\s+/);
+    let currentChunk = '';
+
+    for (const word of words) {
+      // If single word is longer than maxLength, split it
+      if (word.length > maxLength) {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+          currentChunk = '';
+        }
+        // Split long word into pieces
+        for (let i = 0; i < word.length; i += maxLength) {
+          chunks.push(word.slice(i, i + maxLength));
+        }
+        continue;
+      }
+
+      // Check if adding this word would exceed the limit
+      const testChunk = currentChunk ? `${currentChunk} ${word}` : word;
+      if (testChunk.length <= maxLength) {
+        currentChunk = testChunk;
+      } else {
+        // Save current chunk and start new one
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = word;
+      }
+    }
+
+    // Don't forget the last chunk
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks;
   }
 
   async shutdown(): Promise<void> {

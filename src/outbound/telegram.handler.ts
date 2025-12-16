@@ -15,10 +15,12 @@ export interface TelegramActionConfig extends HandlerConfig {
   parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2' | undefined;
   disable_notification?: boolean | undefined;
   disable_web_page_preview?: boolean | undefined;
-  // For voice messages
+  // For voice messages (single file)
   voice_file?: string;
   caption?: string;
   duration?: number;
+  // For voice messages (multiple files - sent sequentially)
+  voice_files?: Array<{ file_path: string; caption?: string }>;
 }
 
 export class TelegramHandler implements Handler {
@@ -130,10 +132,26 @@ export class TelegramHandler implements Handler {
   }
 
   private async sendVoice(chatId: string, config: TelegramActionConfig): Promise<HandlerResult> {
-    if (!config.voice_file) {
-      return { success: false, error: 'Missing required field: voice_file' };
+    // Handle multiple files
+    if (config.voice_files && config.voice_files.length > 0) {
+      return this.sendMultipleVoices(chatId, config);
     }
 
+    // Handle single file
+    if (!config.voice_file) {
+      return { success: false, error: 'Missing required field: voice_file or voice_files' };
+    }
+
+    return this.sendSingleVoice(chatId, config.voice_file, config.caption, config.duration, config.disable_notification);
+  }
+
+  private async sendSingleVoice(
+    chatId: string,
+    voiceFile: string,
+    caption?: string,
+    duration?: number,
+    disableNotification?: boolean
+  ): Promise<HandlerResult> {
     try {
       // Use multipart/form-data to upload voice file
       const formData = new FormData();
@@ -141,21 +159,23 @@ export class TelegramHandler implements Handler {
 
       // Read file and create blob
       const { promises: fs } = await import('fs');
-      const fileBuffer = await fs.readFile(config.voice_file);
-      const filename = basename(config.voice_file);
-      const blob = new Blob([fileBuffer], { type: 'audio/ogg' });
+      const fileBuffer = await fs.readFile(voiceFile);
+      const filename = basename(voiceFile);
+      // Detect MIME type from extension
+      const mimeType = voiceFile.endsWith('.ogg') ? 'audio/ogg' : 'audio/wav';
+      const blob = new Blob([fileBuffer], { type: mimeType });
       formData.append('voice', blob, filename);
 
-      if (config.caption) {
-        formData.append('caption', config.caption);
+      if (caption) {
+        formData.append('caption', caption);
       }
 
-      if (config.duration !== undefined) {
-        formData.append('duration', config.duration.toString());
+      if (duration !== undefined) {
+        formData.append('duration', duration.toString());
       }
 
-      if (config.disable_notification !== undefined) {
-        formData.append('disable_notification', config.disable_notification.toString());
+      if (disableNotification !== undefined) {
+        formData.append('disable_notification', disableNotification.toString());
       }
 
       const response = await fetch(`${this.baseUrl}/sendVoice`, {
@@ -193,6 +213,62 @@ export class TelegramHandler implements Handler {
       logger.error({ chatId, error: errorMessage }, 'Failed to send Telegram voice');
       return { success: false, error: errorMessage };
     }
+  }
+
+  private async sendMultipleVoices(chatId: string, config: TelegramActionConfig): Promise<HandlerResult> {
+    const files = config.voice_files!;
+    const results: Array<{ message_id: number | undefined; voice_file_id: string | undefined; duration: number | undefined }> = [];
+    const errors: string[] = [];
+
+    logger.info({ chatId, count: files.length }, 'Sending multiple voice messages');
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]!;
+      const caption = file.caption ?? (files.length > 1 ? `Part ${i + 1}/${files.length}` : undefined);
+
+      const result = await this.sendSingleVoice(
+        chatId,
+        file.file_path,
+        caption,
+        undefined,
+        config.disable_notification
+      );
+
+      if (result.success && result.data) {
+        results.push({
+          message_id: result.data.message_id as number | undefined,
+          voice_file_id: result.data.voice_file_id as string | undefined,
+          duration: result.data.duration as number | undefined,
+        });
+      } else {
+        errors.push(`Part ${i + 1}: ${result.error}`);
+      }
+
+      // Small delay between messages to avoid rate limiting
+      if (i < files.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    if (errors.length > 0 && results.length === 0) {
+      return { success: false, error: errors.join('; ') };
+    }
+
+    logger.info(
+      { chatId, sent: results.length, failed: errors.length },
+      'Multiple voice messages completed'
+    );
+
+    return {
+      success: true,
+      data: {
+        chat_id: chatId,
+        messages: results,
+        total_sent: results.length,
+        total_failed: errors.length,
+        errors: errors.length > 0 ? errors : undefined,
+      },
+    };
   }
 
   async shutdown(): Promise<void> {
