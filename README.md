@@ -6,7 +6,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (20/24)
+### Workflows testés et fonctionnels (20/26)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -31,7 +31,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 | `dpo-command.yml` | Rapport RGPD/DPO | `/dpo` |
 
-### Workflows non testés (4/24)
+### Workflows non testés (6/26)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -39,6 +39,8 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `auto-reply.yml` | Réponse automatique | `hello`, `bonjour`, etc. |
 | `command-handler.yml` | Commandes slash | `/ping`, `/help`, `/status` |
 | `email-forward.yml` | Forward DMs par email | Tous DMs |
+| `claude-workflow-generator.yml` | Génère workflows via Claude AI | `/workflow <desc>` |
+| `claude-activate.yml` | Active/annule workflows générés | `/activate`, `/cancel`, `/pending` |
 
 Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 
