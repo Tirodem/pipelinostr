@@ -1233,7 +1233,7 @@ async function initializeHandlers(
       state.handlers.claude = new ClaudeHandler(claudeOptions);
       await state.handlers.claude.initialize();
       state.workflowEngine.registerHandler('claude', state.handlers.claude);
-      logger.info({ model: claudeConfig.claude.model ?? 'claude-sonnet-4-20250514' }, 'Claude handler enabled');
+      logger.info({ model: claudeConfig.claude.model ?? 'claude-3-5-sonnet-20241022' }, 'Claude handler enabled');
     }
   } catch (error) {
     logger.debug('Claude handler not configured, skipping');

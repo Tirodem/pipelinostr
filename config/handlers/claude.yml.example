@@ -18,9 +18,9 @@ claude:
   api_key: ${ANTHROPIC_API_KEY}
 
   # Modèle à utiliser
-  # - claude-haiku-4-20250514: Rapide et économique (~$0.001/requête)
-  # - claude-sonnet-4-20250514: Plus capable (~$0.01/requête)
-  model: claude-haiku-4-20250514
+  # - claude-3-5-haiku-20241022: Rapide et économique (~$0.001/requête)
+  # - claude-3-5-sonnet-20241022: Plus capable (~$0.01/requête)
+  model: claude-3-5-haiku-20241022
 
   # Limite de tokens pour les réponses
   max_tokens: 2048

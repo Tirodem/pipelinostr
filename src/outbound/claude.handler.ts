@@ -106,7 +106,7 @@ export class ClaudeHandler implements Handler {
 
   constructor(options: ClaudeHandlerOptions) {
     this.apiKey = options.apiKey;
-    this.model = options.model ?? 'claude-sonnet-4-20250514';
+    this.model = options.model ?? 'claude-3-5-sonnet-20241022';
     this.maxTokens = options.maxTokens ?? 2048;
     this.allowedHandlers = new Set(options.allowedHandlers ?? [
       'nostr_dm', 'nostr_note', 'email', 'telegram', 'zulip',
