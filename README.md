@@ -6,7 +6,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (20/26)
+### Workflows testés et fonctionnels (20/27)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -31,7 +31,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 | `dpo-command.yml` | Rapport RGPD/DPO | `/dpo` |
 
-### Workflows non testés (6/26)
+### Workflows non testés (7/27)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -41,6 +41,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `email-forward.yml` | Forward DMs par email | Tous DMs |
 | `claude-workflow-generator.yml` | Génère workflows via Claude AI | `/workflow <desc>` |
 | `claude-activate.yml` | Active/annule workflows générés | `/activate`, `/cancel`, `/pending` |
+| `nostr-to-morse.yml` | Code Morse sur buzzer | `morse: <text>` |
 
 Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 
@@ -432,6 +433,7 @@ src/
 - [Workflow Catalog](docs/WORKFLOW-CATALOG.md) - Liste complète des workflows avec statut de test
 - [Claude Workflow Generator](docs/CLAUDE-WORKFLOW-GENERATOR.md) - Génération de workflows via Claude AI
 - [GPIO Raspberry Pi Setup](docs/GPIO-RASPBERRY-PI-SETUP.md) - Configuration GPIO sur Raspberry Pi
+- [GPIO Morse Buzzer](docs/GPIO-MORSE-BUZZER.md) - Convertir les DMs en code Morse sur buzzer
 - [TTS + Telegram Setup](docs/TTS-TELEGRAM-SETUP.md) - Configuration Text-to-Speech et Telegram
 - [DM Cheat Sheet](docs/DM-CHEATSHEET.md) - Formats de DM pour tester tous les workflows
 - [FAQ](docs/FAQ.md) - Questions fréquentes et réponses

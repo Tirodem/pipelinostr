@@ -31,7 +31,8 @@
       "Bash(node -e:*)",
       "Bash(git check-ignore:*)",
       "Bash(ls:*)",
-      "Bash(node dist/cli/dpo-report.js:*)"
+      "Bash(node dist/cli/dpo-report.js:*)",
+      "WebFetch(domain:docs.alephium.org)"
     ],
     "deny": [],
     "ask": []

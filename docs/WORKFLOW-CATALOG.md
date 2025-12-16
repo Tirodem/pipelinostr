@@ -32,6 +32,16 @@ Complete list of available workflows with testing status.
 | **Confirmation** | DM "Merci pour votre zap!" |
 | **Prerequisites** | pigpiod daemon, servo on GPIO 18 |
 
+### 3. Morse Code Buzzer (`nostr-to-morse`)
+| Status | **Untested** |
+|--------|-------------|
+| **Trigger** | DM Nostr |
+| **Command** | `morse: <text>`, `morse:slow: <text>`, `morse:fast: <text>` |
+| **Action** | Convert text to Morse code, play on buzzer |
+| **Output** | Buzzer plays Morse sequence |
+| **Confirmation** | DM with Morse code representation |
+| **Prerequisites** | pigpiod daemon, active buzzer on GPIO 27 |
+
 ---
 
 ## Communication Nostr
@@ -279,7 +289,7 @@ Complete list of available workflows with testing status.
 
 | Category | Total | Tested | Untested |
 |----------|-------|--------|----------|
-| GPIO & Hardware | 2 | 2 | 0 |
+| GPIO & Hardware | 3 | 2 | 1 |
 | Communication Nostr | 3 | 0 | 3 |
 | Messaging & Social | 7 | 6 | 1 |
 | Zulip Integration | 3 | 3 | 0 |
@@ -287,7 +297,7 @@ Complete list of available workflows with testing status.
 | APIs & Webhooks | 3 | 3 | 0 |
 | Calendar & ERP | 2 | 2 | 0 |
 | System & Administration | 3 | 1 | 2 |
-| **Total** | **26** | **20** | **6** |
+| **Total** | **27** | **20** | **7** |
 
 ---
 

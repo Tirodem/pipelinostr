@@ -24,13 +24,14 @@ nano config/workflows/nostr-to-gpio.yml
 - Set `enabled: true` to activate a workflow
 - Restart PipeliNostr after changes: `./scripts/restart.sh`
 
-## Available Workflows (26)
+## Available Workflows (27)
 
 ### GPIO & Hardware
 | Workflow | Description | Command |
 |----------|-------------|---------|
 | `nostr-to-gpio.yml` | Control GPIO LEDs/servo | `gpio:green`, `gpio:red`, `gpio:servo` |
 | `zap-to-dispenser.yml` | Trigger servo on zap | Zap >= 21 sats |
+| `nostr-to-morse.yml` | Play Morse code on buzzer | `morse: <text>` |
 
 ### Communication Nostr
 | Workflow | Description | Command |

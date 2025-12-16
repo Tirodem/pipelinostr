@@ -32,7 +32,7 @@ interface GpioHandlerConfig {
 
 export interface GpioActionConfig extends HandlerConfig {
   pin: number | string;
-  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo';
+  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo' | 'morse';
   duration?: number | undefined;
   duty_cycle?: number | undefined;
   pwm_frequency?: number | undefined;
@@ -41,6 +41,10 @@ export interface GpioActionConfig extends HandlerConfig {
   // Servo-specific options
   angle?: number | undefined;      // Servo angle 0-180 degrees
   return_angle?: number | undefined; // Angle to return to after duration (default: don't return)
+  // Morse-specific options
+  text?: string | undefined;       // Text to convert to Morse code
+  unit_ms?: number | undefined;    // Base unit duration in ms (default: 100ms)
+  tone_freq?: number | undefined;  // Buzzer tone frequency in Hz (for passive buzzer, default: 800)
 }
 
 export class GpioHandler implements Handler {
@@ -50,6 +54,22 @@ export class GpioHandler implements Handler {
   private config: GpioHandlerConfig;
   private client: PigpioClient | null = null;
   private connected: boolean = false;
+
+  // International Morse Code dictionary
+  private static readonly MORSE_CODE: Record<string, string> = {
+    'A': '.-',    'B': '-...',  'C': '-.-.',  'D': '-..',   'E': '.',
+    'F': '..-.',  'G': '--.',   'H': '....',  'I': '..',    'J': '.---',
+    'K': '-.-',   'L': '.-..',  'M': '--',    'N': '-.',    'O': '---',
+    'P': '.--.',  'Q': '--.-',  'R': '.-.',   'S': '...',   'T': '-',
+    'U': '..-',   'V': '...-',  'W': '.--',   'X': '-..-',  'Y': '-.--',
+    'Z': '--..',
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+    '.': '.-.-.-', ',': '--..--', '?': '..--..', "'": '.----.', '!': '-.-.--',
+    '/': '-..-.', '(': '-.--.', ')': '-.--.-', '&': '.-...', ':': '---...',
+    ';': '-.-.-.', '=': '-...-', '+': '.-.-.', '-': '-....-', '_': '..--.-',
+    '"': '.-..-.', '$': '...-..-', '@': '.--.-.',
+  };
 
   constructor(config: GpioHandlerConfig) {
     this.config = config;
@@ -154,6 +174,12 @@ export class GpioHandler implements Handler {
             params.angle ?? 90,
             params.duration,
             params.return_angle
+          );
+        case 'morse':
+          return this.playMorse(
+            pinNumber,
+            params.text || '',
+            params.unit_ms || 100
           );
         default:
           return { success: false, error: `Action inconnue: ${params.action}` };
@@ -384,6 +410,128 @@ export class GpioHandler implements Handler {
         duration: holdTime,
       },
     };
+  }
+
+  /**
+   * Play Morse code on a buzzer connected to GPIO pin.
+   *
+   * Morse timing (ITU standard):
+   * - Dot (dit): 1 unit
+   * - Dash (dah): 3 units
+   * - Space between parts of same letter: 1 unit
+   * - Space between letters: 3 units
+   * - Space between words: 7 units
+   *
+   * @param pinNumber GPIO pin connected to buzzer
+   * @param text Text to convert and play
+   * @param unitMs Duration of one unit in milliseconds (default: 100ms = 12 WPM)
+   */
+  private async playMorse(
+    pinNumber: number,
+    text: string,
+    unitMs: number
+  ): Promise<HandlerResult> {
+    if (!text.trim()) {
+      return { success: false, error: 'No text provided for Morse code' };
+    }
+
+    const gpio = this.client!.gpio(pinNumber);
+    gpio.modeSet('output');
+
+    // Convert text to Morse
+    const morseSequence = this.textToMorse(text);
+
+    console.log(`[GPIO] Playing Morse on pin ${pinNumber}: "${text}"`);
+    console.log(`[GPIO] Morse sequence: ${morseSequence}`);
+    console.log(`[GPIO] Unit duration: ${unitMs}ms (~${Math.round(1200 / unitMs)} WPM)`);
+
+    // Play the Morse sequence
+    const words = text.toUpperCase().split(/\s+/).filter(w => w.length > 0);
+    let totalDots = 0;
+    let totalDashes = 0;
+
+    for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+      const word = words[wordIndex]!;
+
+      for (let charIndex = 0; charIndex < word.length; charIndex++) {
+        const char = word[charIndex]!;
+        const morse = GpioHandler.MORSE_CODE[char];
+
+        if (morse) {
+          // Play each symbol in the character
+          for (let symbolIndex = 0; symbolIndex < morse.length; symbolIndex++) {
+            const symbol = morse[symbolIndex];
+
+            if (symbol === '.') {
+              // Dot: 1 unit ON
+              gpio.write(1);
+              await this.delay(unitMs);
+              gpio.write(0);
+              totalDots++;
+            } else if (symbol === '-') {
+              // Dash: 3 units ON
+              gpio.write(1);
+              await this.delay(unitMs * 3);
+              gpio.write(0);
+              totalDashes++;
+            }
+
+            // Space between symbols within letter: 1 unit
+            if (symbolIndex < morse.length - 1) {
+              await this.delay(unitMs);
+            }
+          }
+        }
+
+        // Space between letters: 3 units (but we already have 1 from symbol spacing)
+        if (charIndex < word.length - 1) {
+          await this.delay(unitMs * 2); // 2 more = 3 total
+        }
+      }
+
+      // Space between words: 7 units (but we already have 3 from letter spacing)
+      if (wordIndex < words.length - 1) {
+        await this.delay(unitMs * 4); // 4 more = 7 total
+      }
+    }
+
+    console.log(`[GPIO] Morse complete: ${totalDots} dots, ${totalDashes} dashes`);
+
+    return {
+      success: true,
+      data: {
+        pin: pinNumber,
+        action: 'morse',
+        text: text,
+        morse: morseSequence,
+        unit_ms: unitMs,
+        total_dots: totalDots,
+        total_dashes: totalDashes,
+        wpm: Math.round(1200 / unitMs),
+      },
+    };
+  }
+
+  /**
+   * Convert text to Morse code string representation
+   */
+  private textToMorse(text: string): string {
+    return text
+      .toUpperCase()
+      .split('')
+      .map(char => {
+        if (char === ' ') return '/';
+        return GpioHandler.MORSE_CODE[char] || '';
+      })
+      .filter(m => m)
+      .join(' ');
+  }
+
+  /**
+   * Promisified delay
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   async shutdown(): Promise<void> {

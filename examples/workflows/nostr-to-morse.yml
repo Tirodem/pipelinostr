@@ -1,0 +1,104 @@
+# Morse Code Buzzer - Play DM content as Morse code
+#
+# Converts text from Nostr DM to Morse code and plays it on a buzzer
+#
+# Command format:
+#   morse: <text>
+#   morse:slow: <text>    (slower speed)
+#   morse:fast: <text>    (faster speed)
+#
+# Examples:
+#   morse: SOS
+#   morse: Hello World
+#   morse:slow: CQ CQ CQ
+#
+# Prerequisites:
+#   - Raspberry Pi with pigpiod running
+#   - Active buzzer connected to GPIO 27 (or passive buzzer)
+#   - See docs/GPIO-MORSE-BUZZER.md for circuit diagram
+#
+# Morse timing at default speed (100ms unit = ~12 WPM):
+#   - Dot: 100ms
+#   - Dash: 300ms
+#   - Letter gap: 300ms
+#   - Word gap: 700ms
+
+id: nostr-to-morse
+name: Morse Code Buzzer
+description: Play Nostr DM content as Morse code on a buzzer
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    from_whitelist: true
+    content_pattern: "^morse:(?:(?<speed>slow|fast):)?\\s*(?<text>.+)$"
+
+actions:
+  # Standard speed (100ms unit = ~12 WPM)
+  - id: play_morse_normal
+    type: gpio
+    when: "!match.speed"
+    config:
+      pin: 27
+      action: morse
+      text: "{{ match.text }}"
+      unit_ms: 100
+
+  # Slow speed (200ms unit = ~6 WPM) - easier to decode by ear
+  - id: play_morse_slow
+    type: gpio
+    when: "match.speed === 'slow'"
+    config:
+      pin: 27
+      action: morse
+      text: "{{ match.text }}"
+      unit_ms: 200
+
+  # Fast speed (60ms unit = ~20 WPM) - for experienced operators
+  - id: play_morse_fast
+    type: gpio
+    when: "match.speed === 'fast'"
+    config:
+      pin: 27
+      action: morse
+      text: "{{ match.text }}"
+      unit_ms: 60
+
+  # Confirmation DM avec code Morse textuel
+  - id: confirm_normal
+    type: nostr_dm
+    when: "!match.speed"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Morse (~12 WPM): "{{ match.text }}"
+
+        {{ actions.play_morse_normal.response.morse }}
+
+        ({{ actions.play_morse_normal.response.total_dots }} points, {{ actions.play_morse_normal.response.total_dashes }} traits)
+
+  - id: confirm_slow
+    type: nostr_dm
+    when: "match.speed === 'slow'"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Morse lent (~6 WPM): "{{ match.text }}"
+
+        {{ actions.play_morse_slow.response.morse }}
+
+        ({{ actions.play_morse_slow.response.total_dots }} points, {{ actions.play_morse_slow.response.total_dashes }} traits)
+
+  - id: confirm_fast
+    type: nostr_dm
+    when: "match.speed === 'fast'"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Morse rapide (~20 WPM): "{{ match.text }}"
+
+        {{ actions.play_morse_fast.response.morse }}
+
+        ({{ actions.play_morse_fast.response.total_dots }} points, {{ actions.play_morse_fast.response.total_dashes }} traits)
