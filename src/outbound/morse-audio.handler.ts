@@ -79,7 +79,8 @@ export class MorseAudioHandler implements Handler {
 
     const outputId = randomUUID();
     const wavFile = join(this.outputDir, `${outputId}.wav`);
-    const outputFile = format === 'wav' ? wavFile : join(this.outputDir, `${outputId}.${format}`);
+    let finalFile = format === 'wav' ? wavFile : join(this.outputDir, `${outputId}.${format}`);
+    let finalFormat = format;
 
     try {
       // Generate Morse audio
@@ -91,30 +92,31 @@ export class MorseAudioHandler implements Handler {
       // Convert to OGG if needed (for Telegram voice compatibility)
       if (format === 'ogg') {
         try {
-          await this.convertToOgg(wavFile, outputFile);
+          await this.convertToOgg(wavFile, finalFile);
           await fs.unlink(wavFile);  // Clean up WAV
         } catch (convError) {
-          // If conversion fails, use WAV
+          // If conversion fails, keep WAV file
           logger.warn({ error: convError }, 'OGG conversion failed, using WAV');
-          await fs.rename(wavFile, outputFile.replace('.ogg', '.wav'));
+          finalFile = wavFile;
+          finalFormat = 'wav';
         }
       }
 
       // Verify file was created
-      const stats = await fs.stat(outputFile.replace('.ogg', format === 'ogg' && !(await this.fileExists(outputFile)) ? '.wav' : ''));
+      const stats = await fs.stat(finalFile);
 
       const morseSequence = this.textToMorse(text);
 
       logger.info(
-        { text: text.substring(0, 50), outputFile, size: stats.size, frequency, unitMs },
+        { text: text.substring(0, 50), outputFile: finalFile, size: stats.size, frequency, unitMs },
         'Morse audio generated successfully'
       );
 
       return {
         success: true,
         data: {
-          file_path: outputFile,
-          format,
+          file_path: finalFile,
+          format: finalFormat,
           size: stats.size,
           text,
           morse: morseSequence,
