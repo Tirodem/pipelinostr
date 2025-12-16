@@ -1,24 +1,21 @@
-# Morse Code Buzzer - Play DM content as Morse code
+# Morse Audio to Telegram - Generate and send Morse audio without hardware
 #
-# Converts text from Nostr DM to Morse code and plays it on a buzzer
-# Also generates audio file and sends it to Telegram
+# Converts text from Nostr DM to Morse code audio and sends it to Telegram.
+# No GPIO/buzzer required - works on any machine.
 #
 # Command format:
-#   morse: <text>
-#   morse:slow: <text>    (slower speed)
-#   morse:fast: <text>    (faster speed)
+#   morse:tg: <text>
+#   morse:tg:slow: <text>    (slower speed)
+#   morse:tg:fast: <text>    (faster speed)
 #
 # Examples:
-#   morse: SOS
-#   morse: Hello World
-#   morse:slow: CQ CQ CQ
+#   morse:tg: SOS
+#   morse:tg: Hello World
+#   morse:tg:slow: CQ CQ CQ
 #
 # Prerequisites:
-#   - Raspberry Pi with pigpiod running
-#   - Active buzzer connected to GPIO 27 (or passive buzzer)
-#   - Telegram bot configured (for audio sending)
+#   - Telegram bot configured (config/handlers/telegram.yml)
 #   - ffmpeg installed (for OGG conversion)
-#   - See docs/GPIO-MORSE-BUZZER.md for circuit diagram
 #
 # Morse timing at default speed (100ms unit = ~12 WPM):
 #   - Dot: 100ms
@@ -26,9 +23,9 @@
 #   - Letter gap: 300ms
 #   - Word gap: 700ms
 
-id: nostr-to-morse
-name: Morse Code Buzzer
-description: Play Nostr DM content as Morse code on a buzzer and send to Telegram
+id: morse-to-telegram
+name: Morse Audio to Telegram
+description: Generate Morse code audio and send to Telegram (no hardware required)
 enabled: true
 
 trigger:
@@ -36,22 +33,12 @@ trigger:
   filters:
     kinds: [4, 1059]
     from_whitelist: true
-    content_pattern: "^morse:(?:(?<speed>slow|fast):)?\\s*(?<text>.+)$"
+    content_pattern: "^morse:tg:(?:(?<speed>slow|fast):)?\\s*(?<text>.+)$"
 
 actions:
   # ============================================
   # STANDARD SPEED (~12 WPM)
   # ============================================
-
-  # Play on GPIO buzzer
-  - id: play_morse_normal
-    type: gpio
-    when: "!match.speed"
-    config:
-      pin: 27
-      action: morse
-      text: "{{ match.text }}"
-      unit_ms: 100
 
   # Generate audio file
   - id: generate_audio_normal
@@ -79,25 +66,13 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        Morse (~12 WPM): "{{ match.text }}"
+        Morse envoyé sur Telegram (~12 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_normal.response.morse }}
-
-        ({{ actions.play_morse_normal.response.total_dots }} points, {{ actions.play_morse_normal.response.total_dashes }} traits)
+        {{ actions.generate_audio_normal.response.morse }}
 
   # ============================================
   # SLOW SPEED (~6 WPM)
   # ============================================
-
-  # Play on GPIO buzzer
-  - id: play_morse_slow
-    type: gpio
-    when: "match.speed === 'slow'"
-    config:
-      pin: 27
-      action: morse
-      text: "{{ match.text }}"
-      unit_ms: 200
 
   # Generate audio file
   - id: generate_audio_slow
@@ -125,25 +100,13 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        Morse lent (~6 WPM): "{{ match.text }}"
+        Morse envoyé sur Telegram (~6 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_slow.response.morse }}
-
-        ({{ actions.play_morse_slow.response.total_dots }} points, {{ actions.play_morse_slow.response.total_dashes }} traits)
+        {{ actions.generate_audio_slow.response.morse }}
 
   # ============================================
   # FAST SPEED (~20 WPM)
   # ============================================
-
-  # Play on GPIO buzzer
-  - id: play_morse_fast
-    type: gpio
-    when: "match.speed === 'fast'"
-    config:
-      pin: 27
-      action: morse
-      text: "{{ match.text }}"
-      unit_ms: 60
 
   # Generate audio file
   - id: generate_audio_fast
@@ -171,8 +134,6 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        Morse rapide (~20 WPM): "{{ match.text }}"
+        Morse envoyé sur Telegram (~20 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_fast.response.morse }}
-
-        ({{ actions.play_morse_fast.response.total_dots }} points, {{ actions.play_morse_fast.response.total_dashes }} traits)
+        {{ actions.generate_audio_fast.response.morse }}

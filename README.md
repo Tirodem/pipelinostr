@@ -6,7 +6,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 
 ## Progression
 
-### Workflows testés et fonctionnels (20/27)
+### Workflows testés et fonctionnels (20/28)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -31,7 +31,7 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `bebop-order-sync.yml` | Sync be-BOP → Odoo | `Payment for order #...` |
 | `dpo-command.yml` | Rapport RGPD/DPO | `/dpo` |
 
-### Workflows non testés (7/27)
+### Workflows non testés (8/28)
 
 | Fichier | Description | Commande |
 |---------|-------------|----------|
@@ -41,7 +41,8 @@ PipeliNostr écoute les événements Nostr (DMs, mentions, etc.) et les route ve
 | `email-forward.yml` | Forward DMs par email | Tous DMs |
 | `claude-workflow-generator.yml` | Génère workflows via Claude AI | `/workflow <desc>` |
 | `claude-activate.yml` | Active/annule workflows générés | `/activate`, `/cancel`, `/pending` |
-| `nostr-to-morse.yml` | Code Morse sur buzzer | `morse: <text>` |
+| `nostr-to-morse.yml` | Code Morse sur buzzer + Telegram | `morse: <text>` |
+| `morse-to-telegram.yml` | Morse audio sur Telegram (sans matériel) | `morse:tg: <text>` |
 
 Voir [WORKFLOW-CATALOG.md](docs/WORKFLOW-CATALOG.md) pour la documentation complète.
 

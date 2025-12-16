@@ -1723,10 +1723,89 @@ actions:
 
 #### Matériel requis
 
+**Configuration recommandée : USB (capture depuis buzzer KY-012)**
+
+| # | Composant | Modèle | Prix | Lien type |
+|---|-----------|--------|------|-----------|
+| 1 | Carte son USB | **Sabrent AU-MMSA** | ~8€ | Amazon "Sabrent AU-MMSA" |
+| 2 | Microphone | Micro cravate TRS 3.5mm | ~3-5€ | AliExpress "lavalier mic 3.5mm TRS PC" |
+| 3 | Buzzer (émetteur) | AZDelivery KY-012 | ~3€ | Déjà prévu pour Morse output |
+
+**Total : ~14€** (hors Raspberry Pi)
+
+**Pourquoi Sabrent AU-MMSA ?**
+- Plug & play sur Linux (pas de drivers)
+- Entrée micro 3.5mm (TRS, pas TRRS)
+- Sample rate 44.1kHz (suffisant pour Morse 300-1000Hz)
+- Faible consommation, compact
+
+**Attention micro :** Vérifier que c'est une prise **TRS 3.5mm** (3 segments) et non TRRS (4 segments pour smartphones).
+
+```
+TRS (compatible Sabrent):        TRRS (smartphones, incompatible):
+    ┌─┐                              ┌─┐
+    │●│ Tip (Signal)                 │●│ Tip
+    ├─┤                              ├─┤
+    │●│ Ring (Signal)                │●│ Ring 1
+    ├─┤                              ├─┤
+    │●│ Sleeve (GND)                 │●│ Ring 2
+    └─┘                              ├─┤
+                                     │●│ Sleeve
+                                     └─┘
+```
+
+**Montage physique (couplage acoustique) :**
+
+```
+        ┌─────────────────────────────────────────────────┐
+        │                   Boîtier                       │
+        │                                                 │
+        │   ┌──────────┐         ┌──────────┐            │
+        │   │  KY-012  │  ~2cm   │   Micro  │            │
+        │   │  Buzzer  │ ◄─────► │ cravate  │            │
+        │   │   (•))   │         │    ●     │            │
+        │   └────┬─────┘         └────┬─────┘            │
+        │        │                    │                  │
+        └────────┼────────────────────┼──────────────────┘
+                 │                    │ Câble 3.5mm
+                 │                    ▼
+                 │              ┌───────────┐
+                 │              │  Sabrent  │
+                 │              │  AU-MMSA  │
+                 │              └─────┬─────┘
+                 │                    │ USB
+                 │                    ▼
+           GPIO 27              ┌───────────┐
+                 │              │ Raspberry │
+                 └──────────────┤    Pi     │
+                                └───────────┘
+```
+
+**Astuce isolation bruit :** Créer un "tunnel acoustique" avec un tube carton/plastique (~3cm diamètre) entre le buzzer et le micro pour éviter le bruit ambiant.
+
+**Vérification à la réception :**
+
+```bash
+# Vérifier que la Sabrent est détectée
+arecord -l
+
+# Tester l'enregistrement (5 secondes)
+arecord -D plughw:1,0 -f S16_LE -r 44100 -d 5 test.wav
+
+# Écouter le résultat
+aplay test.wav
+```
+
+**Alternative GPIO (déconseillée) :**
+
 | Option | Composants | Prix |
 |--------|------------|------|
-| USB (simple) | Carte son USB + micro | ~10€ |
-| GPIO (précis) | MCP3008 + micro electret + ampli | ~15€ |
+| GPIO + ADC | MCP3008 + micro electret + ampli | ~15€ |
+
+L'option GPIO avec ADC (MCP3008) est déconseillée car :
+- Max ~200 kHz sampling théorique, ~10-50 kHz en pratique
+- Gigue de timing rend le décodage peu fiable
+- Plus complexe à câbler
 
 #### Défis techniques
 

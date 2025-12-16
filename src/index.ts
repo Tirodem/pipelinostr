@@ -48,6 +48,7 @@ import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calenda
 import { BeBopHandler } from './outbound/bebop.handler.js';
 import { OdooHandler, type OdooConfig } from './outbound/odoo.handler.js';
 import { TTSHandler } from './outbound/tts.handler.js';
+import { MorseAudioHandler } from './outbound/morse-audio.handler.js';
 import { DPOHandler } from './outbound/dpo.handler.js';
 import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.handler.js';
 import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
@@ -105,6 +106,7 @@ interface AppState {
     bebop?: BeBopHandler;
     odoo?: OdooHandler;
     tts?: TTSHandler;
+    morseAudio?: MorseAudioHandler;
     dpo?: DPOHandler;
     claude?: ClaudeHandler;
     workflowActivator?: WorkflowActivatorHandler;
@@ -1201,6 +1203,14 @@ async function initializeHandlers(
     logger.debug('TTS handler not configured, skipping');
   }
 
+  // Morse Audio Handler (always available, no config needed)
+  state.handlers.morseAudio = new MorseAudioHandler({
+    outputDir: './data/morse-audio',
+  });
+  await state.handlers.morseAudio.initialize();
+  state.workflowEngine.registerHandler('morse_audio', state.handlers.morseAudio);
+  logger.info('Morse Audio handler enabled');
+
   // DPO Report Handler (always available, no config needed)
   state.handlers.dpo = new DPOHandler();
   await state.handlers.dpo.initialize();
@@ -1746,6 +1756,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.odoo) {
       await appState.handlers.odoo.shutdown();
+    }
+    if (appState.handlers.morseAudio) {
+      await appState.handlers.morseAudio.shutdown();
     }
     if (appState.handlers.dpo) {
       await appState.handlers.dpo.shutdown();

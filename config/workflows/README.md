@@ -24,7 +24,7 @@ nano config/workflows/nostr-to-gpio.yml
 - Set `enabled: true` to activate a workflow
 - Restart PipeliNostr after changes: `./scripts/restart.sh`
 
-## Available Workflows (27)
+## Available Workflows (28)
 
 ### GPIO & Hardware
 | Workflow | Description | Command |
@@ -45,6 +45,7 @@ nano config/workflows/nostr-to-gpio.yml
 |----------|-------------|---------|
 | `dm-to-voice-telegram.yml` | Voice message to Telegram | `Send vocal to TG: <msg>` |
 | `nostr-to-telegram.yml` | Forward DMs to Telegram | All DMs |
+| `morse-to-telegram.yml` | Morse audio to Telegram (no hardware) | `morse:tg: <text>` |
 | `dm-to-bluesky.yml` | Post to Bluesky | `Bluesky: <msg>` |
 | `dm-to-mastodon.yml` | Post to Mastodon | `Mastodon: <msg>` |
 | `nostr-to-sms.yml` | Send SMS | `Send SMS to +33...: <msg>` |

@@ -202,6 +202,50 @@ cp examples/workflows/nostr-to-morse.yml config/workflows/
 
 Éditer si nécessaire (changer le pin, la vitesse par défaut, etc.).
 
+## Audio Telegram (optionnel)
+
+Le workflow peut également envoyer une version audio du code Morse sur Telegram sous forme de message vocal.
+
+### Prérequis
+
+1. **Bot Telegram configuré** : voir `config/handlers/telegram.yml`
+2. **ffmpeg installé** : pour la conversion en OGG (format Telegram)
+
+```bash
+# Installer ffmpeg (Debian/Ubuntu)
+sudo apt install ffmpeg
+
+# Vérifier l'installation
+ffmpeg -version
+```
+
+### Fonctionnement
+
+Quand vous envoyez un DM avec `morse: SOS` :
+
+1. **Buzzer GPIO** : Le code Morse est joué sur le buzzer physique
+2. **Génération audio** : Un fichier WAV avec des tonalités à 700Hz est généré
+3. **Conversion OGG** : Le fichier est converti en OGG Opus (format Telegram)
+4. **Envoi Telegram** : Le message vocal est envoyé sur le chat Telegram configuré
+5. **Confirmation DM** : Un DM de confirmation est envoyé avec la représentation textuelle
+
+### Configuration Telegram
+
+```yaml
+# config/handlers/telegram.yml
+telegram:
+  enabled: true
+  bot_token: "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+  default_chat_id: "-1001234567890"  # Chat où envoyer les audios
+```
+
+### Sans Telegram
+
+Si Telegram n'est pas configuré, le workflow fonctionne toujours :
+- Le buzzer joue le code Morse
+- Le DM de confirmation est envoyé
+- L'action Telegram est simplement ignorée
+
 ## Test
 
 ### Test matériel (sans PipeliNostr)

@@ -37,10 +37,10 @@ Complete list of available workflows with testing status.
 |--------|-------------|
 | **Trigger** | DM Nostr |
 | **Command** | `morse: <text>`, `morse:slow: <text>`, `morse:fast: <text>` |
-| **Action** | Convert text to Morse code, play on buzzer |
-| **Output** | Buzzer plays Morse sequence |
+| **Action** | Convert text to Morse code, play on buzzer, generate audio |
+| **Output** | Buzzer plays Morse sequence + voice message on Telegram |
 | **Confirmation** | DM with Morse code representation |
-| **Prerequisites** | pigpiod daemon, active buzzer on GPIO 27 |
+| **Prerequisites** | pigpiod daemon, active buzzer on GPIO 27, Telegram bot (optional), ffmpeg (for OGG) |
 
 ---
 
@@ -138,6 +138,16 @@ Complete list of available workflows with testing status.
 | **Action** | Forward to email address |
 | **Output** | Email with DM content |
 | **Prerequisites** | SMTP server configured |
+
+### 13. Morse Audio to Telegram (`morse-to-telegram`)
+| Status | **Untested** |
+|--------|-------------|
+| **Trigger** | DM Nostr |
+| **Command** | `morse:tg: <text>`, `morse:tg:slow: <text>`, `morse:tg:fast: <text>` |
+| **Action** | Generate Morse code audio, send to Telegram |
+| **Output** | Voice message with Morse beeps on Telegram |
+| **Confirmation** | DM with Morse code representation |
+| **Prerequisites** | Telegram bot configured, ffmpeg (for OGG) |
 
 ---
 
@@ -291,13 +301,13 @@ Complete list of available workflows with testing status.
 |----------|-------|--------|----------|
 | GPIO & Hardware | 3 | 2 | 1 |
 | Communication Nostr | 3 | 0 | 3 |
-| Messaging & Social | 7 | 6 | 1 |
+| Messaging & Social | 8 | 6 | 2 |
 | Zulip Integration | 3 | 3 | 0 |
 | Storage & Archiving | 3 | 3 | 0 |
 | APIs & Webhooks | 3 | 3 | 0 |
 | Calendar & ERP | 2 | 2 | 0 |
 | System & Administration | 3 | 1 | 2 |
-| **Total** | **27** | **20** | **7** |
+| **Total** | **28** | **20** | **8** |
 
 ---
 
