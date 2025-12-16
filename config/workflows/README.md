@@ -24,7 +24,7 @@ nano config/workflows/nostr-to-gpio.yml
 - Set `enabled: true` to activate a workflow
 - Restart PipeliNostr after changes: `./scripts/restart.sh`
 
-## Available Workflows (24)
+## Available Workflows (26)
 
 ### GPIO & Hardware
 | Workflow | Description | Command |
@@ -81,6 +81,8 @@ nano config/workflows/nostr-to-gpio.yml
 | Workflow | Description | Command |
 |----------|-------------|---------|
 | `dpo-command.yml` | Generate GDPR/DPO report | `/dpo` |
+| `claude-workflow-generator.yml` | Generate workflows via Claude AI | `/workflow <desc>` |
+| `claude-activate.yml` | Activate/cancel pending workflows | `/activate`, `/cancel`, `/pending` |
 
 ## Full Documentation
 

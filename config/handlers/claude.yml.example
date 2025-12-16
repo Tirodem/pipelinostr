@@ -1,0 +1,46 @@
+# Configuration Claude Handler
+# Permet la génération de workflows via l'API Claude (Anthropic)
+#
+# Prérequis:
+# 1. Créer un compte sur console.anthropic.com
+# 2. Générer une clé API
+# 3. Ajouter ANTHROPIC_API_KEY dans .env
+#
+# Usage:
+#   /workflow <description>  - Génère un workflow
+#   /activate <id>          - Active un workflow généré
+#   /explain <id>           - Explique un workflow existant
+
+claude:
+  enabled: false  # Activer après configuration
+
+  # Clé API Anthropic (depuis .env)
+  api_key: ${ANTHROPIC_API_KEY}
+
+  # Modèle à utiliser
+  # - claude-haiku-4-20250514: Rapide et économique (~$0.001/requête)
+  # - claude-sonnet-4-20250514: Plus capable (~$0.01/requête)
+  model: claude-haiku-4-20250514
+
+  # Limite de tokens pour les réponses
+  max_tokens: 2048
+
+  # Handlers autorisés dans les workflows générés
+  # Retirez les handlers sensibles si nécessaire
+  allowed_handlers:
+    - nostr_dm
+    - nostr_note
+    - email
+    - telegram
+    - zulip
+    - http
+    - traccar_sms
+    - mastodon
+    - bluesky
+    - ftp
+    - mongodb
+    - file
+    - calendar
+    - tts
+    # - gpio      # Décommenter pour autoriser le contrôle hardware
+    # - serial    # Décommenter pour autoriser le port série

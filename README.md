@@ -427,7 +427,8 @@ src/
 
 ## Documentation
 
-- [Workflow Catalog](docs/WORKFLOW-CATALOG.md) - Liste complète des 23 workflows avec statut de test
+- [Workflow Catalog](docs/WORKFLOW-CATALOG.md) - Liste complète des workflows avec statut de test
+- [Claude Workflow Generator](docs/CLAUDE-WORKFLOW-GENERATOR.md) - Génération de workflows via Claude AI
 - [GPIO Raspberry Pi Setup](docs/GPIO-RASPBERRY-PI-SETUP.md) - Configuration GPIO sur Raspberry Pi
 - [TTS + Telegram Setup](docs/TTS-TELEGRAM-SETUP.md) - Configuration Text-to-Speech et Telegram
 - [DM Cheat Sheet](docs/DM-CHEATSHEET.md) - Formats de DM pour tester tous les workflows

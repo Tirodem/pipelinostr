@@ -255,6 +255,24 @@ Complete list of available workflows with testing status.
 | **Output** | DM with Markdown report |
 | **Prerequisites** | None |
 
+### 25. Claude Workflow Generator (`claude-workflow-generator`)
+| Status | **Untested** |
+|--------|--------------|
+| **Trigger** | DM Nostr |
+| **Command** | `/workflow <description>` |
+| **Action** | Generate workflow YAML via Claude AI |
+| **Output** | DM with generated workflow |
+| **Prerequisites** | Anthropic API key |
+
+### 26. Claude Activate (`claude-activate`)
+| Status | **Untested** |
+|--------|--------------|
+| **Trigger** | DM Nostr |
+| **Command** | `/activate <id>`, `/cancel [id]`, `/pending` |
+| **Action** | Activate, cancel or list pending workflows |
+| **Output** | DM confirmation |
+| **Prerequisites** | claude-workflow-generator active |
+
 ---
 
 ## Summary
@@ -268,8 +286,8 @@ Complete list of available workflows with testing status.
 | Storage & Archiving | 3 | 3 | 0 |
 | APIs & Webhooks | 3 | 3 | 0 |
 | Calendar & ERP | 2 | 2 | 0 |
-| System & Administration | 1 | 1 | 0 |
-| **Total** | **24** | **20** | **4** |
+| System & Administration | 3 | 1 | 2 |
+| **Total** | **26** | **20** | **6** |
 
 ---
 

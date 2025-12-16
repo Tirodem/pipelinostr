@@ -49,6 +49,8 @@ import { BeBopHandler } from './outbound/bebop.handler.js';
 import { OdooHandler, type OdooConfig } from './outbound/odoo.handler.js';
 import { TTSHandler } from './outbound/tts.handler.js';
 import { DPOHandler } from './outbound/dpo.handler.js';
+import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.handler.js';
+import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -104,6 +106,8 @@ interface AppState {
     odoo?: OdooHandler;
     tts?: TTSHandler;
     dpo?: DPOHandler;
+    claude?: ClaudeHandler;
+    workflowActivator?: WorkflowActivatorHandler;
   };
 }
 
@@ -1202,6 +1206,44 @@ async function initializeHandlers(
   await state.handlers.dpo.initialize();
   state.workflowEngine.registerHandler('dpo_report', state.handlers.dpo);
   logger.info('DPO report handler enabled');
+
+  // Claude Handler (optional, needs API key)
+  try {
+    interface ClaudeConfigFile {
+      claude?: {
+        enabled?: boolean;
+        api_key?: string;
+        model?: string;
+        max_tokens?: number;
+        allowed_handlers?: string[];
+      };
+    }
+    const claudeConfig = await loadHandlerConfig<ClaudeConfigFile>('claude');
+    if (
+      claudeConfig?.claude?.enabled !== false &&
+      claudeConfig?.claude?.api_key
+    ) {
+      const claudeOptions: ClaudeHandlerOptions = {
+        apiKey: claudeConfig.claude.api_key,
+        model: claudeConfig.claude.model,
+        maxTokens: claudeConfig.claude.max_tokens,
+        allowedHandlers: claudeConfig.claude.allowed_handlers,
+      };
+
+      state.handlers.claude = new ClaudeHandler(claudeOptions);
+      await state.handlers.claude.initialize();
+      state.workflowEngine.registerHandler('claude', state.handlers.claude);
+      logger.info({ model: claudeConfig.claude.model ?? 'claude-sonnet-4-20250514' }, 'Claude handler enabled');
+    }
+  } catch (error) {
+    logger.debug('Claude handler not configured, skipping');
+  }
+
+  // Workflow Activator Handler (always available, works with Claude handler)
+  state.handlers.workflowActivator = new WorkflowActivatorHandler();
+  await state.handlers.workflowActivator.initialize();
+  state.workflowEngine.registerHandler('workflow_activator', state.handlers.workflowActivator);
+  logger.info('Workflow activator handler enabled');
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1707,6 +1749,12 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.dpo) {
       await appState.handlers.dpo.shutdown();
+    }
+    if (appState.handlers.claude) {
+      await appState.handlers.claude.shutdown();
+    }
+    if (appState.handlers.workflowActivator) {
+      await appState.handlers.workflowActivator.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();

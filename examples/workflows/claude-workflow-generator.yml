@@ -1,0 +1,66 @@
+# Workflow: Claude Workflow Generator
+# Génère des workflows PipeliNostr via l'API Claude
+#
+# Commande: "/workflow <description>"
+# Exemple: "/workflow envoie un email quand je reçois un zap de plus de 1000 sats"
+#
+# Prérequis:
+# 1. Configurer config/handlers/claude.yml avec votre clé API Anthropic
+# 2. Ajouter ANTHROPIC_API_KEY dans .env
+#
+# Le workflow généré est stocké en attente pendant 10 minutes.
+# Utilisez /activate <id> pour l'activer.
+
+id: claude-workflow-generator
+name: Claude Workflow Generator
+description: Generate PipeliNostr workflows using Claude AI
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    from_whitelist: true
+    content_pattern: "^/workflow\\s+(?<description>.+)$"
+
+actions:
+  # 1. Appeler Claude pour générer le workflow
+  - id: generate
+    type: claude
+    config:
+      action: generate
+      prompt: "{{ match.description }}"
+
+  # 2. Répondre avec le workflow généré
+  - id: reply_success
+    type: nostr_dm
+    when: "actions.generate.success && actions.generate.response.type === 'workflow_pending'"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Workflow genere: {{ actions.generate.response.workflowId }}
+
+        {{ actions.generate.response.fullResponse }}
+
+        Pour activer: /activate {{ actions.generate.response.workflowId }}
+        Pour annuler: /cancel {{ actions.generate.response.workflowId }}
+
+        Expire dans {{ actions.generate.response.expiresIn }}.
+
+  # 3. Répondre si Claude refuse ou répond hors-sujet
+  - id: reply_message
+    type: nostr_dm
+    when: "actions.generate.success && actions.generate.response.type === 'message'"
+    config:
+      to: "{{ trigger.from }}"
+      content: "{{ actions.generate.response.content }}"
+
+  # 4. Répondre en cas d'erreur
+  - id: reply_error
+    type: nostr_dm
+    when: "!actions.generate.success"
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Erreur lors de la generation:
+        {{ actions.generate.error }}
