@@ -1,7 +1,8 @@
 # PipeliNostr - Contexte Claude Code
 
 > **Objectif :** Fichier lu automatiquement par Claude Code pour restaurer le contexte entre sessions.
-> **Dernière mise à jour :** 2025-12-19
+> **Dernière mise à jour :** 2025-12-20
+> **Dernier commit :** 2b4e277 - feat: auto-split long Morse messages into chunks
 
 ## Projet en bref
 
@@ -61,6 +62,11 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 3. **Demander** ce que l'utilisateur veut faire si pas clair
 
 ## Historique des décisions récentes
+
+### 2025-12-20
+- Ajout handler `system` pour `/pipelinostr status` via DM
+- Workflow pipelinostr-status.yml.example créé
+- Infos retournées : commit, workflows, handlers, 10 dernières exécutions, RAM/CPU/disk, OS
 
 ### 2025-12-19
 - Ajout backlog : SMS Gateway for Android (capcom6)
@@ -133,6 +139,7 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 | `bebop` | `bebop.handler.ts` | Testé | be-BOP → Odoo sync |
 | `odoo` | `odoo.handler.ts` | Testé | JSON-RPC |
 | `claude` | `claude.handler.ts` | Non testé | Workflow generator |
+| `system` | `system.handler.ts` | Non testé | System status /pipelinostr status |
 
 ## Workflows par catégorie
 
@@ -160,7 +167,7 @@ bebop-order-sync.yml       Payment for order #...
 dpo-command.yml            /dpo
 ```
 
-### Non testés (8)
+### Non testés (9)
 ```
 publish-note.yml           /publish <content>
 auto-reply.yml             hello, bonjour, etc.
@@ -170,6 +177,7 @@ claude-workflow-generator.yml   /workflow <desc>
 claude-activate.yml        /activate, /cancel, /pending
 nostr-to-morse.yml         morse: <text> → buzzer
 morse-to-telegram.yml      morse:tg: <text> → audio TG
+pipelinostr-status.yml     /pipelinostr status → system info
 ```
 
 ## Architecture simplifiée

@@ -30,6 +30,7 @@ Then restart PipeliNostr to load the new workflow.
 | `mempool-tx-lookup.yml` | Lookup Bitcoin TX and reply via DM |
 | `zulip-workflow-notification.yml` | Notify Zulip on workflow completion |
 | `api-to-nostr-dm.yml` | Forward HTTP API calls to Nostr DM |
+| `pipelinostr-status.yml.example` | Get system status via /pipelinostr status DM |
 
 ## Template Variables
 

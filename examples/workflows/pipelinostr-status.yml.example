@@ -1,0 +1,37 @@
+# PipeliNostr Status Command
+#
+# Reply with system status when receiving /pipelinostr status via DM.
+# Provides: git commit, active workflows, handlers, recent executions,
+# and system resources (RAM, CPU, disk).
+#
+# Requirements:
+# - Whitelist must be enabled (only authorized users can request status)
+#
+# Usage: Send a DM with "/pipelinostr status" to your PipeliNostr npub
+
+id: pipelinostr-status
+name: PipeliNostr Status Command
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    # Match /pipelinostr status (case insensitive)
+    content_pattern: "^/pipelinostr\\s+status$"
+    require_whitelist: true
+
+actions:
+  # Get system status
+  - id: get_status
+    type: system
+    config:
+      action: status
+      recent_executions_limit: 10
+
+  # Reply with formatted status
+  - id: reply
+    type: nostr_dm
+    config:
+      recipient: "{{ trigger.pubkey }}"
+      content: "{{ actions.get_status.data.formatted }}"

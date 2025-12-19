@@ -52,6 +52,7 @@ import { MorseAudioHandler } from './outbound/morse-audio.handler.js';
 import { DPOHandler } from './outbound/dpo.handler.js';
 import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.handler.js';
 import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
+import { SystemHandler } from './outbound/system.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -110,6 +111,7 @@ interface AppState {
     dpo?: DPOHandler;
     claude?: ClaudeHandler;
     workflowActivator?: WorkflowActivatorHandler;
+    system?: SystemHandler;
   };
 }
 
@@ -1254,6 +1256,14 @@ async function initializeHandlers(
   await state.handlers.workflowActivator.initialize();
   state.workflowEngine.registerHandler('workflow_activator', state.handlers.workflowActivator);
   logger.info('Workflow activator handler enabled');
+
+  // System Handler (always available, provides system status)
+  state.handlers.system = new SystemHandler({ workflowsDir: './config/workflows' });
+  await state.handlers.system.initialize();
+  // Pass registered handler names for status reporting
+  state.handlers.system.setRegisteredHandlers(Array.from(state.workflowEngine.getStats().handlers));
+  state.workflowEngine.registerHandler('system', state.handlers.system);
+  logger.info('System handler enabled');
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
@@ -1768,6 +1778,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.workflowActivator) {
       await appState.handlers.workflowActivator.shutdown();
+    }
+    if (appState.handlers.system) {
+      await appState.handlers.system.shutdown();
     }
     await appState.handlers.http.shutdown();
     await appState.handlers.nostrDm.shutdown();
