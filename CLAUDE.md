@@ -2,7 +2,7 @@
 
 > **Objectif :** Fichier lu automatiquement par Claude Code pour restaurer le contexte entre sessions.
 > **Dernière mise à jour :** 2025-12-20
-> **Dernier commit :** 2b4e277 - feat: auto-split long Morse messages into chunks
+> **Dernier commit :** c7f7616 - fix: correct template path and filter field in pipelinostr-status workflow
 
 ## Projet en bref
 
@@ -67,6 +67,7 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 - Ajout handler `system` pour `/pipelinostr status` via DM
 - Workflow pipelinostr-status.yml.example créé
 - Infos retournées : commit, workflows, handlers, 10 dernières exécutions, RAM/CPU/disk, OS
+- Fix workflow : `actions.*.response` (pas `data`), `from_whitelist` (pas `require_whitelist`)
 
 ### 2025-12-19
 - Ajout backlog : SMS Gateway for Android (capcom6)
