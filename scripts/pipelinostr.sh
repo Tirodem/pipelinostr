@@ -46,9 +46,10 @@ usage() {
     echo "  $0 workflow list enabled"
     echo "  $0 workflow enable zulip-forward"
     echo "  $0 workflow disable all"
+    echo "  $0 workflow disable wf1,wf2,wf3"
     echo "  $0 handler list"
     echo "  $0 handler enable email"
-    echo "  $0 handler disable traccar-sms"
+    echo "  $0 handler disable traccar-sms,discord,twitter"
     echo "  $0 relay list"
     echo "  $0 relay add wss://relay.example.com"
     echo "  $0 relay blacklist +wss://spam.relay.com"
@@ -102,100 +103,114 @@ workflow_list() {
     done
 }
 
-# Enable workflow
+# Enable workflow (supports comma-separated list)
 workflow_enable() {
-    local target="$1"
+    local input="$1"
 
-    if [ -z "$target" ]; then
+    if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow enable <id|all>"
+        echo "Usage: $0 workflow enable <id|id1,id2,...|all>"
         exit 1
     fi
 
-    local count=0
+    local total_count=0
+    local not_found=()
 
-    for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
-        [ -f "$file" ] || continue
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
 
-        local id=$(get_workflow_id "$file")
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local count=0
+        local found=0
 
-        if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
-            if ! is_workflow_enabled "$file"; then
-                sed -i 's/^enabled:\s*false/enabled: true/' "$file"
-                echo -e "${GREEN}✓${NC} Enabled: $id"
-                ((count++))
-            else
-                echo -e "${YELLOW}○${NC} Already enabled: $id"
+        for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
+            [ -f "$file" ] || continue
+
+            local id=$(get_workflow_id "$file")
+
+            if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
+                found=1
+                if ! is_workflow_enabled "$file"; then
+                    sed -i 's/^enabled:\s*false/enabled: true/' "$file"
+                    echo -e "${GREEN}✓${NC} Enabled: $id"
+                    ((count++))
+                    ((total_count++))
+                else
+                    echo -e "${YELLOW}○${NC} Already enabled: $id"
+                fi
+
+                [ "$target" != "all" ] && break
             fi
+        done
 
-            [ "$target" != "all" ] && break
+        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+            not_found+=("$target")
         fi
     done
 
-    if [ "$target" != "all" ] && [ $count -eq 0 ]; then
-        # Check if we found the workflow at all
-        local found=0
-        for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
-            [ -f "$file" ] || continue
-            local id=$(get_workflow_id "$file")
-            [ "$id" = "$target" ] && found=1 && break
-        done
-
-        if [ $found -eq 0 ]; then
-            echo -e "${RED}Error: Workflow '$target' not found${NC}"
-            exit 1
-        fi
-    fi
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Not found: $nf"
+    done
 
     echo ""
     echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
     echo "  $0 restart"
 }
 
-# Disable workflow
+# Disable workflow (supports comma-separated list)
 workflow_disable() {
-    local target="$1"
+    local input="$1"
 
-    if [ -z "$target" ]; then
+    if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow disable <id|all>"
+        echo "Usage: $0 workflow disable <id|id1,id2,...|all>"
         exit 1
     fi
 
-    local count=0
+    local total_count=0
+    local not_found=()
 
-    for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
-        [ -f "$file" ] || continue
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
 
-        local id=$(get_workflow_id "$file")
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local count=0
+        local found=0
 
-        if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
-            if is_workflow_enabled "$file"; then
-                sed -i 's/^enabled:\s*true/enabled: false/' "$file"
-                echo -e "${GREEN}✓${NC} Disabled: $id"
-                ((count++))
-            else
-                echo -e "${YELLOW}○${NC} Already disabled: $id"
+        for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
+            [ -f "$file" ] || continue
+
+            local id=$(get_workflow_id "$file")
+
+            if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
+                found=1
+                if is_workflow_enabled "$file"; then
+                    sed -i 's/^enabled:\s*true/enabled: false/' "$file"
+                    echo -e "${GREEN}✓${NC} Disabled: $id"
+                    ((count++))
+                    ((total_count++))
+                else
+                    echo -e "${YELLOW}○${NC} Already disabled: $id"
+                fi
+
+                [ "$target" != "all" ] && break
             fi
+        done
 
-            [ "$target" != "all" ] && break
+        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+            not_found+=("$target")
         fi
     done
 
-    if [ "$target" != "all" ] && [ $count -eq 0 ]; then
-        # Check if we found the workflow at all
-        local found=0
-        for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
-            [ -f "$file" ] || continue
-            local id=$(get_workflow_id "$file")
-            [ "$id" = "$target" ] && found=1 && break
-        done
-
-        if [ $found -eq 0 ]; then
-            echo -e "${RED}Error: Workflow '$target' not found${NC}"
-            exit 1
-        fi
-    fi
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Not found: $nf"
+    done
 
     echo ""
     echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
@@ -270,100 +285,116 @@ handler_list() {
     done
 }
 
-# Enable handler
+# Enable handler (supports comma-separated list)
 handler_enable() {
-    local target="$1"
+    local input="$1"
 
-    if [ -z "$target" ]; then
+    if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing handler name${NC}"
-        echo "Usage: $0 handler enable <name|all>"
+        echo "Usage: $0 handler enable <name|name1,name2,...|all>"
         exit 1
     fi
 
-    local count=0
+    local total_count=0
+    local not_found=()
 
-    for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
-        [ -f "$file" ] || continue
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
 
-        local name=$(get_handler_name "$file")
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local count=0
+        local found=0
 
-        if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
-            if ! is_handler_enabled "$file"; then
-                # Replace enabled: false with enabled: true (handles indentation)
-                sed -i 's/^\(\s*\)enabled:\s*false/\1enabled: true/' "$file"
-                echo -e "${GREEN}✓${NC} Enabled: $name"
-                ((count++))
-            else
-                echo -e "${YELLOW}○${NC} Already enabled: $name"
+        for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
+            [ -f "$file" ] || continue
+
+            local name=$(get_handler_name "$file")
+
+            if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
+                found=1
+                if ! is_handler_enabled "$file"; then
+                    # Replace enabled: false with enabled: true (handles indentation)
+                    sed -i 's/^\(\s*\)enabled:\s*false/\1enabled: true/' "$file"
+                    echo -e "${GREEN}✓${NC} Enabled: $name"
+                    ((count++))
+                    ((total_count++))
+                else
+                    echo -e "${YELLOW}○${NC} Already enabled: $name"
+                fi
+
+                [ "$target" != "all" ] && break
             fi
+        done
 
-            [ "$target" != "all" ] && break
+        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+            not_found+=("$target")
         fi
     done
 
-    if [ "$target" != "all" ] && [ $count -eq 0 ]; then
-        local found=0
-        for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
-            [ -f "$file" ] || continue
-            local name=$(get_handler_name "$file")
-            [ "$name" = "$target" ] && found=1 && break
-        done
-
-        if [ $found -eq 0 ]; then
-            echo -e "${RED}Error: Handler '$target' not found${NC}"
-            exit 1
-        fi
-    fi
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Not found: $nf"
+    done
 
     echo ""
     echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
     echo "  $0 restart"
 }
 
-# Disable handler
+# Disable handler (supports comma-separated list)
 handler_disable() {
-    local target="$1"
+    local input="$1"
 
-    if [ -z "$target" ]; then
+    if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing handler name${NC}"
-        echo "Usage: $0 handler disable <name|all>"
+        echo "Usage: $0 handler disable <name|name1,name2,...|all>"
         exit 1
     fi
 
-    local count=0
+    local total_count=0
+    local not_found=()
 
-    for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
-        [ -f "$file" ] || continue
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
 
-        local name=$(get_handler_name "$file")
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local count=0
+        local found=0
 
-        if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
-            if is_handler_enabled "$file"; then
-                # Replace enabled: true with enabled: false (handles indentation)
-                sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$file"
-                echo -e "${GREEN}✓${NC} Disabled: $name"
-                ((count++))
-            else
-                echo -e "${YELLOW}○${NC} Already disabled: $name"
+        for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
+            [ -f "$file" ] || continue
+
+            local name=$(get_handler_name "$file")
+
+            if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
+                found=1
+                if is_handler_enabled "$file"; then
+                    # Replace enabled: true with enabled: false (handles indentation)
+                    sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$file"
+                    echo -e "${GREEN}✓${NC} Disabled: $name"
+                    ((count++))
+                    ((total_count++))
+                else
+                    echo -e "${YELLOW}○${NC} Already disabled: $name"
+                fi
+
+                [ "$target" != "all" ] && break
             fi
+        done
 
-            [ "$target" != "all" ] && break
+        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+            not_found+=("$target")
         fi
     done
 
-    if [ "$target" != "all" ] && [ $count -eq 0 ]; then
-        local found=0
-        for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
-            [ -f "$file" ] || continue
-            local name=$(get_handler_name "$file")
-            [ "$name" = "$target" ] && found=1 && break
-        done
-
-        if [ $found -eq 0 ]; then
-            echo -e "${RED}Error: Handler '$target' not found${NC}"
-            exit 1
-        fi
-    fi
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Not found: $nf"
+    done
 
     echo ""
     echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
