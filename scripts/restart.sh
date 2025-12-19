@@ -10,7 +10,7 @@ sleep 1
 
 echo "Starting PipeliNostr..."
 mkdir -p logs
-nohup npm start > logs/pipelinostr.log 2>&1 &
+setsid nohup npm start > logs/pipelinostr.log 2>&1 &
 
 sleep 2
 
