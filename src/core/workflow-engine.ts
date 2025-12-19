@@ -178,6 +178,7 @@ export class WorkflowEngine {
     let actionsExecuted = 0;
     let actionsFailed = 0;
     let actionsSkipped = 0;
+    const actionErrors: string[] = [];
 
     // Execute on_start hooks (in parallel, don't wait)
     if (workflow.hooks?.on_start) {
@@ -196,6 +197,12 @@ export class WorkflowEngine {
         actionsExecuted++;
       } else {
         actionsFailed++;
+        // Collect error messages from failed actions
+        if (actionResult.error) {
+          actionErrors.push(`${action.id}: ${actionResult.error}`);
+        } else {
+          actionErrors.push(`${action.id}: unknown error`);
+        }
       }
 
       // Log action execution
@@ -222,6 +229,7 @@ export class WorkflowEngine {
       actionsExecuted,
       actionsFailed,
       actionsSkipped,
+      error: actionErrors.length > 0 ? actionErrors.join('; ') : undefined,
       context,
     };
 

@@ -41,7 +41,8 @@
       "WebFetch(domain:www.gsmarena.com)",
       "WebFetch(domain:crosscall.com)",
       "WebFetch(domain:www.crosscall.com)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
