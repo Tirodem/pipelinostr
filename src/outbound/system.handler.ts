@@ -99,12 +99,16 @@ export class SystemHandler implements Handler {
 
     try {
       if (action === 'status') {
+        logger.debug('System handler: getting status');
         const status = await this.getSystemStatus(systemConfig);
+        logger.debug({ status }, 'System handler: status retrieved');
+        const formatted = this.formatStatus(status);
+        logger.debug('System handler: status formatted');
         return {
           success: true,
           data: {
             status,
-            formatted: this.formatStatus(status),
+            formatted,
           },
         };
       } else if (action === 'health') {
@@ -120,11 +124,14 @@ export class SystemHandler implements Handler {
         error: `Unknown action: ${action}`,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error({ error: errorMessage }, 'System handler failed');
+      const errorMessage = error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : (error ? String(error) : 'Unknown error');
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error({ error: errorMessage, stack: errorStack }, 'System handler failed');
       return {
         success: false,
-        error: errorMessage,
+        error: errorMessage || 'System handler failed with unknown error',
       };
     }
   }
@@ -238,15 +245,25 @@ export class SystemHandler implements Handler {
       const db = getDatabase();
       const logs = db.getRecentEventLogs(limit, 0);
 
-      return logs.map((log) => ({
-        id: log.id ?? 0,
-        received_at: log.received_at?.toISOString() ?? '',
-        workflow_id: log.workflow_id ?? null,
-        workflow_name: log.workflow_name ?? null,
-        status: log.status,
-        source_type: log.source_type,
-      }));
-    } catch {
+      return logs.map((log) => {
+        let receivedAt = '';
+        if (log.received_at) {
+          // Handle both Date objects and ISO strings from SQLite
+          receivedAt = log.received_at instanceof Date
+            ? log.received_at.toISOString()
+            : String(log.received_at);
+        }
+        return {
+          id: log.id ?? 0,
+          received_at: receivedAt,
+          workflow_id: log.workflow_id ?? null,
+          workflow_name: log.workflow_name ?? null,
+          status: log.status,
+          source_type: log.source_type,
+        };
+      });
+    } catch (err) {
+      logger.debug({ error: err }, 'Failed to get recent executions');
       return [];
     }
   }
