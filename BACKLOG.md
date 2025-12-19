@@ -2212,3 +2212,628 @@ donate 50000 btc   → Adresse on-chain
 | **Alby Hub** | Non-custodial | Faible | Interface web, NWC support |
 
 ---
+
+### SMS Gateway for Android (capcom6)
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Intégrer **SMS Gateway for Android** comme alternative open source à Traccar SMS Gateway pour l'envoi et la réception de SMS.
+
+#### Source
+
+- Repo: https://github.com/capcom6/android-sms-gateway
+- Docs: https://docs.sms-gate.app
+- Licence: Apache-2.0
+
+#### Pourquoi ce choix
+
+| Avantage | Description |
+|----------|-------------|
+| Open source | Apache-2.0, code auditable |
+| Self-hosted | Mode Local = aucun tiers externe |
+| Bidirectionnel | Envoi ET réception de SMS |
+| Webhooks natifs | Notification automatique des SMS entrants |
+| Multi-SIM | Choix de la SIM pour l'envoi |
+| Android 5.0+ | Compatible anciens téléphones |
+
+#### Architecture d'intégration
+
+**SMS → Nostr (réception) :**
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ SMS entrant │────►│ SMS Gateway │────►│ PipeliNostr │
+│ (téléphone) │     │ (webhook)   │     │ (kind 14?)  │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+1. SMS Gateway reçoit un SMS sur le téléphone Android
+2. Webhook POST vers PipeliNostr :
+```json
+{
+  "event": "sms:received",
+  "payload": {
+    "message": "contenu du SMS",
+    "phoneNumber": "+33612345678",
+    "receivedAt": "2024-12-19T10:00:00Z"
+  }
+}
+```
+3. PipeliNostr transforme en event Nostr (kind configurable)
+
+**Nostr → SMS (envoi) :**
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Nostr DM    │────►│ PipeliNostr │────►│ SMS Gateway │
+│ "sms:+33..."│     │ (handler)   │     │ (API REST)  │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+1. PipeliNostr reçoit un event Nostr (ex: kind 4 DM)
+2. POST vers l'API locale du téléphone :
+```bash
+POST http://<phone-ip>:8080/message
+Authorization: Basic <base64>
+{
+  "phoneNumbers": ["+33612345678"],
+  "message": "contenu"
+}
+```
+
+#### Configuration handler
+
+```yaml
+# config/handlers/sms-gateway.yml
+sms_gateway:
+  enabled: true
+  mode: local  # local | cloud | private
+
+  # API du téléphone Android
+  host: "192.168.1.50"
+  port: 8080
+  credentials:
+    username: ${SMS_GATEWAY_USER}
+    password: ${SMS_GATEWAY_PASS}
+
+  # Réception SMS (inbound)
+  webhook:
+    enabled: true
+    path: "/webhooks/sms-gateway"
+    events: ["sms:received"]
+
+  # Mapping Nostr
+  mapping:
+    inbound:
+      kind: 14           # Kind Nostr pour SMS reçus (ou custom)
+      tagPhone: true     # Ajouter tag ["phone", "+33..."]
+    outbound:
+      triggerKinds: [4, 14]    # Kinds qui déclenchent l'envoi
+      phoneFromTag: "phone"    # Extraire le numéro du tag
+
+  # Options d'envoi
+  sim_number: 1  # 1 ou 2 pour dual-SIM
+  with_delivery_report: true
+```
+
+#### Workflow exemple (envoi)
+
+```yaml
+id: nostr-to-sms-gateway
+name: Send SMS via SMS Gateway
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    content_pattern: "^sms:\\s*(?<phone>\\+?[0-9]+)\\s+(?<message>.+)$"
+
+actions:
+  - id: send_sms
+    type: sms_gateway
+    config:
+      to: "{{ match.phone }}"
+      message: "{{ match.message }}"
+
+  - id: confirm
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: "SMS envoyé à {{ match.phone }}"
+```
+
+#### Workflow exemple (réception)
+
+```yaml
+id: sms-to-nostr-dm
+name: Forward received SMS to Nostr DM
+enabled: true
+
+trigger:
+  type: sms_gateway_webhook
+  filters:
+    events: ["sms:received"]
+
+actions:
+  - id: forward_dm
+    type: nostr_dm
+    config:
+      to: "npub1_admin..."
+      content: |
+        SMS reçu de {{ trigger.phoneNumber }}:
+        {{ trigger.message }}
+```
+
+#### Comparaison avec Traccar SMS
+
+| Aspect | Traccar SMS | SMS Gateway |
+|--------|-------------|-------------|
+| Envoi SMS | Oui | Oui |
+| Réception SMS | Non | Oui (webhook) |
+| Open source | Non | Oui (Apache-2.0) |
+| Mode cloud | Non | Oui (optionnel) |
+| Multi-SIM | Non | Oui |
+| API | REST simple | REST + webhooks |
+
+#### Implémentation
+
+- Fichier : `src/outbound/sms-gateway.handler.ts`
+- Fichier : `src/inbound/sms-gateway-webhook.ts` (pour réception)
+- Complexité : ~200-300 lignes
+- Tests : Téléphone Android avec l'app installée
+
+#### Prérequis
+
+1. Téléphone Android 5.0+ avec carte SIM
+2. App SMS Gateway installée : [Play Store](https://play.google.com/store/apps/details?id=me.capcom.smsgateway)
+3. Téléphone et PipeliNostr sur le même réseau (mode local)
+
+#### Tâches d'implémentation
+
+- [ ] Créer le module handler `sms-gateway.handler.ts`
+- [ ] Implémenter le client HTTP pour l'API d'envoi
+- [ ] Implémenter le endpoint webhook pour la réception
+- [ ] Gestion des credentials et retry logic
+- [ ] Tests avec téléphone Android
+- [ ] Documentation dans `docs/SMS-GATEWAY-SETUP.md`
+
+---
+
+### GPIO Bouton Poussoir de Secours (Zap-to-Dispenser Fallback)
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Ajouter un bouton poussoir physique qui déclenche l'action du servomoteur du distributeur même en l'absence de connexion réseau ou de zap. Mode "offline fallback" pour le workflow `zap-to-dispenser`.
+
+#### Use Case
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ZAP-TO-DISPENSER                          │
+│                                                              │
+│   Mode Normal (online):                                      │
+│   ┌─────────┐     ┌─────────────┐     ┌─────────┐          │
+│   │ Zap     │────►│ PipeliNostr │────►│ Servo   │          │
+│   │ (Nostr) │     │             │     │ (GPIO)  │          │
+│   └─────────┘     └─────────────┘     └─────────┘          │
+│                                                              │
+│   Mode Fallback (offline):                                   │
+│   ┌─────────┐     ┌─────────────┐     ┌─────────┐          │
+│   │ Bouton  │────►│ GPIO        │────►│ Servo   │          │
+│   │ (GPIO)  │     │ Listener    │     │ (GPIO)  │          │
+│   └─────────┘     └─────────────┘     └─────────┘          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Implémentation
+
+**Option A : Listener GPIO intégré à PipeliNostr**
+
+```yaml
+# config/handlers/gpio.yml
+gpio:
+  enabled: true
+
+  # Écoute bouton (inbound)
+  inputs:
+    - pin: 17
+      name: "dispenser_button"
+      edge: "falling"          # falling | rising | both
+      debounce_ms: 200         # Anti-rebond
+      pull: "up"               # up | down | none (pull-up interne)
+```
+
+```yaml
+# Workflow déclenché par bouton
+id: button-to-dispenser
+name: Manual Dispenser Trigger
+enabled: true
+
+trigger:
+  type: gpio_input
+  filters:
+    pin: 17
+    edge: falling
+
+actions:
+  - id: dispense
+    type: gpio
+    config:
+      pin: 18
+      action: servo
+      angle: 180
+      duration: 1000
+      return_angle: 0
+
+  - id: log_local
+    type: file
+    config:
+      path: "/var/log/pipelinostr/manual-dispense.log"
+      content: "{{ now | date }} - Manual dispense triggered\n"
+      append: true
+```
+
+**Option B : Script externe avec systemd (sans PipeliNostr)**
+
+```bash
+#!/bin/bash
+# /usr/local/bin/manual-dispense.sh
+# Déclenché par systemd sur événement GPIO
+
+pigs s 18 2500  # Servo à 180°
+sleep 1
+pigs s 18 500   # Retour à 0°
+echo "$(date) - Manual dispense" >> /var/log/manual-dispense.log
+```
+
+```ini
+# /etc/systemd/system/dispenser-button.service
+[Unit]
+Description=Manual Dispenser Button
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/gpiomon --falling-edge --num-events=1 gpiochip0 17
+ExecStartPost=/usr/local/bin/manual-dispense.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Câblage
+
+```
+RASPBERRY PI                    BOUTON POUSSOIR
+Pin 11 [GPIO17]  ●──────────────● Contact 1
+Pin 9  [GND]     ●──────────────● Contact 2
+
+Note: Utiliser la résistance pull-up interne du RPi
+      Le bouton tire GPIO17 vers GND quand pressé
+```
+
+#### Matériel requis
+
+| Composant | Prix | Notes |
+|-----------|------|-------|
+| Bouton poussoir 12mm | ~1€ | Momentané, normalement ouvert |
+| Câbles dupont | ~1€ | 2 câbles femelle-femelle |
+
+#### Considérations
+
+- **Debounce** : Filtrer les rebonds mécaniques (200ms recommandé)
+- **Pull-up** : Utiliser le pull-up interne du RPi pour éviter les faux déclenchements
+- **Logging** : Garder une trace des déclenchements manuels pour audit
+- **LED indicateur** : Optionnel - allumer une LED pendant l'action
+
+#### Tâches d'implémentation
+
+- [ ] Ajouter `GpioInputListener` dans `src/inbound/gpio-input.ts`
+- [ ] Supporter trigger `type: gpio_input` dans workflow-matcher
+- [ ] Debounce et gestion des edges (rising/falling/both)
+- [ ] Tests avec bouton physique
+- [ ] Documentation câblage
+
+---
+
+### Afficheur Digital GPIO pour Pseudonyme Nostr
+
+**Priority:** Medium
+**Status:** Proposed
+
+#### Description
+
+Afficher le pseudonyme (display_name ou name) du profil Nostr de l'expéditeur d'un DM sur un écran LCD/OLED connecté en GPIO (I2C ou SPI).
+
+#### Use Case
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ DM Nostr    │────►│ PipeliNostr │────►│ Écran LCD   │
+│ de @alice   │     │ (fetch      │     │ "alice"     │
+│             │     │  profile)   │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+#### Types d'afficheurs supportés
+
+| Type | Interface | Résolution | Prix | Notes |
+|------|-----------|------------|------|-------|
+| **LCD 16x2** | I2C (PCF8574) | 16 chars x 2 lignes | ~5€ | Classique, rétroéclairé |
+| **LCD 20x4** | I2C (PCF8574) | 20 chars x 4 lignes | ~8€ | Plus de texte |
+| **OLED SSD1306** | I2C | 128x64 pixels | ~5€ | Graphique, contraste élevé |
+| **OLED SSD1306** | SPI | 128x64 pixels | ~5€ | Plus rapide |
+| **E-Ink** | SPI | Variable | ~15€ | Très basse conso, lent |
+
+#### Configuration handler
+
+```yaml
+# config/handlers/display.yml
+display:
+  enabled: true
+
+  type: lcd_i2c          # lcd_i2c | oled_i2c | oled_spi | e_ink
+  i2c_address: 0x27      # Adresse I2C (0x27 ou 0x3F pour LCD, 0x3C pour OLED)
+
+  # Dimensions
+  cols: 16               # Caractères par ligne (LCD)
+  rows: 2                # Nombre de lignes (LCD)
+  # ou
+  width: 128             # Pixels (OLED)
+  height: 64             # Pixels (OLED)
+
+  # Options
+  backlight: true        # LCD uniquement
+  scroll_long_text: true # Défiler si texte trop long
+  scroll_speed_ms: 300   # Vitesse défilement
+  display_duration_ms: 5000  # Durée affichage avant effacement
+```
+
+#### Workflow exemple
+
+```yaml
+id: dm-to-display
+name: Show sender name on LCD
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+
+actions:
+  # Récupérer le profil Nostr de l'expéditeur
+  - id: fetch_profile
+    type: nostr_profile
+    config:
+      pubkey: "{{ trigger.pubkey }}"
+
+  # Afficher sur l'écran
+  - id: show_name
+    type: display
+    config:
+      line1: "DM de:"
+      line2: "{{ actions.fetch_profile.response.display_name | default: actions.fetch_profile.response.name | default: trigger.from | truncate:16 }}"
+      duration_ms: 10000
+```
+
+#### Action `nostr_profile` (nouvelle)
+
+Pour récupérer le profil (kind 0) d'une npub :
+
+```yaml
+- id: fetch_profile
+  type: nostr_profile
+  config:
+    pubkey: "{{ trigger.pubkey }}"
+    # ou
+    npub: "{{ trigger.from }}"
+    timeout_ms: 5000
+
+# Response:
+# {
+#   "name": "alice",
+#   "display_name": "Alice",
+#   "about": "...",
+#   "picture": "https://...",
+#   "nip05": "alice@example.com",
+#   ...
+# }
+```
+
+#### Câblage LCD I2C (16x2)
+
+```
+RASPBERRY PI                    LCD I2C (PCF8574)
+Pin 1  [3.3V]    ●──────────────● VCC
+Pin 6  [GND]     ●──────────────● GND
+Pin 3  [GPIO2/SDA] ●────────────● SDA
+Pin 5  [GPIO3/SCL] ●────────────● SCL
+```
+
+#### Câblage OLED SSD1306 I2C
+
+```
+RASPBERRY PI                    OLED SSD1306
+Pin 1  [3.3V]    ●──────────────● VCC
+Pin 6  [GND]     ●──────────────● GND
+Pin 3  [GPIO2/SDA] ●────────────● SDA
+Pin 5  [GPIO3/SCL] ●────────────● SCL
+```
+
+#### Librairies Node.js
+
+| Écran | Package npm | Notes |
+|-------|-------------|-------|
+| LCD I2C | `lcd` ou `raspberrypi-liquid-crystal` | PCF8574 backpack |
+| OLED SSD1306 | `ssd1306-i2c-js` ou `oled-js` | Via I2C |
+| E-Ink | `epd-waveshare` | Waveshare displays |
+
+#### Implémentation
+
+- Fichier : `src/outbound/display.handler.ts`
+- Action : `nostr_profile` dans `src/outbound/nostr.handler.ts` (ou nouveau fichier)
+- Complexité : ~200-300 lignes
+- Dépendance : `i2c-bus` + lib spécifique écran
+
+#### Tâches d'implémentation
+
+- [ ] Créer `display.handler.ts` avec support LCD I2C
+- [ ] Ajouter action `nostr_profile` pour fetch kind 0
+- [ ] Support OLED SSD1306 (optionnel)
+- [ ] Gestion du scroll pour texte long
+- [ ] Tests avec LCD 16x2
+- [ ] Documentation câblage dans `docs/GPIO-DISPLAY-SETUP.md`
+
+---
+
+### PipeliNostr sur Téléphone (Android/iOS)
+
+**Priority:** Low
+**Status:** Research
+
+#### Description
+
+Évaluer les possibilités de faire tourner PipeliNostr sur un téléphone Android ou iOS, avec ou sans portage du code.
+
+#### Options d'exécution
+
+| Option | Platform | Effort | Limitations |
+|--------|----------|--------|-------------|
+| **Termux + Node.js** | Android | Faible | Pas de GPIO, background limité |
+| **UserLAnd** | Android | Faible | Linux complet, mêmes limites |
+| **iSH** | iOS | Faible | Alpine Linux émulé, lent |
+| **React Native port** | Android/iOS | Très élevé | Réécriture majeure |
+| **Expo + Node backend** | Android/iOS | Élevé | App native + serveur local |
+| **PWA + Service Worker** | Web | Moyen | Pas de WebSocket stable en background |
+
+#### Option 1 : Termux (Android) - Recommandé
+
+**Installation :**
+```bash
+# Installer Termux depuis F-Droid (pas Play Store)
+pkg update && pkg upgrade
+pkg install nodejs-lts git
+
+# Cloner PipeliNostr
+git clone https://github.com/user/pipelinostr
+cd pipelinostr
+npm install
+npm run build
+npm start
+```
+
+**Avantages :**
+- Code identique, aucune modification
+- Node.js 20+ disponible
+- Accès réseau complet
+
+**Limitations :**
+- Pas d'accès GPIO (pas de hardware control)
+- Background execution limitée (Android tue les apps)
+- Batterie : consommation significative
+- Pas de notifications natives
+
+**Solutions background :**
+- `termux-wake-lock` : Empêche la mise en veille
+- `termux-services` : Gestion services style init.d
+- Notification persistante : Garde l'app en foreground
+
+```bash
+# Garder Termux actif
+termux-wake-lock
+
+# Lancer comme service
+mkdir -p ~/.termux/boot
+echo "cd ~/pipelinostr && npm start" > ~/.termux/boot/pipelinostr.sh
+chmod +x ~/.termux/boot/pipelinostr.sh
+```
+
+#### Option 2 : UserLAnd (Android)
+
+Distribution Linux complète dans une app Android.
+
+```bash
+# Installer UserLAnd, choisir Ubuntu/Debian
+# Puis même process que serveur Linux classique
+sudo apt update
+sudo apt install nodejs npm
+# ...
+```
+
+**Avantages :** Environnement Linux complet
+**Inconvénients :** Plus lourd, même limitations background
+
+#### Option 3 : iSH (iOS)
+
+Émulateur Alpine Linux pour iOS (App Store).
+
+```bash
+apk add nodejs npm git
+# ...
+```
+
+**Limitations :** Très lent (émulation x86), pas de background
+
+#### Option 4 : PWA avec Backend Local
+
+Architecture hybride :
+
+```
+┌─────────────────────────────────────────────────┐
+│                  TÉLÉPHONE                       │
+│  ┌───────────────┐     ┌───────────────────┐   │
+│  │ PWA (UI)      │◄───►│ PipeliNostr       │   │
+│  │ - Dashboard   │     │ (Termux/Service)  │   │
+│  │ - Config      │     │ - Core engine     │   │
+│  │ - Logs        │     │ - Handlers        │   │
+│  └───────────────┘     └───────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+#### Option 5 : Portage React Native (Non recommandé)
+
+Effort très important :
+- Réécrire en React Native / Expo
+- Remplacer toutes les deps Node.js par équivalents RN
+- Gérer WebSocket différemment
+- Pas de filesystem standard
+
+**Estimation :** 3-6 mois de développement
+
+#### Cas d'usage sur téléphone
+
+| Use Case | Faisabilité | Notes |
+|----------|-------------|-------|
+| Recevoir DMs et notifier | Possible | Via Termux + notification |
+| Envoyer SMS via SMS Gateway | Excellent | Même téléphone = latence minimale |
+| Relayer vers Telegram | Possible | Requiert background stable |
+| Contrôle GPIO | Impossible | Pas d'accès hardware |
+| Dashboard monitoring | Possible | PWA locale |
+
+#### Recommandation
+
+**Pour usage réel :** Termux sur Android avec `termux-wake-lock`
+- Idéal pour : SMS Gateway (même device), bridge messaging
+- Éviter pour : Workloads 24/7 critiques, GPIO
+
+**Pour production :** Raspberry Pi ou VPS reste préférable
+- Stabilité, background garanti, GPIO possible
+
+#### Tâches de recherche
+
+- [ ] Tester PipeliNostr sur Termux (Android)
+- [ ] Documenter les workarounds background
+- [ ] Évaluer consommation batterie
+- [ ] Tester combo SMS Gateway + PipeliNostr même device
+- [ ] Explorer PWA dashboard option
+
+---

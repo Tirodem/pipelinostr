@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
       "Bash(npm install)",
       "Bash(npm run build:*)",
       "Bash(git init:*)",
@@ -32,7 +34,14 @@
       "Bash(git check-ignore:*)",
       "Bash(ls:*)",
       "Bash(node dist/cli/dpo-report.js:*)",
-      "WebFetch(domain:docs.alephium.org)"
+      "WebFetch(domain:docs.alephium.org)",
+      "WebFetch(domain:amazon.fr)",
+      "WebFetch(domain:www.amazon.fr)",
+      "WebFetch(domain:gsmarena.com)",
+      "WebFetch(domain:www.gsmarena.com)",
+      "WebFetch(domain:crosscall.com)",
+      "WebFetch(domain:www.crosscall.com)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
