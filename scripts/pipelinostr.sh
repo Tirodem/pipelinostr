@@ -135,8 +135,8 @@ workflow_enable() {
                 if ! is_workflow_enabled "$file"; then
                     sed -i 's/^enabled:\s*false/enabled: true/' "$file"
                     echo -e "${GREEN}✓${NC} Enabled: $id"
-                    ((count++))
-                    ((total_count++))
+                    count=$((count + 1))
+                    total_count=$((total_count + 1))
                 else
                     echo -e "${YELLOW}○${NC} Already enabled: $id"
                 fi
@@ -192,8 +192,8 @@ workflow_disable() {
                 if is_workflow_enabled "$file"; then
                     sed -i 's/^enabled:\s*true/enabled: false/' "$file"
                     echo -e "${GREEN}✓${NC} Disabled: $id"
-                    ((count++))
-                    ((total_count++))
+                    count=$((count + 1))
+                    total_count=$((total_count + 1))
                 else
                     echo -e "${YELLOW}○${NC} Already disabled: $id"
                 fi
@@ -318,8 +318,8 @@ handler_enable() {
                     # Replace enabled: false with enabled: true (handles indentation)
                     sed -i 's/^\(\s*\)enabled:\s*false/\1enabled: true/' "$file"
                     echo -e "${GREEN}✓${NC} Enabled: $name"
-                    ((count++))
-                    ((total_count++))
+                    count=$((count + 1))
+                    total_count=$((total_count + 1))
                 else
                     echo -e "${YELLOW}○${NC} Already enabled: $name"
                 fi
@@ -376,8 +376,8 @@ handler_disable() {
                     # Replace enabled: true with enabled: false (handles indentation)
                     sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$file"
                     echo -e "${GREEN}✓${NC} Disabled: $name"
-                    ((count++))
-                    ((total_count++))
+                    count=$((count + 1))
+                    total_count=$((total_count + 1))
                 else
                     echo -e "${YELLOW}○${NC} Already disabled: $name"
                 fi
@@ -448,8 +448,8 @@ show_status() {
 
     for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
         [ -f "$file" ] || continue
-        ((wf_total++))
-        is_workflow_enabled "$file" && ((wf_enabled++))
+        wf_total=$((wf_total + 1))
+        is_workflow_enabled "$file" && wf_enabled=$((wf_enabled + 1))
     done
 
     echo "Workflows: $wf_enabled enabled / $wf_total total"
@@ -460,8 +460,8 @@ show_status() {
 
     for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
         [ -f "$file" ] || continue
-        ((h_total++))
-        is_handler_enabled "$file" && ((h_enabled++))
+        h_total=$((h_total + 1))
+        is_handler_enabled "$file" && h_enabled=$((h_enabled + 1))
     done
 
     echo "Handlers: $h_enabled enabled / $h_total total"
