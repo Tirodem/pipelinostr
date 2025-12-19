@@ -2402,6 +2402,84 @@ actions:
 
 ---
 
+### Claude API Status via DM Nostr
+
+**Priority:** Low
+**Status:** Proposed
+
+#### Description
+
+Ajouter un workflow permettant de consulter sa consommation de tokens Claude API via un DM Nostr avec la commande `/claude status`.
+
+#### Use Case
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ User envoie     │────►│ PipeliNostr     │────►│ Claude API      │
+│ /claude status  │     │                 │     │ /usage endpoint │
+└─────────────────┘     └────────┬────────┘     └────────┬────────┘
+                                 │                       │
+                                 │◄──────────────────────┘
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │ Réponse DM      │
+                        │ avec stats      │
+                        └─────────────────┘
+```
+
+#### Workflow exemple
+
+```yaml
+id: claude-status
+name: Claude API Status
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    content_pattern: "^/claude\\s+status$"
+
+actions:
+  - id: get_usage
+    type: http
+    config:
+      url: "https://api.anthropic.com/v1/usage"
+      method: GET
+      headers:
+        x-api-key: "{{ env.ANTHROPIC_API_KEY }}"
+        anthropic-version: "2023-06-01"
+
+  - id: reply
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        Claude API Status:
+        - Tokens utilisés: {{ actions.get_usage.response.tokens_used | number }}
+        - Limite: {{ actions.get_usage.response.tokens_limit | number }}
+        - Période: {{ actions.get_usage.response.period }}
+        - Restant: {{ actions.get_usage.response.tokens_remaining | number }}
+```
+
+#### Notes
+
+- Nécessite la variable d'environnement `ANTHROPIC_API_KEY`
+- L'endpoint `/v1/usage` de l'API Anthropic doit être vérifié (peut ne pas exister ou avoir une structure différente)
+- Alternative : utiliser l'API de billing/admin si disponible
+- Possibilité d'ajouter d'autres commandes : `/claude models`, `/claude limits`
+
+#### Tâches d'implémentation
+
+- [ ] Vérifier l'existence d'un endpoint usage dans l'API Anthropic
+- [ ] Créer le workflow `claude-status.yml`
+- [ ] Tester avec une clé API valide
+- [ ] Documenter les commandes disponibles
+
+---
+
 ### GPIO Bouton Poussoir de Secours (Zap-to-Dispenser Fallback)
 
 **Priority:** Medium
