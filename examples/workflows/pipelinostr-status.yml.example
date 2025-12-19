@@ -18,8 +18,8 @@ trigger:
   filters:
     kinds: [4, 1059]
     # Match /pipelinostr status (case insensitive)
-    content_pattern: "^/pipelinostr\\s+status$"
-    require_whitelist: true
+    content_pattern: "(?i)^/pipelinostr\\s+status$"
+    from_whitelist: true
 
 actions:
   # Get system status
@@ -34,4 +34,4 @@ actions:
     type: nostr_dm
     config:
       to: "{{ trigger.pubkey }}"
-      content: "{{ actions.get_status.data.formatted }}"
+      content: "{{ actions.get_status.response.formatted }}"
