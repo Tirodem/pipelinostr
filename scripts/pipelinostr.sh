@@ -22,7 +22,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  workflow list [all|enabled|disabled]  List workflows (default: all)"
-    echo "  workflow enable <id|all>              Enable workflow(s)"
+    echo "  workflow enable [--force] <id|all>    Enable workflow(s), -f enables handlers too"
     echo "  workflow disable <id|all>             Disable workflow(s)"
     echo "  workflow show <id>                    Show workflow details"
     echo ""
@@ -45,6 +45,7 @@ usage() {
     echo "  $0 workflow list"
     echo "  $0 workflow list enabled"
     echo "  $0 workflow enable zulip-forward"
+    echo "  $0 workflow enable --force nostr-to-telegram"
     echo "  $0 workflow disable all"
     echo "  $0 workflow disable wf1,wf2,wf3"
     echo "  $0 handler list"
@@ -103,18 +104,73 @@ workflow_list() {
     done
 }
 
-# Enable workflow (supports comma-separated list)
+# Extract action types from workflow file
+get_workflow_action_types() {
+    local file="$1"
+    # Extract "type:" values under actions section
+    grep -E "^\s+type:\s*" "$file" 2>/dev/null | sed 's/.*type:\s*//' | tr -d '"' | tr -d "'" | sort -u
+}
+
+# Map action type to handler config name
+map_action_to_handler() {
+    local action_type="$1"
+    # Some action types map to different handler file names
+    case "$action_type" in
+        nostr_dm|nostr_note) echo "" ;;  # Built-in, no config file
+        http) echo "" ;;                  # Built-in, no config file
+        system) echo "" ;;                # Built-in, no config file
+        bebop_parser) echo "" ;;          # Built-in, no config file
+        dpo_report) echo "" ;;            # Built-in, no config file
+        workflow_activator) echo "" ;;    # Built-in, no config file
+        morse_audio) echo "" ;;           # Built-in, no config file
+        traccar_sms) echo "traccar-sms" ;;
+        usb_hid) echo "usb-hid" ;;
+        *) echo "$action_type" ;;         # Most handlers: type = filename
+    esac
+}
+
+# Enable a single handler by name (internal helper)
+enable_handler_internal() {
+    local handler_name="$1"
+
+    for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
+        [ -f "$file" ] || continue
+        local name=$(get_handler_name "$file")
+
+        if [ "$name" = "$handler_name" ]; then
+            if ! is_handler_enabled "$file"; then
+                sed -i 's/^\(\s*\)enabled:\s*false/\1enabled: true/' "$file"
+                echo -e "${GREEN}✓${NC} Handler enabled: $name"
+                return 0
+            fi
+            return 1  # Already enabled
+        fi
+    done
+    return 2  # Not found
+}
+
+# Enable workflow (supports comma-separated list and --force)
 workflow_enable() {
-    local input="$1"
+    local input=""
+    local force=0
+
+    # Parse arguments
+    for arg in "$@"; do
+        case "$arg" in
+            --force|-f) force=1 ;;
+            *) input="$arg" ;;
+        esac
+    done
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow enable <id|id1,id2,...|all>"
+        echo "Usage: $0 workflow enable [--force] <id|id1,id2,...|all>"
         exit 1
     fi
 
     local total_count=0
     local not_found=()
+    local enabled_handlers=()
 
     # Split by comma
     IFS=',' read -ra targets <<< "$input"
@@ -137,6 +193,21 @@ workflow_enable() {
                     echo -e "${GREEN}✓${NC} Enabled: $id"
                     count=$((count + 1))
                     total_count=$((total_count + 1))
+
+                    # With --force, enable required handlers
+                    if [ $force -eq 1 ]; then
+                        local action_types=$(get_workflow_action_types "$file")
+                        for action_type in $action_types; do
+                            local handler_name=$(map_action_to_handler "$action_type")
+                            if [ -n "$handler_name" ]; then
+                                # Check if not already processed
+                                if [[ ! " ${enabled_handlers[*]} " =~ " ${handler_name} " ]]; then
+                                    enable_handler_internal "$handler_name"
+                                    enabled_handlers+=("$handler_name")
+                                fi
+                            fi
+                        done
+                    fi
                 else
                     echo -e "${YELLOW}○${NC} Already enabled: $id"
                 fi
@@ -680,7 +751,7 @@ case "${1:-}" in
                 workflow_list "${3:-all}"
                 ;;
             enable)
-                workflow_enable "$3"
+                workflow_enable "$3" "$4"
                 ;;
             disable)
                 workflow_disable "$3"
