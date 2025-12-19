@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 WORKFLOWS_DIR="$PROJECT_DIR/config/workflows"
 HANDLERS_DIR="$PROJECT_DIR/config/handlers"
+EXAMPLES_WORKFLOWS_DIR="$PROJECT_DIR/examples/workflows"
 
 # Colors
 RED='\033[0;31m'
@@ -25,6 +26,7 @@ usage() {
     echo "  workflow enable [--force] <id|all>    Enable workflow(s), -f enables handlers too"
     echo "  workflow disable <id|all>             Disable workflow(s)"
     echo "  workflow show <id>                    Show workflow details"
+    echo "  workflow refresh <id|id1,id2,...>     Refresh from example file"
     echo ""
     echo "  handler list [all|enabled|disabled]   List handlers (default: all)"
     echo "  handler enable <name|all>             Enable handler(s)"
@@ -48,6 +50,7 @@ usage() {
     echo "  $0 workflow enable --force nostr-to-telegram"
     echo "  $0 workflow disable all"
     echo "  $0 workflow disable wf1,wf2,wf3"
+    echo "  $0 workflow refresh pipelinostr-status"
     echo "  $0 handler list"
     echo "  $0 handler enable email"
     echo "  $0 handler disable traccar-sms,discord,twitter"
@@ -314,6 +317,69 @@ workflow_show() {
 
     echo -e "${RED}Error: Workflow '$target' not found${NC}"
     exit 1
+}
+
+# Refresh workflow from example (supports comma-separated list)
+workflow_refresh() {
+    local input="$1"
+
+    if [ -z "$input" ]; then
+        echo -e "${RED}Error: Missing workflow ID${NC}"
+        echo "Usage: $0 workflow refresh <id|id1,id2,...>"
+        exit 1
+    fi
+
+    local refreshed=0
+    local not_found=()
+
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
+
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local found_example=0
+
+        # Look for example file with various extensions
+        for ext in ".yml.example" ".yaml.example" ".yml" ".yaml"; do
+            local example_file="$EXAMPLES_WORKFLOWS_DIR/${target}${ext}"
+            if [ -f "$example_file" ]; then
+                found_example=1
+
+                # Determine target filename (remove .example if present)
+                local target_name=$(basename "$example_file" | sed 's/\.example$//')
+                local target_file="$WORKFLOWS_DIR/$target_name"
+
+                # Remove existing deployed version
+                if [ -f "$target_file" ]; then
+                    rm "$target_file"
+                    echo -e "${YELLOW}○${NC} Removed: $target_file"
+                fi
+
+                # Copy example to config
+                cp "$example_file" "$target_file"
+                echo -e "${GREEN}✓${NC} Refreshed: $target → $target_name"
+                refreshed=$((refreshed + 1))
+                break
+            fi
+        done
+
+        if [ $found_example -eq 0 ]; then
+            not_found+=("$target")
+        fi
+    done
+
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Example not found: $nf"
+        echo "  Looked in: $EXAMPLES_WORKFLOWS_DIR/${nf}.yml.example"
+    done
+
+    if [ $refreshed -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+        echo "  $0 restart"
+    fi
 }
 
 # Get handler name from file (filename without extension)
@@ -759,9 +825,12 @@ case "${1:-}" in
             show)
                 workflow_show "$3"
                 ;;
+            refresh)
+                workflow_refresh "$3"
+                ;;
             *)
                 echo -e "${RED}Unknown workflow command: ${2:-}${NC}"
-                echo "Use: $0 workflow [list|enable|disable|show]"
+                echo "Use: $0 workflow [list|enable|disable|show|refresh]"
                 exit 1
                 ;;
         esac
