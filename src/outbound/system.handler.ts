@@ -1,7 +1,8 @@
 import { execSync } from 'node:child_process';
 import * as os from 'node:os';
-import { statSync, readdirSync } from 'node:fs';
+import { statSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import yaml from 'js-yaml';
 import { logger } from '../persistence/logger.js';
 import { getDatabase } from '../persistence/database.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
@@ -192,8 +193,7 @@ export class SystemHandler implements Handler {
       for (const file of files) {
         try {
           const filePath = join(workflowsDir, file);
-          const content = require('fs').readFileSync(filePath, 'utf-8');
-          const yaml = require('js-yaml');
+          const content = readFileSync(filePath, 'utf-8');
           const parsed = yaml.load(content) as Record<string, unknown>;
 
           workflows.push({
