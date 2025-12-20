@@ -67,12 +67,26 @@ export class TemplateEngine {
       // sats_cost tokens rate -> args = [tokens, rate, options]
       // sats_cost tokens -> args = [tokens, options]
       const options = args.pop(); // Remove options object
-      const tokens = args[0];
-      const satsPerK = args[1] ?? 10;
+      let tokens = args[0];
+      let satsPerK = args[1];
+
+      // If tokens is undefined, try to get from hash (named params)
+      if (tokens === undefined && options?.hash?.tokens !== undefined) {
+        tokens = options.hash.tokens;
+      }
+      if (satsPerK === undefined && options?.hash?.rate !== undefined) {
+        satsPerK = options.hash.rate;
+      }
 
       const t = Number(tokens) || 0;
       const rate = Number(satsPerK) || 10;
       const cost = Math.ceil((t * rate) / 1000);
+
+      // Debug: if tokens is 0, something is wrong
+      if (t === 0) {
+        return '?'; // Indicate error
+      }
+
       return Math.max(cost, 1); // Minimum 1 SAT
     });
 
@@ -106,6 +120,16 @@ export class TemplateEngine {
 
     this.handlebars.registerHelper('ne', (a: unknown, b: unknown) => {
       return a !== b;
+    });
+
+    // Max helper - returns the larger of two values
+    this.handlebars.registerHelper('max', (a: number, b: number) => {
+      return Math.max(Number(a) || 0, Number(b) || 0);
+    });
+
+    // Min helper - returns the smaller of two values
+    this.handlebars.registerHelper('min', (a: number, b: number) => {
+      return Math.min(Number(a) || 0, Number(b) || 0);
     });
   }
 

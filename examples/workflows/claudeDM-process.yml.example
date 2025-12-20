@@ -29,7 +29,7 @@ actions:
       pass_context: true
 
   # Step 2: Debit user's balance based on tokens used
-  # Cost = ceil(tokens_used * sats_per_1k_tokens / 1000), minimum 1 SAT
+  # Cost = ceil(tokens_used / 100), minimum 1 SAT (10 SATs per 1K tokens)
   - id: debit_balance
     type: workflow_db
     config:
@@ -37,7 +37,7 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.from }}"
-      amount: "{{ sats_cost actions.claude_request.response.tokens_used 10 }}"
+      amount: "{{ max (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }}"
       min_value: 0
       track_history: true
 
@@ -60,5 +60,5 @@ actions:
 
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
-        Cout: {{ sats_cost actions.claude_request.response.tokens_used 10 }} SATs
+        Cout: {{ max (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }} SATs
         Solde: {{ actions.get_new_balance.response.value | default: 0 }} SATs
