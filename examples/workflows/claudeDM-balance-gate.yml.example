@@ -28,7 +28,7 @@ trigger:
 # Variables accessible via {{ variables.xxx }}
 # and in child workflows via {{ parent.variables.xxx }}
 variables:
-  min_balance_sats: 40
+  min_balance_sats: 2500
   sats_per_1k_tokens: 10
   max_tokens: 1000
 
