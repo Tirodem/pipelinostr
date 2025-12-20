@@ -186,7 +186,16 @@ export class WorkflowEngine {
     }
 
     // Execute actions sequentially
+    let stoppedByActionHook = false;
+
     for (const action of workflow.actions) {
+      // Skip remaining actions if workflow was stopped by an action-level on_fail hook
+      if (stoppedByActionHook) {
+        actionsSkipped++;
+        context.actions[action.id] = { success: true, skipped: true };
+        continue;
+      }
+
       const actionResult = await this.executeAction(action, context, workflow);
 
       context.actions[action.id] = actionResult;
@@ -202,6 +211,60 @@ export class WorkflowEngine {
           actionErrors.push(`${action.id}: ${actionResult.error}`);
         } else {
           actionErrors.push(`${action.id}: unknown error`);
+        }
+
+        // Check for action-level on_fail hook
+        if (action.on_fail) {
+          const hookWorkflow = this.loader.getWorkflow(action.on_fail.workflow);
+          if (hookWorkflow && hookWorkflow.enabled) {
+            logger.info(
+              { workflowId: workflow.id, actionId: action.id, hookWorkflow: action.on_fail.workflow },
+              'Action failed, executing on_fail hook and stopping workflow'
+            );
+
+            // Build parent info for the hook workflow
+            const parentInfo: ParentWorkflowInfo = {
+              id: workflow.id,
+              name: workflow.name,
+              success: false,
+              actionsExecuted,
+              actionsFailed,
+              actionsSkipped,
+              error: actionResult.error,
+            };
+
+            // Create match result for the hook
+            const hookMatch: MatchResult = action.on_fail.pass_context !== false
+              ? { matched: true, groups: context.match }
+              : { matched: true, groups: {} };
+
+            // Execute hook workflow (don't await to not block, but log result)
+            this.executeWorkflow(hookWorkflow, hookMatch, context.trigger, parentInfo)
+              .then((result) => {
+                this.hookRecorder?.(
+                  'on_fail',
+                  workflow.id,
+                  workflow.name,
+                  hookWorkflow.id,
+                  hookWorkflow.name,
+                  result.success,
+                  result.error,
+                  result.context
+                );
+              })
+              .catch((error) => {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                logger.error({ hookWorkflow: action.on_fail!.workflow, error: errorMessage }, 'Action on_fail hook failed');
+              });
+
+            // Stop processing remaining actions
+            stoppedByActionHook = true;
+          } else {
+            logger.warn(
+              { workflowId: workflow.id, actionId: action.id, hookWorkflow: action.on_fail.workflow },
+              'Action on_fail hook workflow not found or disabled'
+            );
+          }
         }
       }
 

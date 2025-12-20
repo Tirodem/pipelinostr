@@ -40,6 +40,15 @@ export interface WorkflowTrigger {
   };
 }
 
+// Hook for action-level failure handling
+export interface ActionFailHook {
+  // ID of workflow to trigger on failure
+  workflow: string;
+
+  // Pass current context to the hook workflow (default: true)
+  pass_context?: boolean | undefined;
+}
+
 export interface WorkflowAction {
   id: string;
   type: string; // 'email', 'nostr_dm', 'nostr_note', 'http', 'telegram', etc.
@@ -47,6 +56,10 @@ export interface WorkflowAction {
 
   // Condition for execution (expression)
   when?: string | undefined;
+
+  // Hook triggered when this action fails
+  // When triggered, stops workflow execution and runs the specified workflow
+  on_fail?: ActionFailHook | undefined;
 
   // Retry config override
   retry?: {

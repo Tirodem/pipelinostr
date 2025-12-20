@@ -83,11 +83,16 @@ export class WorkflowLoader {
       trigger: raw['trigger'] as WorkflowDefinition['trigger'],
       actions: (raw['actions'] as unknown[]).map((action, index) => {
         const a = action as Record<string, unknown>;
+        const onFailRaw = a['on_fail'] as Record<string, unknown> | undefined;
         return {
           id: (a['id'] as string) ?? `action_${index}`,
           type: a['type'] as string,
           config: (a['config'] as Record<string, unknown>) ?? {},
           when: a['when'] as string | undefined,
+          on_fail: onFailRaw ? {
+            workflow: onFailRaw['workflow'] as string,
+            pass_context: (onFailRaw['pass_context'] as boolean) ?? true,
+          } : undefined,
           retry: a['retry'] as WorkflowDefinition['actions'][0]['retry'],
         };
       }),
