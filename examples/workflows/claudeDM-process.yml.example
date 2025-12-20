@@ -17,13 +17,14 @@ trigger:
   source_workflow: claudeDM-balance-gate
 
 actions:
-  # Step 1: Call Claude API
+  # Step 1: Call Claude API (with web search for up-to-date info)
   - id: claude_request
     type: claude
     config:
       action: chat
       message: "{{ match.question }}"
       max_tokens: 1000
+      web_search: true
     on_fail:
       workflow: claudeDM-error-response
       pass_context: true
@@ -37,7 +38,7 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.from }}"
-      amount: "{{ at_least (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }}"
+      amount: "{{ token_cost actions.claude_request.response.tokens_used }}"
       min_value: 0
       track_history: true
 
@@ -60,5 +61,5 @@ actions:
 
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
-        Cout: {{ at_least (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }} SATs
+        Cout: {{ token_cost actions.claude_request.response.tokens_used }} SATs
         Solde: {{ default actions.get_new_balance.response.value 0 }} SATs

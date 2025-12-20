@@ -53,16 +53,30 @@ export class TemplateEngine {
       return (Number(a) || 0) / divisor;
     });
 
-    this.handlebars.registerHelper('floor', (a: unknown) => {
+    // Note: Single-arg helpers also receive options as 2nd arg in some contexts
+    this.handlebars.registerHelper('floor', (a: unknown, options: unknown) => {
+      // If a is the options object, return 0
+      if (typeof a === 'object' && a !== null && 'hash' in a) return 0;
       return Math.floor(Number(a) || 0);
     });
 
-    this.handlebars.registerHelper('ceil', (a: unknown) => {
+    this.handlebars.registerHelper('ceil', (a: unknown, options: unknown) => {
+      if (typeof a === 'object' && a !== null && 'hash' in a) return 0;
       return Math.ceil(Number(a) || 0);
     });
 
-    this.handlebars.registerHelper('round', (a: unknown) => {
+    this.handlebars.registerHelper('round', (a: unknown, options: unknown) => {
+      if (typeof a === 'object' && a !== null && 'hash' in a) return 0;
       return Math.round(Number(a) || 0);
+    });
+
+    // Simple token cost calculator: ceil(tokens / 100), minimum 1
+    // Usage: {{ token_cost tokens }} or {{ token_cost actions.claude.response.tokens_used }}
+    this.handlebars.registerHelper('token_cost', (tokens: unknown, options: unknown) => {
+      if (typeof tokens === 'object' && tokens !== null && 'hash' in tokens) return 1;
+      const t = Number(tokens) || 0;
+      if (t === 0) return 1; // Minimum 1 SAT
+      return Math.max(Math.ceil(t / 100), 1);
     });
 
     // Calculate SATs cost from tokens: tokens * sats_per_1k / 1000, minimum 1 SAT
