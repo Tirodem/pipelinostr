@@ -74,7 +74,7 @@ actions:
     config:
       action: chat
       message: "{{ match.question }}"
-      max_tokens: "{{ variables.max_tokens }}"
+      max_tokens: 1000
     on_fail:
       workflow: claudeDM-error-response
       pass_context: true
@@ -105,7 +105,7 @@ actions:
   - id: reply
     type: nostr_dm
     config:
-      recipient: "{{ trigger.from }}"
+      to: "{{ trigger.from }}"
       content: |
         {{ actions.claude_request.data.response }}
 

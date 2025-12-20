@@ -23,7 +23,7 @@ actions:
   - id: reply
     type: nostr_dm
     config:
-      recipient: "{{ parent.trigger.from }}"
+      to: "{{ parent.trigger.from }}"
       content: |
         Solde insuffisant pour utiliser ClaudeDM.
 
