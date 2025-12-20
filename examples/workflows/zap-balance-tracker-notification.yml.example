@@ -3,11 +3,7 @@
 # Sends a DM to the zap sender confirming their balance was credited.
 # Called via on_complete hook from zap-balance-tracker.
 #
-# Expects from parent context:
-# - parent.trigger.zap.sender: npub to send DM to
-# - parent.trigger.zap.amount: zap amount
-# - parent.actions.increment_balance.response.data.previous: previous balance
-# - parent.actions.increment_balance.response.data.value: new balance
+# Gets current balance directly from DB (more robust than parent.actions)
 
 id: zap-balance-tracker-notification
 name: Zap Balance Notification
@@ -18,6 +14,14 @@ trigger:
   type: hook
 
 actions:
+  # Get current balance directly
+  - id: get_balance
+    type: workflow_db
+    config:
+      action: get
+      namespace: balances
+      key: "balance:{{ trigger.zap.sender }}"
+
   - id: send_notification
     type: nostr_dm
     config:
@@ -26,8 +30,6 @@ actions:
         Vous avez fait un zap de {{ trigger.zap.amount }} SATs.
 
         Votre solde a ete credite!
-        Solde precedent: {{ parent.actions.increment_balance.response.data.previous }} SATs
-        Solde actuel: {{ parent.actions.increment_balance.response.data.value }} SATs
-        ({{ parent.actions.increment_balance.response.data.previous }} + {{ trigger.zap.amount }})
+        Nouveau solde: {{ actions.get_balance.response.data.value }} SATs
 
         Merci pour votre soutien!
