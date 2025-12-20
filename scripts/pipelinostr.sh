@@ -23,18 +23,18 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  workflow list [all|enabled|disabled]  List workflows (default: all)"
-    echo "  workflow enable [--force] <id|all>    Enable workflow(s), -f enables handlers too"
-    echo "  workflow disable <id|all>             Disable workflow(s)"
-    echo "  workflow show <id>                    Show workflow details"
-    echo "  workflow refresh <id|id1,id2,...>     Refresh from example file"
+    echo "  workflow enable [--force] <id|pattern|all>  Enable workflow(s), supports wildcards"
+    echo "  workflow disable <id|pattern|all>          Disable workflow(s), supports wildcards"
+    echo "  workflow show <id>                         Show workflow details"
+    echo "  workflow refresh <id|pattern|id1,id2,...>  Refresh from example, supports wildcards"
     echo "  workflow load-missing                 Deploy missing workflows from examples"
     echo "  workflow clean [--purge]              Archive workflows without examples (.old)"
     echo ""
-    echo "  handler list [all|enabled|disabled]   List handlers (default: all)"
-    echo "  handler enable <name|all>             Enable handler(s)"
-    echo "  handler disable <name|all>            Disable handler(s)"
-    echo "  handler show <name>                   Show handler config"
-    echo "  handler refresh <name|name1,name2>    Refresh from example file"
+    echo "  handler list [all|enabled|disabled]        List handlers (default: all)"
+    echo "  handler enable <name|pattern|all>          Enable handler(s), supports wildcards"
+    echo "  handler disable <name|pattern|all>         Disable handler(s), supports wildcards"
+    echo "  handler show <name>                        Show handler config"
+    echo "  handler refresh <name|pattern|n1,n2,...>   Refresh from example, supports wildcards"
     echo "  handler load-missing                  Deploy missing handlers from examples"
     echo "  handler clean [--purge]               Archive handlers without examples (.old)"
     echo ""
@@ -88,6 +88,23 @@ get_workflow_name() {
 is_workflow_enabled() {
     local file="$1"
     grep -E "^enabled:\s*true" "$file" >/dev/null 2>&1
+}
+
+# Check if ID matches pattern (supports wildcards * and ?)
+matches_pattern() {
+    local id="$1"
+    local pattern="$2"
+
+    # "all" matches everything
+    [ "$pattern" = "all" ] && return 0
+
+    # Exact match
+    [ "$id" = "$pattern" ] && return 0
+
+    # Wildcard match using bash extended globbing
+    [[ "$id" == $pattern ]] && return 0
+
+    return 1
 }
 
 # List workflows
@@ -178,7 +195,8 @@ workflow_enable() {
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow enable [--force] <id|id1,id2,...|all>"
+        echo "Usage: $0 workflow enable [--force] <id|pattern|id1,id2,...|all>"
+        echo "Patterns support wildcards: claudeDM-* matches all claudeDM workflows"
         exit 1
     fi
 
@@ -200,7 +218,7 @@ workflow_enable() {
 
             local id=$(get_workflow_id "$file")
 
-            if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
+            if matches_pattern "$id" "$target"; then
                 found=1
                 if ! is_workflow_enabled "$file"; then
                     sed -i 's/^enabled:\s*false/enabled: true/' "$file"
@@ -226,11 +244,13 @@ workflow_enable() {
                     echo -e "${YELLOW}○${NC} Already enabled: $id"
                 fi
 
-                [ "$target" != "all" ] && break
+                # Only break for exact matches (no wildcards)
+                [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && break
             fi
         done
 
-        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+        # Only report not found for exact matches (no wildcards)
+        if [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && [ $found -eq 0 ]; then
             not_found+=("$target")
         fi
     done
@@ -245,13 +265,14 @@ workflow_enable() {
     echo "  $0 restart"
 }
 
-# Disable workflow (supports comma-separated list)
+# Disable workflow (supports comma-separated list and wildcards)
 workflow_disable() {
     local input="$1"
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow disable <id|id1,id2,...|all>"
+        echo "Usage: $0 workflow disable <id|pattern|id1,id2,...|all>"
+        echo "Patterns support wildcards: claudeDM-* matches all claudeDM workflows"
         exit 1
     fi
 
@@ -272,7 +293,7 @@ workflow_disable() {
 
             local id=$(get_workflow_id "$file")
 
-            if [ "$target" = "all" ] || [ "$id" = "$target" ]; then
+            if matches_pattern "$id" "$target"; then
                 found=1
                 if is_workflow_enabled "$file"; then
                     sed -i 's/^enabled:\s*true/enabled: false/' "$file"
@@ -283,11 +304,13 @@ workflow_disable() {
                     echo -e "${YELLOW}○${NC} Already disabled: $id"
                 fi
 
-                [ "$target" != "all" ] && break
+                # Only break for exact matches (no wildcards)
+                [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && break
             fi
         done
 
-        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+        # Only report not found for exact matches (no wildcards)
+        if [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && [ $found -eq 0 ]; then
             not_found+=("$target")
         fi
     done
@@ -336,7 +359,8 @@ workflow_refresh() {
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing workflow ID${NC}"
-        echo "Usage: $0 workflow refresh <id|id1,id2,...>"
+        echo "Usage: $0 workflow refresh <id|pattern|id1,id2,...>"
+        echo "Patterns support wildcards: claudeDM-* matches all claudeDM workflows"
         exit 1
     fi
 
@@ -349,34 +373,66 @@ workflow_refresh() {
     for target in "${targets[@]}"; do
         # Trim whitespace
         target=$(echo "$target" | xargs)
-        local found_example=0
+        local found_any=0
 
-        # Look for example file with various extensions
-        for ext in ".yml.example" ".yaml.example" ".yml" ".yaml"; do
-            local example_file="$EXAMPLES_WORKFLOWS_DIR/${target}${ext}"
-            if [ -f "$example_file" ]; then
-                found_example=1
+        # Check if target contains wildcards
+        if [[ "$target" == *"*"* || "$target" == *"?"* ]]; then
+            # Wildcard mode: scan all example files
+            for example_file in "$EXAMPLES_WORKFLOWS_DIR"/*.yml.example "$EXAMPLES_WORKFLOWS_DIR"/*.yaml.example "$EXAMPLES_WORKFLOWS_DIR"/*.yml "$EXAMPLES_WORKFLOWS_DIR"/*.yaml; do
+                [ -f "$example_file" ] || continue
 
-                # Determine target filename (remove .example if present)
-                local target_name=$(basename "$example_file" | sed 's/\.example$//')
-                local target_file="$WORKFLOWS_DIR/$target_name"
+                # Extract ID from filename
+                local filename=$(basename "$example_file")
+                local id="${filename%.yml.example}"
+                id="${id%.yaml.example}"
+                id="${id%.yml}"
+                id="${id%.yaml}"
 
-                # Remove existing deployed version
-                if [ -f "$target_file" ]; then
-                    rm "$target_file"
-                    echo -e "${YELLOW}○${NC} Removed: $target_file"
+                if matches_pattern "$id" "$target"; then
+                    found_any=1
+
+                    # Determine target filename (remove .example if present)
+                    local target_name=$(basename "$example_file" | sed 's/\.example$//')
+                    local target_file="$WORKFLOWS_DIR/$target_name"
+
+                    # Remove existing deployed version
+                    if [ -f "$target_file" ]; then
+                        rm "$target_file"
+                    fi
+
+                    # Copy example to config
+                    cp "$example_file" "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed: $id → $target_name"
+                    refreshed=$((refreshed + 1))
                 fi
+            done
+        else
+            # Exact match mode: look for specific example file
+            for ext in ".yml.example" ".yaml.example" ".yml" ".yaml"; do
+                local example_file="$EXAMPLES_WORKFLOWS_DIR/${target}${ext}"
+                if [ -f "$example_file" ]; then
+                    found_any=1
 
-                # Copy example to config
-                cp "$example_file" "$target_file"
-                echo -e "${GREEN}✓${NC} Refreshed: $target → $target_name"
-                refreshed=$((refreshed + 1))
-                break
+                    # Determine target filename (remove .example if present)
+                    local target_name=$(basename "$example_file" | sed 's/\.example$//')
+                    local target_file="$WORKFLOWS_DIR/$target_name"
+
+                    # Remove existing deployed version
+                    if [ -f "$target_file" ]; then
+                        rm "$target_file"
+                    fi
+
+                    # Copy example to config
+                    cp "$example_file" "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed: $target → $target_name"
+                    refreshed=$((refreshed + 1))
+                    break
+                fi
+            done
+
+            if [ $found_any -eq 0 ]; then
+                not_found+=("$target")
             fi
-        done
-
-        if [ $found_example -eq 0 ]; then
-            not_found+=("$target")
         fi
     done
 
@@ -541,7 +597,8 @@ handler_enable() {
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing handler name${NC}"
-        echo "Usage: $0 handler enable <name|name1,name2,...|all>"
+        echo "Usage: $0 handler enable <name|pattern|name1,name2,...|all>"
+        echo "Patterns support wildcards: nostr_* matches all nostr handlers"
         exit 1
     fi
 
@@ -562,7 +619,7 @@ handler_enable() {
 
             local name=$(get_handler_name "$file")
 
-            if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
+            if matches_pattern "$name" "$target"; then
                 found=1
                 if ! is_handler_enabled "$file"; then
                     # Replace enabled: false with enabled: true (handles indentation)
@@ -574,11 +631,13 @@ handler_enable() {
                     echo -e "${YELLOW}○${NC} Already enabled: $name"
                 fi
 
-                [ "$target" != "all" ] && break
+                # Only break for exact matches (no wildcards)
+                [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && break
             fi
         done
 
-        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+        # Only report not found for exact matches (no wildcards)
+        if [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && [ $found -eq 0 ]; then
             not_found+=("$target")
         fi
     done
@@ -593,13 +652,14 @@ handler_enable() {
     echo "  $0 restart"
 }
 
-# Disable handler (supports comma-separated list)
+# Disable handler (supports comma-separated list and wildcards)
 handler_disable() {
     local input="$1"
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing handler name${NC}"
-        echo "Usage: $0 handler disable <name|name1,name2,...|all>"
+        echo "Usage: $0 handler disable <name|pattern|name1,name2,...|all>"
+        echo "Patterns support wildcards: nostr_* matches all nostr handlers"
         exit 1
     fi
 
@@ -620,7 +680,7 @@ handler_disable() {
 
             local name=$(get_handler_name "$file")
 
-            if [ "$target" = "all" ] || [ "$name" = "$target" ]; then
+            if matches_pattern "$name" "$target"; then
                 found=1
                 if is_handler_enabled "$file"; then
                     # Replace enabled: true with enabled: false (handles indentation)
@@ -632,11 +692,13 @@ handler_disable() {
                     echo -e "${YELLOW}○${NC} Already disabled: $name"
                 fi
 
-                [ "$target" != "all" ] && break
+                # Only break for exact matches (no wildcards)
+                [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && break
             fi
         done
 
-        if [ "$target" != "all" ] && [ $found -eq 0 ]; then
+        # Only report not found for exact matches (no wildcards)
+        if [[ "$target" != "all" && "$target" != *"*"* && "$target" != *"?"* ]] && [ $found -eq 0 ]; then
             not_found+=("$target")
         fi
     done
@@ -679,13 +741,14 @@ handler_show() {
     exit 1
 }
 
-# Refresh handler from example (supports comma-separated list)
+# Refresh handler from example (supports comma-separated list and wildcards)
 handler_refresh() {
     local input="$1"
 
     if [ -z "$input" ]; then
         echo -e "${RED}Error: Missing handler name${NC}"
-        echo "Usage: $0 handler refresh <name|name1,name2,...>"
+        echo "Usage: $0 handler refresh <name|pattern|name1,name2,...>"
+        echo "Patterns support wildcards: nostr_* matches all nostr handlers"
         exit 1
     fi
 
@@ -698,28 +761,54 @@ handler_refresh() {
     for target in "${targets[@]}"; do
         # Trim whitespace
         target=$(echo "$target" | xargs)
-        local found_example=0
+        local found_any=0
 
-        # Look for example file in config/handlers/
-        local example_file="$HANDLERS_DIR/${target}.yml.example"
-        if [ -f "$example_file" ]; then
-            found_example=1
-            local target_file="$HANDLERS_DIR/${target}.yml"
+        # Check if target contains wildcards
+        if [[ "$target" == *"*"* || "$target" == *"?"* ]]; then
+            # Wildcard mode: scan all example files
+            for example_file in "$HANDLERS_DIR"/*.yml.example; do
+                [ -f "$example_file" ] || continue
 
-            # Remove existing deployed version
-            if [ -f "$target_file" ]; then
-                rm "$target_file"
-                echo -e "${YELLOW}○${NC} Removed: $target_file"
+                # Extract name from filename
+                local filename=$(basename "$example_file")
+                local name="${filename%.yml.example}"
+
+                if matches_pattern "$name" "$target"; then
+                    found_any=1
+                    local target_file="$HANDLERS_DIR/${name}.yml"
+
+                    # Remove existing deployed version
+                    if [ -f "$target_file" ]; then
+                        rm "$target_file"
+                    fi
+
+                    # Copy example
+                    cp "$example_file" "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed: $name"
+                    refreshed=$((refreshed + 1))
+                fi
+            done
+        else
+            # Exact match mode: look for specific example file
+            local example_file="$HANDLERS_DIR/${target}.yml.example"
+            if [ -f "$example_file" ]; then
+                found_any=1
+                local target_file="$HANDLERS_DIR/${target}.yml"
+
+                # Remove existing deployed version
+                if [ -f "$target_file" ]; then
+                    rm "$target_file"
+                fi
+
+                # Copy example
+                cp "$example_file" "$target_file"
+                echo -e "${GREEN}✓${NC} Refreshed: $target"
+                refreshed=$((refreshed + 1))
             fi
 
-            # Copy example
-            cp "$example_file" "$target_file"
-            echo -e "${GREEN}✓${NC} Refreshed: $target"
-            refreshed=$((refreshed + 1))
-        fi
-
-        if [ $found_example -eq 0 ]; then
-            not_found+=("$target")
+            if [ $found_any -eq 0 ]; then
+                not_found+=("$target")
+            fi
         fi
     done
 
