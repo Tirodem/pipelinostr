@@ -314,14 +314,19 @@ pipelinostr-status.yml     /pipelinostr status → system info
 ### Variables template
 - `trigger.*` : Données de l'événement déclencheur (héritées du parent via hooks)
 - `match.*` : Groupes capturés par regex (hérités du parent via hooks)
-- `actions.{id}.*` : Résultats des actions précédentes (`.response.*` pour les données)
+- `actions.{id}.response.*` : Résultats des actions précédentes
+  - `actions.{id}.response.success` : boolean
+  - `actions.{id}.response.value` : valeur retournée (PAS `.data.value` !)
+  - `actions.{id}.response.found` : pour workflow_db get
 - `variables.*` : Variables définies dans le workflow courant
 - `parent.*` : Métadonnées du workflow parent (hooks uniquement)
   - `parent.id`, `parent.name` : Identifiants du parent
   - `parent.success`, `parent.error` : Résultat du parent
   - `parent.variables.*` : Variables définies par le parent
 
-**IMPORTANT:** Dans les workflows enfants (hooks), `trigger.*` et `match.*` sont directement accessibles (pas via `parent.*`). Seules les `variables` du parent nécessitent le préfixe `parent.`.
+**IMPORTANT:**
+- Dans les workflows enfants (hooks), `trigger.*` et `match.*` sont directement accessibles (pas via `parent.*`). Seules les `variables` du parent nécessitent le préfixe `parent.`.
+- Le chemin pour les données d'action est `actions.*.response.value` (PAS `actions.*.response.data.value`).
 
 ## Problèmes connus
 
@@ -353,6 +358,7 @@ pipelinostr-status.yml     /pipelinostr status → system info
   # Vérifier workflow actif
   ./scripts/pipelinostr.sh workflow list | grep <id>
   ```
+- **DEBUG** : Ne JAMAIS retirer les logs de debug tant que l'utilisateur n'a pas confirmé que tout fonctionne
 - Le projet tourne sur Windows (dev) et Linux (prod/RPi)
 - Permissions Edit/Write dans `.claude/settings.local.json`
 
