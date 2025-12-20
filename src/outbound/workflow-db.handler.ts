@@ -440,9 +440,18 @@ export class WorkflowDbHandler implements Handler {
         };
     }
 
-    const compareValue = params.compare_value;
-    if (compareValue === undefined) {
+    const rawCompareValue = params.compare_value;
+    if (rawCompareValue === undefined) {
       return { success: false, error: 'Missing required parameter: compare_value' };
+    }
+
+    // Convert compare_value to match currentValue type for numeric comparisons
+    let compareValue: number | string | boolean = rawCompareValue;
+    if (typeof currentValue === 'number' && typeof rawCompareValue === 'string') {
+      const parsed = Number(rawCompareValue);
+      if (!isNaN(parsed)) {
+        compareValue = parsed;
+      }
     }
 
     // Perform comparison
