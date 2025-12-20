@@ -128,13 +128,7 @@ export class WorkflowDbHandler implements Handler {
       return { success: false, error: 'Missing required parameter: key' };
     }
 
-    // DEBUG: Log the lookup parameters
-    logger.info({ namespace, key: params.key, workflowId }, '[WorkflowDB] GET lookup');
-
     const state = db.getState(workflowId, namespace, params.key);
-
-    // DEBUG: Log the result
-    logger.info({ found: !!state, value: state?.value_number }, '[WorkflowDB] GET result');
 
     if (!state) {
       return {
