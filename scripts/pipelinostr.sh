@@ -454,15 +454,15 @@ workflow_clean() {
         [[ "$file" == *.old ]] && continue
 
         local basename_file=$(basename "$file")
+        # Get filename without extension for example lookup
+        local name_no_ext=$(echo "$basename_file" | sed 's/\.ya\?ml$//')
         local id=$(get_workflow_id "$file")
-        if [ -z "$id" ]; then
-            id=$(echo "$basename_file" | sed 's/\.ya\?ml$//')
-        fi
+        [ -z "$id" ] && id="$name_no_ext"
 
-        # Check if example exists
+        # Check if example exists BY FILENAME (not by ID)
         local has_example=0
         for ext in ".yml.example" ".yaml.example" ".yml" ".yaml"; do
-            if [ -f "$EXAMPLES_WORKFLOWS_DIR/${id}${ext}" ]; then
+            if [ -f "$EXAMPLES_WORKFLOWS_DIR/${name_no_ext}${ext}" ]; then
                 has_example=1
                 break
             fi
@@ -470,7 +470,7 @@ workflow_clean() {
 
         if [ $has_example -eq 0 ]; then
             mv "$file" "${file}.old"
-            echo -e "${YELLOW}○${NC} Archived: $id → ${basename_file}.old"
+            echo -e "${YELLOW}○${NC} Archived: $id ($basename_file) → ${basename_file}.old"
             archived=$((archived + 1))
         fi
     done
