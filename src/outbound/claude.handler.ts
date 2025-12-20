@@ -2,6 +2,21 @@ import { logger } from '../persistence/logger.js';
 import { parse as parseYaml } from 'yaml';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
+// Decode HTML entities (from web search results)
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x22;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
 // System prompt restricting Claude to workflow generation only
 const SYSTEM_PROMPT = `Tu es un assistant spécialisé UNIQUEMENT dans la génération de workflows PipeliNostr.
 
@@ -349,7 +364,9 @@ export class ClaudeHandler implements Handler {
 
     // Extract text content (may include web search results inline)
     const textContents = data.content.filter(c => c.type === 'text');
-    const responseText = textContents.map(c => c.text ?? '').join('\n');
+    const rawText = textContents.map(c => c.text ?? '').join('\n');
+    // Decode HTML entities that may come from web search results
+    const responseText = decodeHtmlEntities(rawText);
 
     // Extract web search sources if present
     const webSearchResults = data.content.filter(c => c.type === 'tool_result');
