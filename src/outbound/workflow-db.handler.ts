@@ -74,14 +74,6 @@ export class WorkflowDbHandler implements Handler {
     const workflowId = params.workflow_id || (context.workflow as { id?: string })?.id || 'unknown';
     const namespace = params.namespace || 'default';
 
-    logger.info({
-      action: params.action,
-      workflowId,
-      namespace,
-      key: params.key,
-      amount: params.amount,
-    }, '[WorkflowDB] Executing action');
-
     // Get source info from event if available
     const event = context.event as { id?: string; pubkey?: string } | undefined;
     const sourceEventId = params.source_event_id || event?.id;
@@ -296,16 +288,12 @@ export class WorkflowDbHandler implements Handler {
     // Convert amount to number (may come as string from template)
     const amount = Number(params.amount) || 1;
 
-    logger.info({ amount, key: params.key, min_value: params.min_value }, '[WorkflowDB] Decrementing');
-
     const result = db.decrementState(workflowId, namespace, params.key, amount, {
       min_value: Number(params.min_value) || 0,
       source_event_id: sourceEventId,
       source_pubkey: sourcePubkey,
       track_history: params.track_history ?? false,
     });
-
-    logger.info({ success: result.success, value: result.value, previous: result.previous, error_code: result.error_code }, '[WorkflowDB] Decrement result');
 
     if (!result.success) {
       return {
