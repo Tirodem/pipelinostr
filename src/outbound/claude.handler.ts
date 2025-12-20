@@ -85,6 +85,8 @@ export interface ClaudeActionConfig extends HandlerConfig {
   message?: string;
   system_prompt?: string;
   max_tokens?: number;
+  // Enable web search tool (requires compatible model)
+  web_search?: boolean;
 }
 
 interface PendingWorkflow {
@@ -148,7 +150,8 @@ export class ClaudeHandler implements Handler {
           return await this.chat(
             claudeConfig.message ?? claudeConfig.prompt ?? '',
             claudeConfig.system_prompt,
-            claudeConfig.max_tokens
+            claudeConfig.max_tokens,
+            claudeConfig.web_search
           );
 
         default:
@@ -262,18 +265,24 @@ export class ClaudeHandler implements Handler {
   /**
    * Chat action - Send a free-form message to Claude
    * Returns the response plus token usage stats for billing
+   * Optionally enables web search tool for up-to-date information
    */
   private async chat(
     message: string,
     systemPrompt?: string,
-    maxTokens?: number
+    maxTokens?: number,
+    enableWebSearch?: boolean
   ): Promise<HandlerResult> {
     if (!message.trim()) {
       return { success: false, error: 'Message vide' };
     }
 
     const tokensLimit = maxTokens ?? this.maxTokens;
-    logger.info({ messageLength: message.length, maxTokens: tokensLimit }, 'Sending chat request to Claude');
+    logger.info({
+      messageLength: message.length,
+      maxTokens: tokensLimit,
+      webSearch: !!enableWebSearch
+    }, 'Sending chat request to Claude');
 
     const requestBody: Record<string, unknown> = {
       model: this.model,
@@ -284,6 +293,16 @@ export class ClaudeHandler implements Handler {
     // Add system prompt if provided
     if (systemPrompt) {
       requestBody.system = systemPrompt;
+    }
+
+    // Add web search tool if enabled
+    if (enableWebSearch) {
+      requestBody.tools = [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+        }
+      ];
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -301,8 +320,25 @@ export class ClaudeHandler implements Handler {
       throw new Error(`Claude API error: ${response.status} - ${errorBody}`);
     }
 
+    interface WebSearchSource {
+      url?: string;
+      title?: string;
+    }
+
+    interface ContentBlock {
+      type: string;
+      text?: string;
+      tool_use_id?: string;
+      content?: Array<{
+        type: string;
+        source?: WebSearchSource;
+        title?: string;
+        page_content?: string;
+      }>;
+    }
+
     const data = await response.json() as {
-      content: Array<{ type: string; text?: string }>;
+      content: ContentBlock[];
       usage: {
         input_tokens: number;
         output_tokens: number;
@@ -311,8 +347,27 @@ export class ClaudeHandler implements Handler {
       stop_reason: string;
     };
 
-    const textContent = data.content.find(c => c.type === 'text');
-    const responseText = textContent?.text ?? '';
+    // Extract text content (may include web search results inline)
+    const textContents = data.content.filter(c => c.type === 'text');
+    const responseText = textContents.map(c => c.text ?? '').join('\n');
+
+    // Extract web search sources if present
+    const webSearchResults = data.content.filter(c => c.type === 'tool_result');
+    const sources: Array<{ url: string; title: string }> = [];
+
+    for (const result of webSearchResults) {
+      if (result.content && Array.isArray(result.content)) {
+        for (const item of result.content) {
+          if (item.type === 'web_search_result' && item.source?.url) {
+            sources.push({
+              url: item.source.url,
+              title: item.title ?? item.source.title ?? 'Unknown',
+            });
+          }
+        }
+      }
+    }
+
     const inputTokens = data.usage?.input_tokens ?? 0;
     const outputTokens = data.usage?.output_tokens ?? 0;
     const totalTokens = inputTokens + outputTokens;
@@ -322,6 +377,7 @@ export class ClaudeHandler implements Handler {
       outputTokens,
       totalTokens,
       responseLength: responseText.length,
+      webSearchSources: sources.length,
     }, 'Claude chat response received');
 
     return {
@@ -333,6 +389,7 @@ export class ClaudeHandler implements Handler {
         tokens_used: totalTokens,
         model: data.model,
         stop_reason: data.stop_reason,
+        web_search_sources: sources.length > 0 ? sources : undefined,
       },
     };
   }
