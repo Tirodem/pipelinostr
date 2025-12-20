@@ -7,30 +7,30 @@ ClaudeDM is a paid Claude API service accessible via Nostr DMs. Users pay with L
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          ClaudeDM System                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────┐      ┌──────────────┐      ┌─────────────┐            │
-│  │ Zap Receipt │      │ workflow_db  │      │ Claude API  │            │
-│  │ (kind 9735) │─────►│ (balances)   │◄────►│             │            │
-│  └─────────────┘      └──────────────┘      └─────────────┘            │
-│         │                    ▲                     │                     │
-│         │                    │                     │                     │
-│         ▼                    │                     ▼                     │
-│  ┌─────────────┐      ┌──────────────┐      ┌─────────────┐            │
-│  │ zap-balance │      │ claudeDM     │      │ Nostr DM    │            │
-│  │ -tracker    │      │ -entry       │─────►│ Response    │            │
-│  └─────────────┘      └──────────────┘      └─────────────┘            │
-│                              │                                           │
-│                              │ on_fail                                   │
-│                              ▼                                           │
-│                       ┌──────────────┐                                  │
-│                       │ Error        │                                  │
-│                       │ Workflows    │                                  │
-│                       └──────────────┘                                  │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                          ClaudeDM System                                 |
++-------------------------------------------------------------------------+
+|                                                                          |
+|  +-------------+      +--------------+      +-------------+            |
+|  | Zap Receipt |      | workflow_db  |      | Claude API  |            |
+|  | (kind 9735) |----->| (balances)   |<---->|             |            |
+|  +-------------+      +--------------+      +-------------+            |
+|         |                    ^                     |                     |
+|         |                    |                     |                     |
+|         v                    |                     v                     |
+|  +-------------+      +--------------+      +-------------+            |
+|  | zap-balance |      | claudeDM     |      | Nostr DM    |            |
+|  | -tracker    |      | -entry       |----->| Response    |            |
+|  +-------------+      +--------------+      +-------------+            |
+|                              |                                           |
+|                              | on_fail                                   |
+|                              v                                           |
+|                       +--------------+                                  |
+|                       | Error        |                                  |
+|                       | Workflows    |                                  |
+|                       +--------------+                                  |
+|                                                                          |
++-------------------------------------------------------------------------+
 ```
 
 ## Workflows
@@ -60,11 +60,10 @@ ClaudeDM is a paid Claude API service accessible via Nostr DMs. Users pay with L
 
 **Flow:**
 1. Check sender's balance >= minimum (40 SATs default)
-2. Validate request length and content
-3. Send to Claude API
-4. Calculate cost (based on tokens used)
-5. Debit sender's balance
-6. Reply with response + cost info
+2. Send request to Claude API (action: chat)
+3. Calculate cost based on tokens used
+4. Debit sender's balance
+5. Reply with response + cost info
 
 **On failure:** Triggers error workflows
 
@@ -84,6 +83,14 @@ ClaudeDM is a paid Claude API service accessible via Nostr DMs. Users pay with L
 
 **Response:** Informs user of error, confirms no debit was made.
 
+### 5. claudeDM-bad-request.yml
+
+**Purpose:** Handle invalid request errors (future use).
+
+**Trigger:** on_fail hook from claudeDM-entry (validation failed)
+
+**Response:** Informs user of validation error.
+
 ## Configuration
 
 ### zap-balance-tracker
@@ -101,11 +108,46 @@ trigger:
 ```yaml
 variables:
   min_balance_sats: 40      # Minimum balance to use service
-  max_request_length: 4000  # Max characters per request
-  sats_per_1k_tokens: 10    # Cost calculation
-  forbidden_words:          # Blocked words
-    - "word1"
-    - "word2"
+  max_tokens: 1000          # Max tokens for Claude response
+  sats_per_1k_tokens: 10    # Cost calculation rate
+```
+
+## Handler: claude
+
+The Claude handler now supports a `chat` action for free-form conversations.
+
+### Actions
+
+| Action | Description | Required Params |
+|--------|-------------|-----------------|
+| `chat` | Send message to Claude | `message` |
+| `generate` | Generate a workflow | `prompt` |
+| `explain` | Explain a workflow | `workflowContent` |
+| `validate` | Validate workflow YAML | `workflowContent` |
+| `status` | Get handler status | - |
+
+### Chat Action Response
+
+```yaml
+data:
+  response: "Claude's text response"
+  input_tokens: 150
+  output_tokens: 200
+  tokens_used: 350      # Total tokens for billing
+  model: "claude-3-5-sonnet-20241022"
+  stop_reason: "end_turn"
+```
+
+### Example Usage
+
+```yaml
+- id: claude_request
+  type: claude
+  config:
+    action: chat
+    message: "{{ match.1 }}"
+    max_tokens: 1000
+    system_prompt: "You are a helpful assistant."  # Optional
 ```
 
 ## Handler: workflow_db
@@ -158,6 +200,33 @@ System handler (always enabled) for persistent state management.
     workflow: insufficient-balance
 ```
 
+## Template Helpers
+
+New math helpers available for cost calculations:
+
+| Helper | Usage | Description |
+|--------|-------|-------------|
+| `sats_cost` | `{{ sats_cost tokens rate }}` | Calculate SATs cost from tokens |
+| `add` | `{{ add a b }}` | Addition |
+| `subtract` | `{{ subtract a b }}` | Subtraction |
+| `multiply` | `{{ multiply a b }}` | Multiplication |
+| `divide` | `{{ divide a b }}` | Division |
+| `floor` | `{{ floor n }}` | Round down |
+| `ceil` | `{{ ceil n }}` | Round up |
+| `round` | `{{ round n }}` | Round to nearest |
+| `length` | `{{ length str }}` | String/array length |
+
+### sats_cost Helper
+
+Calculates SATs cost from token usage:
+- Formula: `ceil(tokens * sats_per_1k / 1000)`
+- Minimum: 1 SAT
+
+```yaml
+# Calculate cost: 350 tokens * 10 SATs/1k = 4 SATs
+amount: "{{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }}"
+```
+
 ## Setup
 
 1. Copy example workflows to `config/workflows/`:
@@ -185,17 +254,19 @@ System handler (always enabled) for persistent state management.
 
 ## Cost Calculation
 
-Default formula: `tokens_used * sats_per_1k_tokens / 1000`
+Default formula: `ceil(tokens_used * sats_per_1k_tokens / 1000)`
 
 With default settings (10 SATs/1k tokens):
-- 100 tokens = 1 SAT
+- 100 tokens = 1 SAT (minimum)
+- 350 tokens = 4 SATs
 - 1000 tokens = 10 SATs
 - 10000 tokens = 100 SATs
 
 ## Future Improvements
 
-- [ ] Automatic price conversion via Coinbase API
+- [ ] Automatic price conversion via Coinbase API (USD/BTC rate)
 - [ ] Rate limiting per user
-- [ ] Request validation (length, forbidden words)
+- [ ] Request validation (forbidden words filter)
 - [ ] Usage statistics and reporting
 - [ ] Refund mechanism for failed requests
+- [ ] Conversation history (multi-turn)

@@ -77,10 +77,14 @@ export interface ClaudeHandlerOptions {
 }
 
 export interface ClaudeActionConfig extends HandlerConfig {
-  action: 'generate' | 'explain' | 'validate' | 'status';
+  action: 'generate' | 'explain' | 'validate' | 'status' | 'chat';
   prompt?: string;
   workflowId?: string;
   workflowContent?: string;
+  // For 'chat' action
+  message?: string;
+  system_prompt?: string;
+  max_tokens?: number;
 }
 
 interface PendingWorkflow {
@@ -139,6 +143,13 @@ export class ClaudeHandler implements Handler {
 
         case 'status':
           return this.getStatus(userId);
+
+        case 'chat':
+          return await this.chat(
+            claudeConfig.message ?? claudeConfig.prompt ?? '',
+            claudeConfig.system_prompt,
+            claudeConfig.max_tokens
+          );
 
         default:
           return { success: false, error: `Unknown action: ${claudeConfig.action}` };
@@ -244,6 +255,84 @@ export class ClaudeHandler implements Handler {
         yaml: yamlContent,
         fullResponse: responseText,
         expiresIn: '10 minutes',
+      },
+    };
+  }
+
+  /**
+   * Chat action - Send a free-form message to Claude
+   * Returns the response plus token usage stats for billing
+   */
+  private async chat(
+    message: string,
+    systemPrompt?: string,
+    maxTokens?: number
+  ): Promise<HandlerResult> {
+    if (!message.trim()) {
+      return { success: false, error: 'Message vide' };
+    }
+
+    const tokensLimit = maxTokens ?? this.maxTokens;
+    logger.info({ messageLength: message.length, maxTokens: tokensLimit }, 'Sending chat request to Claude');
+
+    const requestBody: Record<string, unknown> = {
+      model: this.model,
+      max_tokens: tokensLimit,
+      messages: [{ role: 'user', content: message }],
+    };
+
+    // Add system prompt if provided
+    if (systemPrompt) {
+      requestBody.system = systemPrompt;
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Claude API error: ${response.status} - ${errorBody}`);
+    }
+
+    const data = await response.json() as {
+      content: Array<{ type: string; text?: string }>;
+      usage: {
+        input_tokens: number;
+        output_tokens: number;
+      };
+      model: string;
+      stop_reason: string;
+    };
+
+    const textContent = data.content.find(c => c.type === 'text');
+    const responseText = textContent?.text ?? '';
+    const inputTokens = data.usage?.input_tokens ?? 0;
+    const outputTokens = data.usage?.output_tokens ?? 0;
+    const totalTokens = inputTokens + outputTokens;
+
+    logger.info({
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      responseLength: responseText.length,
+    }, 'Claude chat response received');
+
+    return {
+      success: true,
+      data: {
+        response: responseText,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        tokens_used: totalTokens,
+        model: data.model,
+        stop_reason: data.stop_reason,
       },
     };
   }

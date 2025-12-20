@@ -262,7 +262,7 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - L'utilisateur parle français
 - Préférer les réponses concises
 - Utiliser TodoWrite pour tâches complexes (3+ étapes)
-- Committer uniquement si demandé explicitement
+- **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
 - Le projet tourne sur Windows (dev) et Linux (prod/RPi)
 - Permissions Edit/Write dans `.claude/settings.local.json`
 

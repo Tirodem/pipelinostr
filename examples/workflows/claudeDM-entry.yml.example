@@ -7,9 +7,9 @@
 #
 # Flow:
 # 1. Check if user has sufficient balance (configurable threshold)
-# 2. Validate request (length, forbidden words)
-# 3. Send request to Claude API
-# 4. Debit user's balance based on token cost
+# 2. Send request to Claude API
+# 3. Calculate cost based on tokens used
+# 4. Debit user's balance
 # 5. Reply with Claude's response + cost info
 #
 # Prerequisites:
@@ -20,9 +20,12 @@
 #
 # Configuration:
 # - min_balance_sats: Minimum SATs required (default: 40)
-# - max_request_length: Maximum characters (default: 4000)
-# - forbidden_words: List of blocked words
+# - max_tokens: Maximum tokens for Claude response (default: 1000)
 # - sats_per_1k_tokens: Cost in SATs per 1000 tokens (default: 10)
+#
+# Error handling:
+# - Insufficient balance -> claudeDM-insufficient-balance
+# - Claude API error -> claudeDM-error-response
 
 id: claudeDM-entry
 name: ClaudeDM Entry Point
@@ -30,7 +33,8 @@ enabled: false
 
 trigger:
   type: dm
-  content_match: "^/claudeDM\\s+(.+)$"
+  # Limit message length via regex - max ~4000 chars
+  content_match: "^/claudeDM\\s+(.{1,4000})$"
   # Optional: whitelist specific users
   # from_whitelist:
   #   - "npub1..."
@@ -38,13 +42,8 @@ trigger:
 # Configuration variables
 variables:
   min_balance_sats: 40
-  max_request_length: 4000
+  max_tokens: 1000
   sats_per_1k_tokens: 10
-  forbidden_words:
-    - "bite"
-    - "fiat"
-    - "cul"
-    - "FMI"
 
 actions:
   # Step 1: Check user's balance
@@ -61,17 +60,7 @@ actions:
       workflow: claudeDM-insufficient-balance
       pass_context: true
 
-  # Step 2: Validate request length and content
-  - id: validate_request
-    type: http
-    config:
-      url: "internal://validate"
-      method: POST
-      # Note: This is a placeholder. In practice, validation would be done
-      # in a custom handler or inline with template conditions.
-      # For now, we proceed to Claude if balance check passed.
-
-  # Step 3: Get current balance for reference
+  # Step 2: Get current balance for reference
   - id: get_current_balance
     type: workflow_db
     config:
@@ -80,31 +69,19 @@ actions:
       namespace: balances
       key: "balance:{{ trigger.author_npub }}"
 
-  # Step 4: Send request to Claude
+  # Step 3: Send request to Claude
   - id: claude_request
     type: claude
     config:
       action: chat
       message: "{{ match.1 }}"
-      max_tokens: 1000
+      max_tokens: "{{ variables.max_tokens }}"
     on_fail:
       workflow: claudeDM-error-response
       pass_context: true
 
-  # Step 5: Calculate cost in SATs
-  # tokens_used from Claude response * sats_per_1k_tokens / 1000
-  - id: calculate_cost
-    type: workflow_db
-    config:
-      action: set
-      namespace: temp
-      key: "cost:{{ trigger.event_id }}"
-      value_type: number
-      # Simplified: assume 100 SATs per request for now
-      # Real calculation would use: actions.claude_request.tokens_used * variables.sats_per_1k_tokens / 1000
-      value: 10
-
-  # Step 6: Debit user's balance
+  # Step 4: Debit user's balance based on tokens used
+  # Cost = ceil(tokens_used * sats_per_1k_tokens / 1000), minimum 1 SAT
   - id: debit_balance
     type: workflow_db
     config:
@@ -112,11 +89,11 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.author_npub }}"
-      amount: 10  # Would use calculated cost
+      amount: "{{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }}"
       min_value: 0
       track_history: true
 
-  # Step 7: Get new balance
+  # Step 5: Get new balance after debit
   - id: get_new_balance
     type: workflow_db
     config:
@@ -125,15 +102,15 @@ actions:
       namespace: balances
       key: "balance:{{ trigger.author_npub }}"
 
-  # Step 8: Reply to user with response and cost info
+  # Step 6: Reply to user with response and cost info
   - id: reply
     type: nostr_dm
     config:
       recipient: "{{ trigger.author_npub }}"
       content: |
-        {{ actions.claude_request.response }}
+        {{ actions.claude_request.data.response }}
 
         ---
-        Cost: 10 SATs
-        Tokens: {{ actions.claude_request.tokens_used }}
-        New balance: {{ actions.get_new_balance.value }} SATs
+        Tokens: {{ actions.claude_request.data.tokens_used }} (in: {{ actions.claude_request.data.input_tokens }}, out: {{ actions.claude_request.data.output_tokens }})
+        Cout: {{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }} SATs
+        Solde: {{ actions.get_new_balance.data.value | default: 0 }} SATs

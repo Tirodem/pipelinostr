@@ -1,0 +1,33 @@
+# ClaudeDM Bad Request Response
+#
+# Called when the user's request fails validation:
+# - Message too long (exceeds max_request_length)
+# - Contains forbidden words
+#
+# Triggered by on_fail hook from claudeDM-entry (validation failed)
+# User is NOT debited in case of validation error.
+
+id: claudeDM-bad-request
+name: ClaudeDM - Bad Request
+enabled: false
+
+trigger:
+  type: hook
+  source_workflow: claudeDM-entry
+
+actions:
+  - id: reply
+    type: nostr_dm
+    config:
+      recipient: "{{ parent.trigger.author_npub }}"
+      content: |
+        Requete invalide.
+
+        {{ parent.actions.validate_request.data.error_message }}
+
+        Limites:
+        - Max {{ parent.variables.max_request_length }} caracteres
+        - Certains mots sont interdits
+
+        Reformulez votre question et reessayez.
+        Votre solde n'a pas ete debite.

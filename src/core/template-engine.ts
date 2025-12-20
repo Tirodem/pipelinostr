@@ -29,6 +29,76 @@ export class TemplateEngine {
     this.handlebars.registerHelper('json', (obj: unknown) => {
       return JSON.stringify(obj, null, 2);
     });
+
+    // Math helpers
+    this.handlebars.registerHelper('add', (a: number, b: number) => {
+      return (Number(a) || 0) + (Number(b) || 0);
+    });
+
+    this.handlebars.registerHelper('subtract', (a: number, b: number) => {
+      return (Number(a) || 0) - (Number(b) || 0);
+    });
+
+    this.handlebars.registerHelper('multiply', (a: number, b: number) => {
+      return (Number(a) || 0) * (Number(b) || 0);
+    });
+
+    this.handlebars.registerHelper('divide', (a: number, b: number) => {
+      const divisor = Number(b) || 1;
+      return (Number(a) || 0) / divisor;
+    });
+
+    this.handlebars.registerHelper('floor', (a: number) => {
+      return Math.floor(Number(a) || 0);
+    });
+
+    this.handlebars.registerHelper('ceil', (a: number) => {
+      return Math.ceil(Number(a) || 0);
+    });
+
+    this.handlebars.registerHelper('round', (a: number) => {
+      return Math.round(Number(a) || 0);
+    });
+
+    // Calculate SATs cost from tokens: tokens * sats_per_1k / 1000, minimum 1 SAT
+    this.handlebars.registerHelper('sats_cost', (tokens: number, satsPerK: number) => {
+      const t = Number(tokens) || 0;
+      const rate = Number(satsPerK) || 10;
+      const cost = Math.ceil((t * rate) / 1000);
+      return Math.max(cost, 1); // Minimum 1 SAT
+    });
+
+    // String length helper
+    this.handlebars.registerHelper('length', (str: string | unknown[]) => {
+      if (typeof str === 'string') return str.length;
+      if (Array.isArray(str)) return str.length;
+      return 0;
+    });
+
+    // Comparison helpers for conditionals
+    this.handlebars.registerHelper('gt', (a: number, b: number) => {
+      return Number(a) > Number(b);
+    });
+
+    this.handlebars.registerHelper('gte', (a: number, b: number) => {
+      return Number(a) >= Number(b);
+    });
+
+    this.handlebars.registerHelper('lt', (a: number, b: number) => {
+      return Number(a) < Number(b);
+    });
+
+    this.handlebars.registerHelper('lte', (a: number, b: number) => {
+      return Number(a) <= Number(b);
+    });
+
+    this.handlebars.registerHelper('eq', (a: unknown, b: unknown) => {
+      return a === b;
+    });
+
+    this.handlebars.registerHelper('ne', (a: unknown, b: unknown) => {
+      return a !== b;
+    });
   }
 
   compile(template: string): HandlebarsTemplateDelegate {
