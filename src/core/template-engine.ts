@@ -73,10 +73,15 @@ export class TemplateEngine {
     // Simple token cost calculator: ceil(tokens / 100), minimum 1
     // Usage: {{ token_cost tokens }} or {{ token_cost actions.claude.response.tokens_used }}
     this.handlebars.registerHelper('token_cost', (tokens: unknown, options: unknown) => {
-      if (typeof tokens === 'object' && tokens !== null && 'hash' in tokens) return 1;
+      console.log('[token_cost] received:', tokens, 'type:', typeof tokens);
+      if (typeof tokens === 'object' && tokens !== null && 'hash' in tokens) {
+        console.log('[token_cost] tokens is options object, returning 1');
+        return 1;
+      }
       const t = Number(tokens) || 0;
-      if (t === 0) return 1; // Minimum 1 SAT
-      return Math.max(Math.ceil(t / 100), 1);
+      const result = t === 0 ? 1 : Math.max(Math.ceil(t / 100), 1);
+      console.log('[token_cost] t:', t, 'result:', result);
+      return result;
     });
 
     // Calculate SATs cost from tokens: tokens * sats_per_1k / 1000, minimum 1 SAT
