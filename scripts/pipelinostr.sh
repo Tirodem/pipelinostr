@@ -1073,7 +1073,7 @@ case "${1:-}" in
                 workflow_list "${3:-all}"
                 ;;
             enable)
-                workflow_enable "$3" "$4"
+                workflow_enable "${@:3}"
                 ;;
             disable)
                 workflow_disable "$3"
