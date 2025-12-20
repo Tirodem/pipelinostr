@@ -344,6 +344,15 @@ pipelinostr-status.yml     /pipelinostr status → system info
   ./scripts/pipelinostr.sh handler enable <ids>    # OBLIGATOIRE après refresh
   ```
   **NE JAMAIS OUBLIER** les commandes `enable` après `refresh` !
+- **VÉRIFICATION** : Ne jamais demander "as-tu fait X ?". Toujours donner une commande de vérification :
+  ```bash
+  # Vérifier schéma DB
+  sqlite3 data/pipelinostr.db ".schema workflow_state"
+  # Vérifier données
+  sqlite3 data/pipelinostr.db "SELECT * FROM workflow_state WHERE namespace='balances';"
+  # Vérifier workflow actif
+  ./scripts/pipelinostr.sh workflow list | grep <id>
+  ```
 - Le projet tourne sur Windows (dev) et Linux (prod/RPi)
 - Permissions Edit/Write dans `.claude/settings.local.json`
 
