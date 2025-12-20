@@ -1,0 +1,28 @@
+# Test Queue Failure
+#
+# This workflow intentionally fails to test queue retry/failure handling.
+# Sends a DM with "/testfail" to trigger it.
+#
+# Useful for:
+# - Testing queue retry mechanism
+# - Verifying dead-letter queue behavior
+# - Testing failure notifications
+
+id: test-queue-fail
+name: Test Queue Failure
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    starts_with: "/testfail"
+
+actions:
+  - id: force_fail
+    type: http
+    config:
+      url: "https://httpstat.us/500"
+      method: GET
+    retry:
+      max_attempts: 1  # No action-level retry
