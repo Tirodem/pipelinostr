@@ -1,5 +1,6 @@
 import { logger } from '../persistence/logger.js';
 import type { WorkflowContext } from './workflow.types.js';
+import { templateEngine } from './template-engine.js';
 
 /**
  * Expression Evaluator
@@ -47,19 +48,25 @@ export class ExpressionEvaluator {
   renderTemplate(template: string, context: WorkflowContext): string {
     if (!template) return '';
 
-    // Replace {{ variable }} patterns
-    return template.replace(/\{\{\s*(.+?)\s*\}\}/g, (_, path: string) => {
-      // Handle filters like {{ value | trim }}
-      const [valuePath, ...filters] = path.split('|').map((s: string) => s.trim());
-      let value = this.resolveValue(valuePath as string, context);
+    try {
+      // Use Handlebars-based template engine for full helper support
+      return templateEngine.render(template, context as unknown as Record<string, unknown>);
+    } catch (error) {
+      // Fallback to simple replacement if Handlebars fails
+      logger.warn({ error, template: template.substring(0, 100) }, 'Handlebars render failed, using fallback');
+      return template.replace(/\{\{\s*(.+?)\s*\}\}/g, (_, path: string) => {
+        // Handle filters like {{ value | trim }}
+        const [valuePath, ...filters] = path.split('|').map((s: string) => s.trim());
+        let value = this.resolveValue(valuePath as string, context);
 
-      // Apply filters
-      for (const filter of filters) {
-        value = this.applyFilter(value, filter);
-      }
+        // Apply filters
+        for (const filter of filters) {
+          value = this.applyFilter(value, filter);
+        }
 
-      return String(value ?? '');
-    });
+        return String(value ?? '');
+      });
+    }
   }
 
   private evaluateExpression(expression: string, context: WorkflowContext): boolean {
