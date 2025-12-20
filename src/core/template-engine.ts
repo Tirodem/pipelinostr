@@ -61,7 +61,15 @@ export class TemplateEngine {
     });
 
     // Calculate SATs cost from tokens: tokens * sats_per_1k / 1000, minimum 1 SAT
-    this.handlebars.registerHelper('sats_cost', (tokens: number, satsPerK: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.handlebars.registerHelper('sats_cost', function(this: any, ...args: any[]) {
+      // Handlebars passes options as last argument
+      // sats_cost tokens rate -> args = [tokens, rate, options]
+      // sats_cost tokens -> args = [tokens, options]
+      const options = args.pop(); // Remove options object
+      const tokens = args[0];
+      const satsPerK = args[1] ?? 10;
+
       const t = Number(tokens) || 0;
       const rate = Number(satsPerK) || 10;
       const cost = Math.ceil((t * rate) / 1000);
