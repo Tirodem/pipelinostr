@@ -1,0 +1,139 @@
+# ClaudeDM Entry Point - Paid Claude API via Nostr DM
+#
+# This workflow is the entry point for the ClaudeDM service.
+# Users can interact with Claude API by paying with SATs zaps.
+#
+# Usage: Send a DM with "/claudeDM <your question>"
+#
+# Flow:
+# 1. Check if user has sufficient balance (configurable threshold)
+# 2. Validate request (length, forbidden words)
+# 3. Send request to Claude API
+# 4. Debit user's balance based on token cost
+# 5. Reply with Claude's response + cost info
+#
+# Prerequisites:
+# - zap-balance-tracker workflow running
+# - workflow_db handler (system)
+# - claude handler configured with API key
+# - nostr handler for DM replies
+#
+# Configuration:
+# - min_balance_sats: Minimum SATs required (default: 40)
+# - max_request_length: Maximum characters (default: 4000)
+# - forbidden_words: List of blocked words
+# - sats_per_1k_tokens: Cost in SATs per 1000 tokens (default: 10)
+
+id: claudeDM-entry
+name: ClaudeDM Entry Point
+enabled: false
+
+trigger:
+  type: dm
+  content_match: "^/claudeDM\\s+(.+)$"
+  # Optional: whitelist specific users
+  # from_whitelist:
+  #   - "npub1..."
+
+# Configuration variables
+variables:
+  min_balance_sats: 40
+  max_request_length: 4000
+  sats_per_1k_tokens: 10
+  forbidden_words:
+    - "bite"
+    - "fiat"
+    - "cul"
+    - "FMI"
+
+actions:
+  # Step 1: Check user's balance
+  - id: check_balance
+    type: workflow_db
+    config:
+      action: check
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.author_npub }}"
+      operator: gte
+      compare_value: "{{ variables.min_balance_sats }}"
+    on_fail:
+      workflow: claudeDM-insufficient-balance
+      pass_context: true
+
+  # Step 2: Validate request length and content
+  - id: validate_request
+    type: http
+    config:
+      url: "internal://validate"
+      method: POST
+      # Note: This is a placeholder. In practice, validation would be done
+      # in a custom handler or inline with template conditions.
+      # For now, we proceed to Claude if balance check passed.
+
+  # Step 3: Get current balance for reference
+  - id: get_current_balance
+    type: workflow_db
+    config:
+      action: get
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.author_npub }}"
+
+  # Step 4: Send request to Claude
+  - id: claude_request
+    type: claude
+    config:
+      action: chat
+      message: "{{ match.1 }}"
+      max_tokens: 1000
+    on_fail:
+      workflow: claudeDM-error-response
+      pass_context: true
+
+  # Step 5: Calculate cost in SATs
+  # tokens_used from Claude response * sats_per_1k_tokens / 1000
+  - id: calculate_cost
+    type: workflow_db
+    config:
+      action: set
+      namespace: temp
+      key: "cost:{{ trigger.event_id }}"
+      value_type: number
+      # Simplified: assume 100 SATs per request for now
+      # Real calculation would use: actions.claude_request.tokens_used * variables.sats_per_1k_tokens / 1000
+      value: 10
+
+  # Step 6: Debit user's balance
+  - id: debit_balance
+    type: workflow_db
+    config:
+      action: decrement
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.author_npub }}"
+      amount: 10  # Would use calculated cost
+      min_value: 0
+      track_history: true
+
+  # Step 7: Get new balance
+  - id: get_new_balance
+    type: workflow_db
+    config:
+      action: get
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.author_npub }}"
+
+  # Step 8: Reply to user with response and cost info
+  - id: reply
+    type: nostr_dm
+    config:
+      recipient: "{{ trigger.author_npub }}"
+      content: |
+        {{ actions.claude_request.response }}
+
+        ---
+        Cost: 10 SATs
+        Tokens: {{ actions.claude_request.tokens_used }}
+        New balance: {{ actions.get_new_balance.value }} SATs

@@ -1,0 +1,27 @@
+# ClaudeDM Error Response
+#
+# Called when Claude API request fails.
+# Triggered by on_fail hook from claudeDM-entry.
+# User is NOT debited in case of error.
+
+id: claudeDM-error-response
+name: ClaudeDM - Error Response
+enabled: false
+
+trigger:
+  type: hook
+  source_workflow: claudeDM-entry
+
+actions:
+  - id: reply
+    type: nostr_dm
+    config:
+      recipient: "{{ parent.trigger.author_npub }}"
+      content: |
+        Erreur lors du traitement de votre requête ClaudeDM.
+
+        Votre solde n'a pas été débité.
+
+        Veuillez réessayer plus tard ou reformuler votre question.
+
+        Si le problème persiste, contactez l'administrateur.

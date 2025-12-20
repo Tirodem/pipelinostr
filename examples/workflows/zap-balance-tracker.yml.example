@@ -1,0 +1,70 @@
+# Zap Balance Tracker - Track SATs balance per npub
+#
+# This workflow listens for zap receipts (kind 9735) and increments the sender's
+# balance in the workflow_db. This balance can then be used by other workflows
+# to gate access to services (e.g., ClaudeDM, video streaming).
+#
+# Prerequisites:
+# - workflow_db handler (system handler, always enabled)
+#
+# Configuration:
+# - tracked_recipients: List of npubs whose incoming zaps are tracked
+# - If not specified, tracks zaps to PipeliNostr's own npub
+#
+# Available trigger.zap variables:
+# - trigger.zap.amount          : Amount in sats
+# - trigger.zap.sender          : Sender npub (the one who paid)
+# - trigger.zap.recipient       : Recipient npub (who received the zap)
+# - trigger.zap.message         : Zap comment (if any)
+#
+# State stored (per sender npub):
+# - Key: balance:<sender_npub>
+# - Value: cumulative SATs zapped
+# - History tracked for audit
+
+id: zap-balance-tracker
+name: Zap Balance Tracker
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [9735]           # Zap receipts only
+    zap_min_amount: 1       # Minimum 1 sat
+    # Optional: track zaps only to specific recipients
+    # zap_recipients:
+    #   - "npub1yourpubkeyhere..."
+    #   - "npub1anotherpubkey..."
+
+actions:
+  # Increment the sender's balance
+  - id: increment_balance
+    type: workflow_db
+    config:
+      action: increment
+      namespace: balances
+      key: "balance:{{ trigger.zap.sender }}"
+      amount: "{{ trigger.zap.amount }}"
+      create_if_missing: true
+      default_value: 0
+      track_history: true
+
+  # Optional: Get the new balance for logging/notification
+  - id: get_balance
+    type: workflow_db
+    config:
+      action: get
+      namespace: balances
+      key: "balance:{{ trigger.zap.sender }}"
+
+  # Optional: Notify about the credit
+  # Uncomment and configure your preferred notification handler
+  #
+  # - id: notify_credit
+  #   type: nostr_dm
+  #   config:
+  #     recipient: "{{ trigger.zap.sender }}"
+  #     content: |
+  #       ⚡ Zap reçu! +{{ trigger.zap.amount }} SATs
+  #       Nouveau solde: {{ actions.get_balance.value }} SATs
+  #       Merci pour votre soutien!

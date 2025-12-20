@@ -6,6 +6,7 @@ import type { EventLog } from './models/event-log.js';
 import type { RelayState } from './models/relay-state.js';
 import type { WorkflowExecution } from './models/workflow-execution.js';
 import type { QueuedEvent, QueuedEventStatus, QueuedEventType, QueueStats, EnqueueOptions } from './models/queued-event.js';
+import type { WorkflowState, WorkflowStateHistory, WorkflowStateInput, IncrementOptions, DecrementOptions } from './models/workflow-state.js';
 
 export class PipelinostrDatabase {
   private db: Database.Database;
@@ -114,6 +115,47 @@ export class PipelinostrDatabase {
       CREATE INDEX IF NOT EXISTS idx_event_queue_status ON event_queue(status);
       CREATE INDEX IF NOT EXISTS idx_event_queue_next_retry ON event_queue(next_retry_at);
       CREATE INDEX IF NOT EXISTS idx_event_queue_priority ON event_queue(priority DESC, created_at ASC);
+
+      -- Table état des workflows (balances, compteurs, flags)
+      CREATE TABLE IF NOT EXISTS workflow_state (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workflow_id TEXT NOT NULL,
+        namespace TEXT NOT NULL DEFAULT 'default',
+        state_key TEXT NOT NULL,
+        value_type TEXT NOT NULL DEFAULT 'number',
+        value_number REAL,
+        value_string TEXT,
+        value_json TEXT,
+        value_boolean INTEGER,
+        source_event_id TEXT,
+        event_log_id INTEGER,
+        source_pubkey TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(workflow_id, namespace, state_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_workflow_state_lookup ON workflow_state(workflow_id, namespace, state_key);
+      CREATE INDEX IF NOT EXISTS idx_workflow_state_pubkey ON workflow_state(source_pubkey);
+      CREATE INDEX IF NOT EXISTS idx_workflow_state_updated ON workflow_state(updated_at);
+
+      -- Table historique des modifications d'état
+      CREATE TABLE IF NOT EXISTS workflow_state_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        state_id INTEGER NOT NULL,
+        operation TEXT NOT NULL,
+        old_value_number REAL,
+        old_value_string TEXT,
+        new_value_number REAL,
+        new_value_string TEXT,
+        delta REAL,
+        source_event_id TEXT,
+        source_pubkey TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_state_history_state ON workflow_state_history(state_id);
+      CREATE INDEX IF NOT EXISTS idx_state_history_time ON workflow_state_history(created_at);
     `);
 
     logger.debug('Database tables initialized');
@@ -783,6 +825,282 @@ export class PipelinostrDatabase {
       workflow_name: row['workflow_name'] as string | undefined,
       error_message: row['error_message'] as string | undefined,
       result_data: row['result_data'] as string | undefined,
+    };
+  }
+
+  // ==================== WorkflowState ====================
+
+  getState(workflowId: string, namespace: string, key: string): WorkflowState | undefined {
+    const stmt = this.db.prepare(`
+      SELECT * FROM workflow_state
+      WHERE workflow_id = ? AND namespace = ? AND state_key = ?
+    `);
+    const row = stmt.get(workflowId, namespace, key) as Record<string, unknown> | undefined;
+    return row ? this.rowToWorkflowState(row) : undefined;
+  }
+
+  setState(input: WorkflowStateInput): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO workflow_state (
+        workflow_id, namespace, state_key, value_type,
+        value_number, value_string, value_json, value_boolean,
+        source_event_id, event_log_id, source_pubkey
+      ) VALUES (
+        @workflow_id, @namespace, @state_key, @value_type,
+        @value_number, @value_string, @value_json, @value_boolean,
+        @source_event_id, @event_log_id, @source_pubkey
+      )
+      ON CONFLICT(workflow_id, namespace, state_key) DO UPDATE SET
+        value_type = @value_type,
+        value_number = @value_number,
+        value_string = @value_string,
+        value_json = @value_json,
+        value_boolean = @value_boolean,
+        source_event_id = @source_event_id,
+        event_log_id = @event_log_id,
+        source_pubkey = @source_pubkey,
+        updated_at = datetime('now')
+    `);
+
+    const result = stmt.run({
+      workflow_id: input.workflow_id,
+      namespace: input.namespace ?? 'default',
+      state_key: input.state_key,
+      value_type: input.value_type ?? 'number',
+      value_number: input.value_number ?? null,
+      value_string: input.value_string ?? null,
+      value_json: input.value_json ? JSON.stringify(input.value_json) : null,
+      value_boolean: input.value_boolean !== undefined ? (input.value_boolean ? 1 : 0) : null,
+      source_event_id: input.source_event_id ?? null,
+      event_log_id: input.event_log_id ?? null,
+      source_pubkey: input.source_pubkey ?? null,
+    });
+
+    return result.lastInsertRowid as number;
+  }
+
+  deleteState(workflowId: string, namespace: string, key: string): boolean {
+    const stmt = this.db.prepare(`
+      DELETE FROM workflow_state
+      WHERE workflow_id = ? AND namespace = ? AND state_key = ?
+    `);
+    const result = stmt.run(workflowId, namespace, key);
+    return result.changes > 0;
+  }
+
+  incrementState(
+    workflowId: string,
+    namespace: string,
+    key: string,
+    amount: number,
+    options: IncrementOptions = {}
+  ): { success: boolean; value: number; previous: number; error_code?: string } {
+    const { create_if_missing = true, default_value = 0, max_value, source_event_id, source_pubkey, track_history = false } = options;
+
+    // Use transaction for atomicity
+    return this.db.transaction(() => {
+      // Get current state
+      let current = this.getState(workflowId, namespace, key);
+      const oldValue = current?.value_number ?? default_value;
+
+      // Create if missing
+      if (!current && create_if_missing) {
+        this.setState({
+          workflow_id: workflowId,
+          namespace,
+          state_key: key,
+          value_type: 'number',
+          value_number: default_value,
+          source_event_id,
+          source_pubkey,
+        });
+        current = this.getState(workflowId, namespace, key);
+      }
+
+      if (!current) {
+        return { success: false, value: 0, previous: 0, error_code: 'NOT_FOUND' };
+      }
+
+      const newValue = oldValue + amount;
+
+      // Check max limit
+      if (max_value !== undefined && newValue > max_value) {
+        return { success: false, value: oldValue, previous: oldValue, error_code: 'LIMIT_EXCEEDED' };
+      }
+
+      // Update value
+      const updateStmt = this.db.prepare(`
+        UPDATE workflow_state SET
+          value_number = @value,
+          source_event_id = COALESCE(@source_event_id, source_event_id),
+          source_pubkey = COALESCE(@source_pubkey, source_pubkey),
+          updated_at = datetime('now')
+        WHERE id = @id
+      `);
+      updateStmt.run({ id: current.id, value: newValue, source_event_id, source_pubkey });
+
+      // Track history if requested
+      if (track_history) {
+        this.insertStateHistory({
+          state_id: current.id,
+          operation: 'increment',
+          old_value_number: oldValue,
+          new_value_number: newValue,
+          delta: amount,
+          source_event_id,
+          source_pubkey,
+        });
+      }
+
+      return { success: true, value: newValue, previous: oldValue };
+    })();
+  }
+
+  decrementState(
+    workflowId: string,
+    namespace: string,
+    key: string,
+    amount: number,
+    options: DecrementOptions = {}
+  ): { success: boolean; value: number; previous: number; error_code?: string } {
+    const { min_value = 0, source_event_id, source_pubkey, track_history = false } = options;
+
+    return this.db.transaction(() => {
+      const current = this.getState(workflowId, namespace, key);
+
+      if (!current) {
+        return { success: false, value: 0, previous: 0, error_code: 'NOT_FOUND' };
+      }
+
+      const oldValue = current.value_number ?? 0;
+      const newValue = oldValue - amount;
+
+      // Check min limit
+      if (newValue < min_value) {
+        return { success: false, value: oldValue, previous: oldValue, error_code: 'INSUFFICIENT_BALANCE' };
+      }
+
+      // Update value
+      const updateStmt = this.db.prepare(`
+        UPDATE workflow_state SET
+          value_number = @value,
+          source_event_id = COALESCE(@source_event_id, source_event_id),
+          source_pubkey = COALESCE(@source_pubkey, source_pubkey),
+          updated_at = datetime('now')
+        WHERE id = @id
+      `);
+      updateStmt.run({ id: current.id, value: newValue, source_event_id, source_pubkey });
+
+      // Track history if requested
+      if (track_history) {
+        this.insertStateHistory({
+          state_id: current.id,
+          operation: 'decrement',
+          old_value_number: oldValue,
+          new_value_number: newValue,
+          delta: -amount,
+          source_event_id,
+          source_pubkey,
+        });
+      }
+
+      return { success: true, value: newValue, previous: oldValue };
+    })();
+  }
+
+  listStates(workflowId: string, namespace?: string, keyPattern?: string, limit = 100): WorkflowState[] {
+    let sql = 'SELECT * FROM workflow_state WHERE workflow_id = ?';
+    const params: unknown[] = [workflowId];
+
+    if (namespace) {
+      sql += ' AND namespace = ?';
+      params.push(namespace);
+    }
+
+    if (keyPattern) {
+      sql += ' AND state_key LIKE ?';
+      params.push(keyPattern);
+    }
+
+    sql += ' ORDER BY updated_at DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...params) as Record<string, unknown>[];
+    return rows.map((row) => this.rowToWorkflowState(row));
+  }
+
+  private insertStateHistory(history: Omit<WorkflowStateHistory, 'id' | 'created_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO workflow_state_history (
+        state_id, operation, old_value_number, old_value_string,
+        new_value_number, new_value_string, delta,
+        source_event_id, source_pubkey
+      ) VALUES (
+        @state_id, @operation, @old_value_number, @old_value_string,
+        @new_value_number, @new_value_string, @delta,
+        @source_event_id, @source_pubkey
+      )
+    `);
+
+    const result = stmt.run({
+      state_id: history.state_id,
+      operation: history.operation,
+      old_value_number: history.old_value_number ?? null,
+      old_value_string: history.old_value_string ?? null,
+      new_value_number: history.new_value_number ?? null,
+      new_value_string: history.new_value_string ?? null,
+      delta: history.delta ?? null,
+      source_event_id: history.source_event_id ?? null,
+      source_pubkey: history.source_pubkey ?? null,
+    });
+
+    return result.lastInsertRowid as number;
+  }
+
+  getStateHistory(stateId: number, limit = 100): WorkflowStateHistory[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM workflow_state_history
+      WHERE state_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `);
+    const rows = stmt.all(stateId, limit) as Record<string, unknown>[];
+    return rows.map((row) => this.rowToWorkflowStateHistory(row));
+  }
+
+  private rowToWorkflowState(row: Record<string, unknown>): WorkflowState {
+    return {
+      id: row['id'] as number,
+      workflow_id: row['workflow_id'] as string,
+      namespace: row['namespace'] as string,
+      state_key: row['state_key'] as string,
+      value_type: row['value_type'] as WorkflowState['value_type'],
+      value_number: row['value_number'] as number | undefined,
+      value_string: row['value_string'] as string | undefined,
+      value_json: row['value_json'] ? JSON.parse(row['value_json'] as string) : undefined,
+      value_boolean: row['value_boolean'] !== null ? Boolean(row['value_boolean']) : undefined,
+      source_event_id: row['source_event_id'] as string | undefined,
+      event_log_id: row['event_log_id'] as number | undefined,
+      source_pubkey: row['source_pubkey'] as string | undefined,
+      created_at: new Date(row['created_at'] as string),
+      updated_at: new Date(row['updated_at'] as string),
+    };
+  }
+
+  private rowToWorkflowStateHistory(row: Record<string, unknown>): WorkflowStateHistory {
+    return {
+      id: row['id'] as number,
+      state_id: row['state_id'] as number,
+      operation: row['operation'] as WorkflowStateHistory['operation'],
+      old_value_number: row['old_value_number'] as number | undefined,
+      old_value_string: row['old_value_string'] as string | undefined,
+      new_value_number: row['new_value_number'] as number | undefined,
+      new_value_string: row['new_value_string'] as string | undefined,
+      delta: row['delta'] as number | undefined,
+      source_event_id: row['source_event_id'] as string | undefined,
+      source_pubkey: row['source_pubkey'] as string | undefined,
+      created_at: new Date(row['created_at'] as string),
     };
   }
 

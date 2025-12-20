@@ -74,6 +74,9 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 - load-missing désactive par défaut les éléments déployés
 - Backlog : ajout Claude Smart Reply + Intent Classifier, annulation Claude API Status
 - Split BACKLOG.md → backlog-old.md (archives) + script `split-backlog.cjs`
+- **Handler `workflow_db`** : persistence état workflows (balances, compteurs, flags)
+- **Workflows ClaudeDM** : zap-balance-tracker, claudeDM-entry, error handlers
+- Backlog : NIP-17 migration, workflow import via Nostr, paid video streaming
 
 ### 2025-12-19
 - Ajout backlog : SMS Gateway for Android (capcom6)
@@ -147,6 +150,7 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 | `odoo` | `odoo.handler.ts` | Testé | JSON-RPC |
 | `claude` | `claude.handler.ts` | Non testé | Workflow generator |
 | `system` | `system.handler.ts` | Non testé | System status /pipelinostr status |
+| `workflow_db` | `workflow-db.handler.ts` | Non testé | Persistent state for workflows (balances, counters) |
 
 ## Workflows par catégorie
 

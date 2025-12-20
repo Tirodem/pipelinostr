@@ -53,6 +53,7 @@ import { DPOHandler } from './outbound/dpo.handler.js';
 import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.handler.js';
 import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
 import { SystemHandler } from './outbound/system.handler.js';
+import { WorkflowDbHandler } from './outbound/workflow-db.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -112,6 +113,7 @@ interface AppState {
     claude?: ClaudeHandler;
     workflowActivator?: WorkflowActivatorHandler;
     system?: SystemHandler;
+    workflowDb?: WorkflowDbHandler;
   };
 }
 
@@ -1264,6 +1266,12 @@ async function initializeHandlers(
   state.handlers.system.setRegisteredHandlers(Array.from(state.workflowEngine.getStats().handlers));
   state.workflowEngine.registerHandler('system', state.handlers.system);
   logger.info('System handler enabled');
+
+  // Workflow DB Handler (always available, provides persistent state for workflows)
+  state.handlers.workflowDb = new WorkflowDbHandler({ enabled: true });
+  await state.handlers.workflowDb.initialize();
+  state.workflowEngine.registerHandler('workflow_db', state.handlers.workflowDb);
+  logger.info('Workflow DB handler enabled');
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine
