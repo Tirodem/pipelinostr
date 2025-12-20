@@ -1,7 +1,7 @@
 # ClaudeDM Error Response
 #
 # Called when Claude API request fails.
-# Triggered by on_fail hook from claudeDM-entry.
+# Triggered by on_fail hook from claudeDM-process.
 # User is NOT debited in case of error.
 
 id: claudeDM-error-response
@@ -10,13 +10,13 @@ enabled: false
 
 trigger:
   type: hook
-  source_workflow: claudeDM-entry
+  source_workflow: claudeDM-process
 
 actions:
   - id: reply
     type: nostr_dm
     config:
-      to: "{{ parent.trigger.from }}"
+      to: "{{ trigger.from }}"
       content: |
         Erreur lors du traitement de votre requête ClaudeDM.
 

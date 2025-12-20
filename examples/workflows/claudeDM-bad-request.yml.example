@@ -4,8 +4,11 @@
 # - Message too long (exceeds max_request_length)
 # - Contains forbidden words
 #
-# Triggered by on_fail hook from claudeDM-entry (validation failed)
+# Triggered by on_fail hook from claudeDM-balance-gate (validation failed)
 # User is NOT debited in case of validation error.
+#
+# Note: This workflow is a placeholder for future validation logic.
+# Currently, message length is validated by the regex pattern in balance-gate.
 
 id: claudeDM-bad-request
 name: ClaudeDM - Bad Request
@@ -13,20 +16,18 @@ enabled: false
 
 trigger:
   type: hook
-  source_workflow: claudeDM-entry
+  source_workflow: claudeDM-balance-gate
 
 actions:
   - id: reply
     type: nostr_dm
     config:
-      to: "{{ parent.trigger.from }}"
+      to: "{{ trigger.from }}"
       content: |
         Requete invalide.
 
-        {{ parent.actions.validate_request.response.error_message }}
-
         Limites:
-        - Max {{ parent.variables.max_request_length }} caracteres
+        - Max 4000 caracteres
         - Certains mots sont interdits
 
         Reformulez votre question et reessayez.

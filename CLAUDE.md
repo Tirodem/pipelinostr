@@ -312,15 +312,16 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - Type dans workflow : `type: {type}` (ex: `type: telegram`)
 
 ### Variables template
-- `trigger.*` : Données de l'événement déclencheur
-- `match.*` : Groupes capturés par regex
+- `trigger.*` : Données de l'événement déclencheur (héritées du parent via hooks)
+- `match.*` : Groupes capturés par regex (hérités du parent via hooks)
 - `actions.{id}.*` : Résultats des actions précédentes (`.response.*` pour les données)
 - `variables.*` : Variables définies dans le workflow courant
-- `parent.*` : Contexte du workflow parent (hooks)
-  - `parent.trigger.*` : Événement du parent
-  - `parent.match.*` : Groupes regex du parent
-  - `parent.variables.*` : Variables du parent
-  - `parent.actions.*` : Résultats des actions du parent
+- `parent.*` : Métadonnées du workflow parent (hooks uniquement)
+  - `parent.id`, `parent.name` : Identifiants du parent
+  - `parent.success`, `parent.error` : Résultat du parent
+  - `parent.variables.*` : Variables définies par le parent
+
+**IMPORTANT:** Dans les workflows enfants (hooks), `trigger.*` et `match.*` sont directement accessibles (pas via `parent.*`). Seules les `variables` du parent nécessitent le préfixe `parent.`.
 
 ## Problèmes connus
 

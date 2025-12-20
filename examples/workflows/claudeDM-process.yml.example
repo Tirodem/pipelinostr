@@ -3,10 +3,10 @@
 # Triggered by claudeDM-balance-gate on_complete hook.
 # Calls Claude API, debits balance, sends response.
 #
-# Receives from parent:
-# - parent.trigger: original DM event
-# - parent.match.question: the user's question
-# - parent.variables: config (sats_per_1k_tokens, max_tokens)
+# Context inherited from parent (via pass_context: true):
+# - trigger.*: original DM event (same as parent)
+# - match.*: regex groups from parent (e.g., match.question)
+# - parent.variables.*: parent workflow variables
 
 id: claudeDM-process
 name: ClaudeDM Process
@@ -22,7 +22,7 @@ actions:
     type: claude
     config:
       action: chat
-      message: "{{ parent.match.question }}"
+      message: "{{ match.question }}"
       max_tokens: 1000
     on_fail:
       workflow: claudeDM-error-response
@@ -36,7 +36,7 @@ actions:
       action: decrement
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ parent.trigger.from }}"
+      key: "balance:{{ trigger.from }}"
       amount: "{{ sats_cost actions.claude_request.response.tokens_used 10 }}"
       min_value: 0
       track_history: true
@@ -48,13 +48,13 @@ actions:
       action: get
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ parent.trigger.from }}"
+      key: "balance:{{ trigger.from }}"
 
   # Step 4: Reply to user with response and cost info
   - id: reply
     type: nostr_dm
     config:
-      to: "{{ parent.trigger.from }}"
+      to: "{{ trigger.from }}"
       content: |
         {{ actions.claude_request.response.response }}
 

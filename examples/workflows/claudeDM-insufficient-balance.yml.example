@@ -3,8 +3,8 @@
 # Triggered when user doesn't have enough SATs.
 # Called by on_fail hook from claudeDM-balance-gate.
 #
-# Receives from parent:
-# - parent.trigger: original DM event
+# Context inherited from parent:
+# - trigger.*: original DM event
 # - parent.variables.min_balance_sats: required minimum
 
 id: claudeDM-insufficient-balance
@@ -23,12 +23,12 @@ actions:
       action: get
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ parent.trigger.from }}"
+      key: "balance:{{ trigger.from }}"
 
   - id: reply
     type: nostr_dm
     config:
-      to: "{{ parent.trigger.from }}"
+      to: "{{ trigger.from }}"
       content: |
         Solde insuffisant pour utiliser ClaudeDM.
 
