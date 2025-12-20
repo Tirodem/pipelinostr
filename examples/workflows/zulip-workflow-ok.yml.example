@@ -1,0 +1,37 @@
+# Notify workflow completion to Zulip
+#
+# This workflow listens for internal workflow completion events (kind 99990)
+# and sends a notification to Zulip.
+#
+# Prerequisites:
+# - Zulip handler enabled
+#
+# Available parent.* variables (from the completed workflow):
+# - parent.id              : Workflow ID
+# - parent.name            : Workflow name
+# - parent.success         : Whether workflow succeeded
+# - parent.actionsExecuted : Number of actions executed
+# - parent.actionsFailed   : Number of actions that failed
+# - parent.actionsSkipped  : Number of actions skipped
+# - parent.error           : Error message (if any)
+
+id: zulip-workflow-ok
+name: Notify workflow success to Zulip
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [99990]
+
+actions:
+  - id: send_zulip
+    type: zulip
+    config:
+      type: stream
+      stream: "🧪protos"
+      topic: "🦚 Pipelinostr"
+      content: |
+        Le workflow {{ parent.id }} / {{ parent.name }} vient de se terminer !
+        Statut : {{ parent.success }}
+        Actions : {{ parent.actionsExecuted }} exécutées, {{ parent.actionsFailed }} échouées, {{ parent.actionsSkipped }} ignorées {{ parent.error | default: }}
