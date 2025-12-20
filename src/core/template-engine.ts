@@ -30,33 +30,38 @@ export class TemplateEngine {
       return JSON.stringify(obj, null, 2);
     });
 
-    // Math helpers
-    this.handlebars.registerHelper('add', (a: number, b: number) => {
+    // Math helpers - all handle Handlebars options object
+    this.handlebars.registerHelper('add', (a: unknown, b: unknown) => {
+      // If b is options object, treat as single arg
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
       return (Number(a) || 0) + (Number(b) || 0);
     });
 
-    this.handlebars.registerHelper('subtract', (a: number, b: number) => {
+    this.handlebars.registerHelper('subtract', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
       return (Number(a) || 0) - (Number(b) || 0);
     });
 
-    this.handlebars.registerHelper('multiply', (a: number, b: number) => {
-      return (Number(a) || 0) * (Number(b) || 0);
+    this.handlebars.registerHelper('multiply', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 1;
+      return (Number(a) || 0) * (Number(b) || 1);
     });
 
-    this.handlebars.registerHelper('divide', (a: number, b: number) => {
+    this.handlebars.registerHelper('divide', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 1;
       const divisor = Number(b) || 1;
       return (Number(a) || 0) / divisor;
     });
 
-    this.handlebars.registerHelper('floor', (a: number) => {
+    this.handlebars.registerHelper('floor', (a: unknown) => {
       return Math.floor(Number(a) || 0);
     });
 
-    this.handlebars.registerHelper('ceil', (a: number) => {
+    this.handlebars.registerHelper('ceil', (a: unknown) => {
       return Math.ceil(Number(a) || 0);
     });
 
-    this.handlebars.registerHelper('round', (a: number) => {
+    this.handlebars.registerHelper('round', (a: unknown) => {
       return Math.round(Number(a) || 0);
     });
 
@@ -123,12 +128,14 @@ export class TemplateEngine {
     });
 
     // Max helper - returns the larger of two values
-    this.handlebars.registerHelper('max', (a: number, b: number) => {
+    this.handlebars.registerHelper('max', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
       return Math.max(Number(a) || 0, Number(b) || 0);
     });
 
     // Min helper - returns the smaller of two values
-    this.handlebars.registerHelper('min', (a: number, b: number) => {
+    this.handlebars.registerHelper('min', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
       return Math.min(Number(a) || 0, Number(b) || 0);
     });
   }
