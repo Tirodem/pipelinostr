@@ -38,14 +38,13 @@ trigger:
     # from_whitelist: true  # Uncomment to restrict to whitelist
     content_pattern: "^/claudeDM\\s+(?<question>.{1,4000})$"
 
-# Configuration variables
-variables:
-  min_balance_sats: 40
-  max_tokens: 1000
-  sats_per_1k_tokens: 10
+# Configuration (hard-coded for now, variables support coming later)
+# min_balance_sats: 40
+# max_tokens: 1000
+# sats_per_1k_tokens: 10
 
 actions:
-  # Step 1: Check user's balance
+  # Step 1: Check user's balance (minimum 40 SATs)
   - id: check_balance
     type: workflow_db
     config:
@@ -54,7 +53,7 @@ actions:
       namespace: balances
       key: "balance:{{ trigger.from }}"
       operator: gte
-      compare_value: "{{ variables.min_balance_sats }}"
+      compare_value: 40
     on_fail:
       workflow: claudeDM-insufficient-balance
       pass_context: true
@@ -80,7 +79,7 @@ actions:
       pass_context: true
 
   # Step 4: Debit user's balance based on tokens used
-  # Cost = ceil(tokens_used * sats_per_1k_tokens / 1000), minimum 1 SAT
+  # Cost = ceil(tokens_used * 10 / 1000), minimum 1 SAT
   - id: debit_balance
     type: workflow_db
     config:
@@ -88,7 +87,7 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.from }}"
-      amount: "{{ sats_cost actions.claude_request.response.tokens_used variables.sats_per_1k_tokens }}"
+      amount: "{{ sats_cost actions.claude_request.response.tokens_used 10 }}"
       min_value: 0
       track_history: true
 
@@ -111,5 +110,5 @@ actions:
 
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
-        Cout: {{ sats_cost actions.claude_request.response.tokens_used variables.sats_per_1k_tokens }} SATs
+        Cout: {{ sats_cost actions.claude_request.response.tokens_used 10 }} SATs
         Solde: {{ actions.get_new_balance.response.value | default: 0 }} SATs
