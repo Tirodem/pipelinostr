@@ -21,6 +21,16 @@ else
     STASHED=0
 fi
 
+# Force fetch to ensure we have latest remote refs
+echo "Fetching from remote..."
+git fetch origin
+
+# Show what will be pulled
+BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo "0")
+if [ "$BEHIND" -gt 0 ]; then
+    echo -e "${YELLOW}$BEHIND commit(s) to pull${NC}"
+fi
+
 # Try to pull
 if ! git pull; then
     echo -e "${RED}Git pull failed${NC}"
