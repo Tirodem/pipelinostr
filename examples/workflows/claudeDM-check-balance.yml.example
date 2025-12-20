@@ -30,10 +30,12 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        DEBUG paths:
-        - response.data.value: {{ actions.get_balance.response.data.value }}
-        - response.data.found: {{ actions.get_balance.response.data.found }}
-        - data.value: {{ actions.get_balance.data.value }}
-        - data.found: {{ actions.get_balance.data.found }}
-        - response.value: {{ actions.get_balance.response.value }}
-        - value: {{ actions.get_balance.value }}
+        {{#if actions.get_balance.response.found}}
+        Votre solde actuel: {{ actions.get_balance.response.value }} SATs
+
+        Pour crediter votre solde, envoyez un zap a l'une des npubs surveillees.
+        {{else}}
+        Vous n'avez pas encore de solde.
+
+        Pour crediter votre compte, envoyez un zap a l'une des npubs surveillees.
+        {{/if}}

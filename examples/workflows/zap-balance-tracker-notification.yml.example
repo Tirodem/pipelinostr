@@ -30,6 +30,6 @@ actions:
         Vous avez fait un zap de {{ trigger.zap.amount }} SATs.
 
         Votre solde a ete credite!
-        Nouveau solde: {{ actions.get_balance.response.data.value }} SATs
+        Nouveau solde: {{ actions.get_balance.response.value }} SATs
 
         Merci pour votre soutien!
