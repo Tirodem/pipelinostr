@@ -32,9 +32,52 @@
 1. **Handlers** : Un fichier par handler dans `src/outbound/`, config YAML dans `config/handlers/`
 2. **Workflows** : YAML dans `config/workflows/`, exemples dans `examples/workflows/`
 3. **Queue** : SQLite `event_queue` table, statuts: pending → processing → completed/failed/dead
-4. **Hooks** : `on_start`, `on_complete`, `on_fail` pour chaîner workflows
+4. **Hooks** : `on_start`, `on_complete`, `on_fail` pour chaîner workflows (voir section dédiée)
 5. **GPIO Bookworm** : Utiliser `pigpio` (pas `onoff`) pour Raspberry Pi OS Bookworm
 6. **Templates** : Handlebars avec filtres custom (`trim`, `sats_to_btc`, `date`, etc.)
+7. **Variables** : Définies par workflow, accessibles via `{{ variables.xxx }}` et `{{ parent.variables.xxx }}`
+
+## Logique des Hooks (IMPORTANT)
+
+Les workflows peuvent chaîner d'autres workflows via des hooks. Chaque type a un usage spécifique :
+
+### Types de hooks
+
+| Hook | Quand | Usage | Bloquant |
+|------|-------|-------|----------|
+| `on_start` | Au début du workflow | Lancer des workflows parallèles (indépendants) | Non (fire & forget) |
+| `on_complete` | Quand le workflow réussit | Chaîner séquentiellement (workflow A → workflow B) | Oui |
+| `on_fail` | Quand le workflow échoue | Gérer les erreurs, envoyer notifications | Oui |
+
+### Hook action-level `on_fail`
+
+Les actions peuvent aussi avoir un `on_fail` qui :
+1. Déclenche un workflow d'erreur
+2. **Stoppe les actions restantes** du workflow courant
+3. Le workflow parent échoue (pas de `on_complete`)
+
+### Pattern de chaînage recommandé
+
+```
+workflow-gate (entry point, définit les variables/seuils)
+│ variables: { threshold: 40, ... }
+│
+├─ action: check (vérifie condition)
+│     └─ on_fail → workflow-error (envoie message erreur)
+│                   Accède aux variables via {{ parent.variables.xxx }}
+│
+└─ hooks:
+     on_complete → workflow-process (traitement principal)
+                   Accède aux variables via {{ parent.variables.xxx }}
+```
+
+### Règle d'or
+
+**Le workflow qui définit une valeur (seuil, config) doit être celui qui l'utilise ou la transmet.**
+
+Exemple ClaudeDM :
+- `claudeDM-balance-gate` définit `min_balance_sats: 40` et fait le check
+- `claudeDM-insufficient-balance` affiche `{{ parent.variables.min_balance_sats }}`
 
 ## Conventions de code
 
@@ -96,6 +139,10 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 - **Handler `workflow_db`** : persistence état workflows (balances, compteurs, flags)
 - **Workflows ClaudeDM** : zap-balance-tracker, claudeDM-entry, error handlers
 - Backlog : NIP-17 migration, workflow import via Nostr, paid video streaming
+- **Support variables workflow** : `{{ variables.xxx }}` et `{{ parent.variables.xxx }}`
+- **Action-level on_fail** : hook sur action qui stoppe le workflow et déclenche erreur
+- **Refactor ClaudeDM** : balance-gate → process → insufficient-balance (chaînage propre)
+- **Wildcards CLI** : `workflow enable claudeDM-*` avec patterns `*` et `?`
 
 ### 2025-12-19
 - Ajout backlog : SMS Gateway for Android (capcom6)
@@ -267,8 +314,13 @@ pipelinostr-status.yml     /pipelinostr status → system info
 ### Variables template
 - `trigger.*` : Données de l'événement déclencheur
 - `match.*` : Groupes capturés par regex
-- `actions.{id}.*` : Résultats des actions précédentes
+- `actions.{id}.*` : Résultats des actions précédentes (`.response.*` pour les données)
+- `variables.*` : Variables définies dans le workflow courant
 - `parent.*` : Contexte du workflow parent (hooks)
+  - `parent.trigger.*` : Événement du parent
+  - `parent.match.*` : Groupes regex du parent
+  - `parent.variables.*` : Variables du parent
+  - `parent.actions.*` : Résultats des actions du parent
 
 ## Problèmes connus
 

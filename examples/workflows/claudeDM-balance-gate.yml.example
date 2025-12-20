@@ -1,0 +1,54 @@
+# ClaudeDM Balance Gate - Entry Point
+#
+# Entry point for ClaudeDM service.
+# Checks if user has sufficient balance before processing.
+#
+# Usage: Send a DM with "/claudeDM <your question>"
+#
+# Flow:
+# 1. Check if user has sufficient balance (defined in variables)
+# 2. If OK -> on_complete -> claudeDM-process
+# 3. If insufficient -> on_fail -> claudeDM-insufficient-balance
+#
+# Prerequisites:
+# - zap-balance-tracker workflow running (to credit balances via zaps)
+# - workflow_db handler (system)
+
+id: claudeDM-balance-gate
+name: ClaudeDM Balance Gate
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]  # Encrypted DMs (NIP-04 and NIP-17)
+    # from_whitelist: true  # Uncomment to restrict to whitelist
+    content_pattern: "^/claudeDM\\s+(?<question>.{1,4000})$"
+
+# Variables accessible via {{ variables.xxx }}
+# and in child workflows via {{ parent.variables.xxx }}
+variables:
+  min_balance_sats: 40
+  sats_per_1k_tokens: 10
+  max_tokens: 1000
+
+actions:
+  # Check user's balance against threshold
+  - id: check_balance
+    type: workflow_db
+    config:
+      action: check
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.from }}"
+      operator: gte
+      compare_value: "{{ variables.min_balance_sats }}"
+    on_fail:
+      workflow: claudeDM-insufficient-balance
+      pass_context: true
+
+hooks:
+  # If balance check passes, proceed to Claude processing
+  on_complete:
+    - workflow_id: claudeDM-process
+      pass_context: true

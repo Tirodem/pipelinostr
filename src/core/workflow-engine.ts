@@ -172,6 +172,7 @@ export class WorkflowEngine {
       trigger: triggerContext,
       match: match.groups,
       actions: {},
+      variables: workflow.variables,
       parent: parentInfo,
     };
 
@@ -223,7 +224,7 @@ export class WorkflowEngine {
             );
 
             // Build parent info for the hook workflow
-            const parentInfo: ParentWorkflowInfo = {
+            const hookParentInfo: ParentWorkflowInfo = {
               id: workflow.id,
               name: workflow.name,
               success: false,
@@ -231,6 +232,7 @@ export class WorkflowEngine {
               actionsFailed,
               actionsSkipped,
               error: actionResult.error,
+              variables: workflow.variables,
             };
 
             // Create match result for the hook
@@ -239,7 +241,7 @@ export class WorkflowEngine {
               : { matched: true, groups: {} };
 
             // Execute hook workflow (don't await to not block, but log result)
-            this.executeWorkflow(hookWorkflow, hookMatch, context.trigger, parentInfo)
+            this.executeWorkflow(hookWorkflow, hookMatch, context.trigger, hookParentInfo)
               .then((result) => {
                 this.hookRecorder?.(
                   'on_fail',
@@ -346,6 +348,7 @@ export class WorkflowEngine {
           actionsFailed: executionResult?.actionsFailed ?? 0,
           actionsSkipped: executionResult?.actionsSkipped ?? 0,
           error: executionResult?.error,
+          variables: parentWorkflow.variables,
         };
 
         logger.info({ hookType, parentId: parentWorkflow.id, targetId: hook.workflow_id }, 'Executing hook');

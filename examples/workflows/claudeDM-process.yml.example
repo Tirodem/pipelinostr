@@ -1,0 +1,64 @@
+# ClaudeDM Process - Claude API Call and Response
+#
+# Triggered by claudeDM-balance-gate on_complete hook.
+# Calls Claude API, debits balance, sends response.
+#
+# Receives from parent:
+# - parent.trigger: original DM event
+# - parent.match.question: the user's question
+# - parent.variables: config (sats_per_1k_tokens, max_tokens)
+
+id: claudeDM-process
+name: ClaudeDM Process
+enabled: false
+
+trigger:
+  type: hook
+  source_workflow: claudeDM-balance-gate
+
+actions:
+  # Step 1: Call Claude API
+  - id: claude_request
+    type: claude
+    config:
+      action: chat
+      message: "{{ parent.match.question }}"
+      max_tokens: 1000
+    on_fail:
+      workflow: claudeDM-error-response
+      pass_context: true
+
+  # Step 2: Debit user's balance based on tokens used
+  # Cost = ceil(tokens_used * sats_per_1k_tokens / 1000), minimum 1 SAT
+  - id: debit_balance
+    type: workflow_db
+    config:
+      action: decrement
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ parent.trigger.from }}"
+      amount: "{{ sats_cost actions.claude_request.response.tokens_used 10 }}"
+      min_value: 0
+      track_history: true
+
+  # Step 3: Get new balance after debit
+  - id: get_new_balance
+    type: workflow_db
+    config:
+      action: get
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ parent.trigger.from }}"
+
+  # Step 4: Reply to user with response and cost info
+  - id: reply
+    type: nostr_dm
+    config:
+      to: "{{ parent.trigger.from }}"
+      content: |
+        {{ actions.claude_request.response.response }}
+
+        ---
+        Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
+        Cout: {{ sats_cost actions.claude_request.response.tokens_used 10 }} SATs
+        Solde: {{ actions.get_new_balance.response.value | default: 0 }} SATs

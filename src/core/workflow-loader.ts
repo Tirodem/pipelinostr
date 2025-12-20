@@ -74,6 +74,9 @@ export class WorkflowLoader {
     // Parse hooks if present
     const hooks = this.parseHooks(raw['hooks'] as Record<string, unknown> | undefined);
 
+    // Parse variables if present
+    const variables = raw['variables'] as Record<string, unknown> | undefined;
+
     const workflow: WorkflowDefinition = {
       id: raw['id'] as string,
       name: (raw['name'] as string) ?? raw['id'],
@@ -97,6 +100,7 @@ export class WorkflowLoader {
         };
       }),
       hooks,
+      variables,
     };
 
     logger.debug({ id: workflow.id, name: workflow.name, enabled: workflow.enabled, hasHooks: !!hooks }, 'Workflow loaded');

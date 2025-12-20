@@ -1,7 +1,11 @@
 # ClaudeDM Insufficient Balance Response
 #
-# Called when user doesn't have enough SATs to use ClaudeDM.
-# Triggered by on_fail hook from claudeDM-entry.
+# Triggered when user doesn't have enough SATs.
+# Called by on_fail hook from claudeDM-balance-gate.
+#
+# Receives from parent:
+# - parent.trigger: original DM event
+# - parent.variables.min_balance_sats: required minimum
 
 id: claudeDM-insufficient-balance
 name: ClaudeDM - Insufficient Balance
@@ -9,9 +13,10 @@ enabled: false
 
 trigger:
   type: hook
-  source_workflow: claudeDM-entry
+  source_workflow: claudeDM-balance-gate
 
 actions:
+  # Get current balance (may be 0 or not exist)
   - id: get_balance
     type: workflow_db
     config:
@@ -28,9 +33,9 @@ actions:
         Solde insuffisant pour utiliser ClaudeDM.
 
         Votre solde: {{ actions.get_balance.response.value | default: 0 }} SATs
-        Minimum requis: 40 SATs
+        Minimum requis: {{ parent.variables.min_balance_sats }} SATs
 
         Pour recharger votre solde, envoyez des zaps vers:
         npub1... (configurez votre npub cible ici)
 
-        1 SAT zappé = 1 SAT de crédit
+        1 SAT zappe = 1 SAT de credit

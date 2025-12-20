@@ -112,6 +112,9 @@ export interface WorkflowDefinition {
 
   // Lifecycle hooks for workflow chaining
   hooks?: WorkflowHooks | undefined;
+
+  // Workflow-level variables (accessible via {{ variables.xxx }})
+  variables?: Record<string, unknown> | undefined;
 }
 
 // Runtime context types
@@ -183,12 +186,18 @@ export interface ParentWorkflowInfo {
   actionsFailed: number;
   actionsSkipped: number;
   error?: string | undefined;
+
+  // Parent workflow variables (accessible via {{ parent.variables.xxx }})
+  variables?: Record<string, unknown> | undefined;
 }
 
 export interface WorkflowContext {
   trigger: TriggerContext;
   match: Record<string, string>;
   actions: Record<string, ActionResult>;
+
+  // Workflow-level variables (accessible via {{ variables.xxx }})
+  variables?: Record<string, unknown> | undefined;
 
   // Info about parent workflow (when triggered via hook)
   parent?: ParentWorkflowInfo | undefined;
