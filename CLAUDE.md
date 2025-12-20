@@ -335,6 +335,11 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - Préférer les réponses concises
 - Utiliser TodoWrite pour tâches complexes (3+ étapes)
 - **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
+- **APRÈS PUSH** : Toujours préciser les commandes à exécuter sur le serveur pour tester :
+  - `./scripts/rebuild.sh` (si code TypeScript modifié)
+  - `./scripts/pipelinostr.sh workflow refresh <id>` (si workflow .example modifié)
+  - `./scripts/pipelinostr.sh handler refresh <id>` (si handler .example modifié)
+  - `./scripts/pipelinostr.sh workflow enable <id>` / `handler enable <id>` (si refresh désactive)
 - Le projet tourne sur Windows (dev) et Linux (prod/RPi)
 - Permissions Edit/Write dans `.claude/settings.local.json`
 
