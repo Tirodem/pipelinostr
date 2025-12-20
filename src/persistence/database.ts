@@ -117,6 +117,8 @@ export class PipelinostrDatabase {
       CREATE INDEX IF NOT EXISTS idx_event_queue_priority ON event_queue(priority DESC, created_at ASC);
 
       -- Table état des workflows (balances, compteurs, flags)
+      -- Note: workflow_id is metadata (last writer), not part of unique key
+      -- Unique key is (namespace, state_key) - namespace provides isolation
       CREATE TABLE IF NOT EXISTS workflow_state (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workflow_id TEXT NOT NULL,
@@ -132,10 +134,10 @@ export class PipelinostrDatabase {
         source_pubkey TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(workflow_id, namespace, state_key)
+        UNIQUE(namespace, state_key)
       );
 
-      CREATE INDEX IF NOT EXISTS idx_workflow_state_lookup ON workflow_state(workflow_id, namespace, state_key);
+      CREATE INDEX IF NOT EXISTS idx_workflow_state_lookup ON workflow_state(namespace, state_key);
       CREATE INDEX IF NOT EXISTS idx_workflow_state_pubkey ON workflow_state(source_pubkey);
       CREATE INDEX IF NOT EXISTS idx_workflow_state_updated ON workflow_state(updated_at);
 
@@ -830,12 +832,14 @@ export class PipelinostrDatabase {
 
   // ==================== WorkflowState ====================
 
-  getState(workflowId: string, namespace: string, key: string): WorkflowState | undefined {
+  // Note: workflowId parameter kept for API compatibility but not used in lookup
+  // State is uniquely identified by (namespace, state_key)
+  getState(_workflowId: string, namespace: string, key: string): WorkflowState | undefined {
     const stmt = this.db.prepare(`
       SELECT * FROM workflow_state
-      WHERE workflow_id = ? AND namespace = ? AND state_key = ?
+      WHERE namespace = ? AND state_key = ?
     `);
-    const row = stmt.get(workflowId, namespace, key) as Record<string, unknown> | undefined;
+    const row = stmt.get(namespace, key) as Record<string, unknown> | undefined;
     return row ? this.rowToWorkflowState(row) : undefined;
   }
 
@@ -850,7 +854,8 @@ export class PipelinostrDatabase {
         @value_number, @value_string, @value_json, @value_boolean,
         @source_event_id, @event_log_id, @source_pubkey
       )
-      ON CONFLICT(workflow_id, namespace, state_key) DO UPDATE SET
+      ON CONFLICT(namespace, state_key) DO UPDATE SET
+        workflow_id = @workflow_id,
         value_type = @value_type,
         value_number = @value_number,
         value_string = @value_string,
@@ -879,12 +884,13 @@ export class PipelinostrDatabase {
     return result.lastInsertRowid as number;
   }
 
-  deleteState(workflowId: string, namespace: string, key: string): boolean {
+  // Note: workflowId parameter kept for API compatibility but not used
+  deleteState(_workflowId: string, namespace: string, key: string): boolean {
     const stmt = this.db.prepare(`
       DELETE FROM workflow_state
-      WHERE workflow_id = ? AND namespace = ? AND state_key = ?
+      WHERE namespace = ? AND state_key = ?
     `);
-    const result = stmt.run(workflowId, namespace, key);
+    const result = stmt.run(namespace, key);
     return result.changes > 0;
   }
 
@@ -1008,9 +1014,11 @@ export class PipelinostrDatabase {
     })();
   }
 
-  listStates(workflowId: string, namespace?: string, keyPattern?: string, limit = 100): WorkflowState[] {
-    let sql = 'SELECT * FROM workflow_state WHERE workflow_id = ?';
-    const params: unknown[] = [workflowId];
+  // Note: workflowId parameter kept for API compatibility but not used in query
+  // Use namespace to filter states (primary isolation mechanism)
+  listStates(_workflowId: string, namespace?: string, keyPattern?: string, limit = 100): WorkflowState[] {
+    let sql = 'SELECT * FROM workflow_state WHERE 1=1';
+    const params: unknown[] = [];
 
     if (namespace) {
       sql += ' AND namespace = ?';

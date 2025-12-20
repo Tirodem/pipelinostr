@@ -57,14 +57,8 @@ actions:
       namespace: balances
       key: "balance:{{ trigger.zap.sender }}"
 
-  # Optional: Notify about the credit
-  # Uncomment and configure your preferred notification handler
-  #
-  # - id: notify_credit
-  #   type: nostr_dm
-  #   config:
-  #     recipient: "{{ trigger.zap.sender }}"
-  #     content: |
-  #       ⚡ Zap reçu! +{{ trigger.zap.amount }} SATs
-  #       Nouveau solde: {{ actions.get_balance.value }} SATs
-  #       Merci pour votre soutien!
+# Hook to send notification DM after balance is credited
+hooks:
+  on_complete:
+    - workflow_id: zap-balance-tracker-notification
+      pass_context: true

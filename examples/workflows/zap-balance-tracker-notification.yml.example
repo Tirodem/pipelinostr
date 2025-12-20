@@ -1,0 +1,33 @@
+# Zap Balance Tracker Notification
+#
+# Sends a DM to the zap sender confirming their balance was credited.
+# Called via on_complete hook from zap-balance-tracker.
+#
+# Expects from parent context:
+# - parent.trigger.zap.sender: npub to send DM to
+# - parent.trigger.zap.amount: zap amount
+# - parent.actions.increment_balance.response.data.previous: previous balance
+# - parent.actions.increment_balance.response.data.value: new balance
+
+id: zap-balance-tracker-notification
+name: Zap Balance Notification
+enabled: false
+
+# No trigger - called via hook only
+trigger:
+  type: hook
+
+actions:
+  - id: send_notification
+    type: nostr_dm
+    config:
+      to: "{{ parent.trigger.zap.sender }}"
+      content: |
+        Vous avez fait un zap de {{ parent.trigger.zap.amount }} SATs.
+
+        Votre solde a ete credite!
+        Solde precedent: {{ parent.actions.increment_balance.response.data.previous }} SATs
+        Solde actuel: {{ parent.actions.increment_balance.response.data.value }} SATs
+        ({{ parent.actions.increment_balance.response.data.previous }} + {{ parent.trigger.zap.amount }})
+
+        Merci pour votre soutien!

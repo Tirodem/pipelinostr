@@ -1,0 +1,41 @@
+# ClaudeDM Check Balance
+#
+# Allows users to check their SATs balance via DM.
+# Usage: /claudeDM: solde
+#
+# Returns the current balance stored in workflow_db.
+
+id: claudeDM-check-balance
+name: ClaudeDM Check Balance
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]  # Encrypted DMs (NIP-04 and NIP-17)
+    content_pattern: "^/claudeDM:\\s*solde\\s*$"
+
+actions:
+  # Get user's balance
+  - id: get_balance
+    type: workflow_db
+    config:
+      action: get
+      namespace: balances
+      key: "balance:{{ trigger.from }}"
+
+  # Send balance info
+  - id: send_balance
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: |
+        {{#if actions.get_balance.response.data.found}}
+        Votre solde actuel: {{ actions.get_balance.response.data.value }} SATs
+
+        Pour crediter votre solde, envoyez un zap a l'une des npubs surveillees.
+        {{else}}
+        Vous n'avez pas encore de solde.
+
+        Pour crediter votre compte, envoyez un zap a l'une des npubs surveillees.
+        {{/if}}
