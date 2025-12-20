@@ -28,6 +28,7 @@ usage() {
     echo "  workflow show <id>                    Show workflow details"
     echo "  workflow refresh <id|id1,id2,...>     Refresh from example file"
     echo "  workflow load-missing                 Deploy missing workflows from examples"
+    echo "  workflow clean [--purge]              Archive workflows without examples (.old)"
     echo ""
     echo "  handler list [all|enabled|disabled]   List handlers (default: all)"
     echo "  handler enable <name|all>             Enable handler(s)"
@@ -35,6 +36,7 @@ usage() {
     echo "  handler show <name>                   Show handler config"
     echo "  handler refresh <name|name1,name2>    Refresh from example file"
     echo "  handler load-missing                  Deploy missing handlers from examples"
+    echo "  handler clean [--purge]               Archive handlers without examples (.old)"
     echo ""
     echo "  relay list                            List all relays from database"
     echo "  relay add <wss://...>                 Add a relay"
@@ -55,11 +57,14 @@ usage() {
     echo "  $0 workflow disable wf1,wf2,wf3"
     echo "  $0 workflow refresh pipelinostr-status"
     echo "  $0 workflow load-missing"
+    echo "  $0 workflow clean"
+    echo "  $0 workflow clean --purge"
     echo "  $0 handler list"
     echo "  $0 handler enable email"
     echo "  $0 handler disable traccar-sms,discord,twitter"
     echo "  $0 handler refresh telegram,email"
     echo "  $0 handler load-missing"
+    echo "  $0 handler clean --purge"
     echo "  $0 relay list"
     echo "  $0 relay add wss://relay.example.com"
     echo "  $0 relay blacklist +wss://spam.relay.com"
@@ -432,6 +437,64 @@ workflow_load_missing() {
     fi
 }
 
+# Clean workflows without examples (rename to .old, optionally purge)
+workflow_clean() {
+    local purge=0
+    [ "$1" = "--purge" ] && purge=1
+
+    echo -e "${BLUE}Cleaning workflows without examples...${NC}"
+    echo ""
+
+    local archived=0
+    local purged=0
+
+    for file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
+        [ -f "$file" ] || continue
+        # Skip .old files
+        [[ "$file" == *.old ]] && continue
+
+        local basename_file=$(basename "$file")
+        local id=$(get_workflow_id "$file")
+        if [ -z "$id" ]; then
+            id=$(echo "$basename_file" | sed 's/\.ya\?ml$//')
+        fi
+
+        # Check if example exists
+        local has_example=0
+        for ext in ".yml.example" ".yaml.example" ".yml" ".yaml"; do
+            if [ -f "$EXAMPLES_WORKFLOWS_DIR/${id}${ext}" ]; then
+                has_example=1
+                break
+            fi
+        done
+
+        if [ $has_example -eq 0 ]; then
+            mv "$file" "${file}.old"
+            echo -e "${YELLOW}○${NC} Archived: $id → ${basename_file}.old"
+            archived=$((archived + 1))
+        fi
+    done
+
+    # Purge .old files if requested
+    if [ $purge -eq 1 ]; then
+        for old_file in "$WORKFLOWS_DIR"/*.old; do
+            [ -f "$old_file" ] || continue
+            rm "$old_file"
+            echo -e "${RED}✗${NC} Purged: $(basename "$old_file")"
+            purged=$((purged + 1))
+        done
+    fi
+
+    echo ""
+    echo -e "Archived: ${YELLOW}$archived${NC}"
+    [ $purge -eq 1 ] && echo -e "Purged: ${RED}$purged${NC}"
+
+    if [ $archived -gt 0 ] && [ $purge -eq 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Use --purge to delete .old files${NC}"
+    fi
+}
+
 # Get handler name from file (filename without extension)
 get_handler_name() {
     local file="$1"
@@ -711,6 +774,54 @@ handler_load_missing() {
     fi
 }
 
+# Clean handlers without examples (rename to .old, optionally purge)
+handler_clean() {
+    local purge=0
+    [ "$1" = "--purge" ] && purge=1
+
+    echo -e "${BLUE}Cleaning handlers without examples...${NC}"
+    echo ""
+
+    local archived=0
+    local purged=0
+
+    for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
+        [ -f "$file" ] || continue
+        # Skip .old and .example files
+        [[ "$file" == *.old ]] && continue
+        [[ "$file" == *.example ]] && continue
+
+        local name=$(get_handler_name "$file")
+
+        # Check if example exists
+        local example_file="$HANDLERS_DIR/${name}.yml.example"
+        if [ ! -f "$example_file" ]; then
+            mv "$file" "${file}.old"
+            echo -e "${YELLOW}○${NC} Archived: $name → ${name}.yml.old"
+            archived=$((archived + 1))
+        fi
+    done
+
+    # Purge .old files if requested
+    if [ $purge -eq 1 ]; then
+        for old_file in "$HANDLERS_DIR"/*.old; do
+            [ -f "$old_file" ] || continue
+            rm "$old_file"
+            echo -e "${RED}✗${NC} Purged: $(basename "$old_file")"
+            purged=$((purged + 1))
+        done
+    fi
+
+    echo ""
+    echo -e "Archived: ${YELLOW}$archived${NC}"
+    [ $purge -eq 1 ] && echo -e "Purged: ${RED}$purged${NC}"
+
+    if [ $archived -gt 0 ] && [ $purge -eq 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Use --purge to delete .old files${NC}"
+    fi
+}
+
 # Show status
 show_status() {
     echo -e "${BLUE}PipeliNostr Status${NC}"
@@ -976,9 +1087,12 @@ case "${1:-}" in
             load-missing)
                 workflow_load_missing
                 ;;
+            clean)
+                workflow_clean "$3"
+                ;;
             *)
                 echo -e "${RED}Unknown workflow command: ${2:-}${NC}"
-                echo "Use: $0 workflow [list|enable|disable|show|refresh|load-missing]"
+                echo "Use: $0 workflow [list|enable|disable|show|refresh|load-missing|clean]"
                 exit 1
                 ;;
         esac
@@ -1003,9 +1117,12 @@ case "${1:-}" in
             load-missing)
                 handler_load_missing
                 ;;
+            clean)
+                handler_clean "$3"
+                ;;
             *)
                 echo -e "${RED}Unknown handler command: ${2:-}${NC}"
-                echo "Use: $0 handler [list|enable|disable|show|refresh|load-missing]"
+                echo "Use: $0 handler [list|enable|disable|show|refresh|load-missing|clean]"
                 exit 1
                 ;;
         esac

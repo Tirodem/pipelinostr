@@ -88,6 +88,18 @@ Les workflows sont **désactivés par défaut** pour éviter les effets de bord.
 ./scripts/pipelinostr.sh workflow enable zulip-forward,zap-notification
 ```
 
+### Nettoyer les workflows orphelins
+
+Archive les workflows déployés qui n'ont plus de fichier exemple correspondant.
+
+```bash
+# Renommer en .old les workflows sans exemple
+./scripts/pipelinostr.sh workflow clean
+
+# Renommer ET supprimer les .old
+./scripts/pipelinostr.sh workflow clean --purge
+```
+
 ## Handlers
 
 ### Lister les handlers
@@ -160,6 +172,18 @@ Les handlers sont **désactivés par défaut** pour éviter les erreurs de conne
 
 # Puis activer ceux voulus
 ./scripts/pipelinostr.sh handler enable telegram,email
+```
+
+### Nettoyer les handlers orphelins
+
+Archive les handlers déployés qui n'ont plus de fichier exemple correspondant.
+
+```bash
+# Renommer en .old les handlers sans exemple
+./scripts/pipelinostr.sh handler clean
+
+# Renommer ET supprimer les .old
+./scripts/pipelinostr.sh handler clean --purge
 ```
 
 ## Relays
