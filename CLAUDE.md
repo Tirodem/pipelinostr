@@ -43,6 +43,25 @@
 - **Logs** : Pino logger, niveaux debug/info/warn/error
 - **Tests** : Vitest dans `src/__tests__/`
 - **Build** : `npm run build` avant `npm start`
+- **Secrets** : JAMAIS dans les fichiers YAML, toujours dans `.env` avec syntaxe `${VAR_NAME}`
+
+## Convention secrets / .env
+
+**Les secrets (API keys, mots de passe, tokens) ne doivent JAMAIS être dans les fichiers de config.**
+
+Format dans les handlers YAML :
+```yaml
+claude:
+  enabled: true
+  api_key: ${ANTHROPIC_API_KEY}  # Référence à .env
+```
+
+Format dans `.env` :
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+Cette convention s'applique à TOUS les handlers (telegram, email, etc.).
 
 ## Permissions Claude Code
 

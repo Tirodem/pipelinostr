@@ -44,7 +44,10 @@
       "Bash(git push:*)",
       "Bash(grep:*)",
       "Bash(node scripts/split-backlog.js:*)",
-      "Bash(node scripts/split-backlog.cjs:*)"
+      "Bash(node scripts/split-backlog.cjs:*)",
+      "Bash(node scripts/split-backlog-to-files.cjs:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

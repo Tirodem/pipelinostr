@@ -237,11 +237,18 @@ amount: "{{ sats_cost actions.claude_request.data.tokens_used variables.sats_per
 
 2. Configure `zap_recipients` in zap-balance-tracker if needed
 
-3. Configure Claude API key in `config/handlers/claude.yml`:
+3. Configure Claude API key:
+
+   Dans `.env` :
+   ```
+   ANTHROPIC_API_KEY=sk-ant-api03-...
+   ```
+
+   Dans `config/handlers/claude.yml` :
    ```yaml
    claude:
      enabled: true
-     api_key: "sk-ant-..."
+     api_key: ${ANTHROPIC_API_KEY}
    ```
 
 4. Enable workflows:
