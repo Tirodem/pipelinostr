@@ -77,10 +77,15 @@ Cherche les fichiers dans `examples/workflows/` avec les extensions :
 
 ### Déployer les workflows manquants
 
-Déploie tous les workflows exemples qui ne sont pas encore dans `config/workflows/` :
+Déploie tous les workflows exemples qui ne sont pas encore dans `config/workflows/`.
+Les workflows sont **désactivés par défaut** pour éviter les effets de bord.
 
 ```bash
+# Déployer les exemples manquants (désactivés)
 ./scripts/pipelinostr.sh workflow load-missing
+
+# Puis activer ceux voulus
+./scripts/pipelinostr.sh workflow enable zulip-forward,zap-notification
 ```
 
 ## Handlers
@@ -146,10 +151,15 @@ Cherche les fichiers dans `config/handlers/` avec l'extension `.yml.example`.
 
 ### Déployer les handlers manquants
 
-Déploie tous les handlers exemples qui ne sont pas encore déployés :
+Déploie tous les handlers exemples qui ne sont pas encore déployés.
+Les handlers sont **désactivés par défaut** pour éviter les erreurs de connexion.
 
 ```bash
+# Déployer les exemples manquants (désactivés)
 ./scripts/pipelinostr.sh handler load-missing
+
+# Puis activer ceux voulus
+./scripts/pipelinostr.sh handler enable telegram,email
 ```
 
 ## Relays

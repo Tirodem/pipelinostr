@@ -388,7 +388,7 @@ workflow_refresh() {
     fi
 }
 
-# Load missing workflows from examples
+# Load missing workflows from examples (disabled by default)
 workflow_load_missing() {
     echo -e "${BLUE}Loading missing workflows from examples...${NC}"
     echo ""
@@ -415,9 +415,10 @@ workflow_load_missing() {
             continue
         fi
 
-        # Copy example to config
+        # Copy example to config and disable it
         cp "$example_file" "$target_file"
-        echo -e "${GREEN}✓${NC} Deployed: $id → $target_name"
+        sed -i 's/^enabled:\s*true/enabled: false/' "$target_file"
+        echo -e "${GREEN}✓${NC} Deployed (disabled): $id → $target_name"
         loaded=$((loaded + 1))
     done
 
@@ -426,8 +427,8 @@ workflow_load_missing() {
 
     if [ $loaded -gt 0 ]; then
         echo ""
-        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
-        echo "  $0 restart"
+        echo -e "${YELLOW}Workflows are disabled by default. Enable with:${NC}"
+        echo "  $0 workflow enable <id>"
     fi
 }
 
@@ -672,7 +673,7 @@ handler_refresh() {
     fi
 }
 
-# Load missing handlers from examples
+# Load missing handlers from examples (disabled by default)
 handler_load_missing() {
     echo -e "${BLUE}Loading missing handlers from examples...${NC}"
     echo ""
@@ -693,9 +694,10 @@ handler_load_missing() {
             continue
         fi
 
-        # Copy example
+        # Copy example and disable it
         cp "$example_file" "$target_file"
-        echo -e "${GREEN}✓${NC} Deployed: $name"
+        sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$target_file"
+        echo -e "${GREEN}✓${NC} Deployed (disabled): $name"
         loaded=$((loaded + 1))
     done
 
@@ -704,8 +706,8 @@ handler_load_missing() {
 
     if [ $loaded -gt 0 ]; then
         echo ""
-        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
-        echo "  $0 restart"
+        echo -e "${YELLOW}Handlers are disabled by default. Enable with:${NC}"
+        echo "  $0 handler enable <name>"
     fi
 }
 
