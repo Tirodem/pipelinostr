@@ -37,7 +37,7 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.from }}"
-      amount: "{{ max (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }}"
+      amount: "{{ at_least (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }}"
       min_value: 0
       track_history: true
 
@@ -60,5 +60,5 @@ actions:
 
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
-        Cout: {{ max (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }} SATs
+        Cout: {{ at_least (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }} SATs
         Solde: {{ default actions.get_new_balance.response.value 0 }} SATs

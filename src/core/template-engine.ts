@@ -138,6 +138,21 @@ export class TemplateEngine {
       if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
       return Math.min(Number(a) || 0, Number(b) || 0);
     });
+
+    // Semantic aliases for clearer intent
+    // at_least: ensures a minimum value (equivalent to max)
+    // Usage: {{ at_least value 1 }} = "value but at least 1"
+    this.handlebars.registerHelper('at_least', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = 0;
+      return Math.max(Number(a) || 0, Number(b) || 0);
+    });
+
+    // at_most: ensures a maximum value (equivalent to min)
+    // Usage: {{ at_most value 100 }} = "value but at most 100"
+    this.handlebars.registerHelper('at_most', (a: unknown, b: unknown) => {
+      if (typeof b === 'object' && b !== null && 'hash' in b) b = Infinity;
+      return Math.min(Number(a) || 0, Number(b) || Infinity);
+    });
   }
 
   compile(template: string): HandlebarsTemplateDelegate {
