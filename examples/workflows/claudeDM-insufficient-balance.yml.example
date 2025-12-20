@@ -32,7 +32,7 @@ actions:
       content: |
         Solde insuffisant pour utiliser ClaudeDM.
 
-        Votre solde: {{ actions.get_balance.response.value | default: 0 }} SATs
+        Votre solde: {{ default actions.get_balance.response.value 0 }} SATs
         Minimum requis: {{ parent.variables.min_balance_sats }} SATs
 
         Pour recharger votre solde, envoyez des zaps vers:

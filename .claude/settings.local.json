@@ -47,7 +47,8 @@
       "Bash(node scripts/split-backlog.cjs:*)",
       "Bash(node scripts/split-backlog-to-files.cjs:*)",
       "Bash(mkdir:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

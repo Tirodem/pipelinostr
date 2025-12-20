@@ -65,8 +65,8 @@ actions:
         - **ID:** {{ parent.id }}
         - **Name:** {{ parent.name }}
         - **Failed actions:** {{ parent.actionsFailed }}
-        - **Error:** {{ parent.error | default:No error message }}
-        - **Trigger:** {{ trigger.from | truncate:20 }}
+        - **Error:** {{ default parent.error "No error message" }}
+        - **Trigger:** {{ truncate trigger.from 20 }}
 
 # Example: Add hooks to any workflow to receive notifications
 #

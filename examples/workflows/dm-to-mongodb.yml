@@ -42,7 +42,7 @@ actions:
           npub: "{{ trigger.from }}"
           relay: "{{ trigger.relayUrl }}"
         event_type: "dm_command"
-        category: "{{ match.category | default: 'general' }}"
+        category: "{{ default match.category 'general' }}"
         payload:
           command: "mongo"
           data: "{{ match.data }}"

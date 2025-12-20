@@ -34,4 +34,4 @@ actions:
       content: |
         Le workflow {{ parent.id }} / {{ parent.name }} vient de se terminer !
         Statut : {{ parent.success }}
-        Actions : {{ parent.actionsExecuted }} exécutées, {{ parent.actionsFailed }} échouées, {{ parent.actionsSkipped }} ignorées {{ parent.error | default: }}
+        Actions : {{ parent.actionsExecuted }} exécutées, {{ parent.actionsFailed }} échouées, {{ parent.actionsSkipped }} ignorées {{ default parent.error "" }}

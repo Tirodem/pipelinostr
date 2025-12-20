@@ -61,4 +61,4 @@ actions:
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
         Cout: {{ max (ceil (divide actions.claude_request.response.tokens_used 100)) 1 }} SATs
-        Solde: {{ actions.get_new_balance.response.value | default: 0 }} SATs
+        Solde: {{ default actions.get_new_balance.response.value 0 }} SATs
