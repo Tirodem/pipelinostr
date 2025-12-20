@@ -42,7 +42,9 @@
       "WebFetch(domain:crosscall.com)",
       "WebFetch(domain:www.crosscall.com)",
       "Bash(git push:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(node scripts/split-backlog.js:*)",
+      "Bash(node scripts/split-backlog.cjs:*)"
     ],
     "deny": [],
     "ask": []
