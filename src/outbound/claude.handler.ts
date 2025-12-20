@@ -77,7 +77,7 @@ export interface ClaudeHandlerOptions {
 }
 
 export interface ClaudeActionConfig extends HandlerConfig {
-  action: 'generate' | 'explain' | 'validate';
+  action: 'generate' | 'explain' | 'validate' | 'status';
   prompt?: string;
   workflowId?: string;
   workflowContent?: string;
@@ -136,6 +136,9 @@ export class ClaudeHandler implements Handler {
 
         case 'validate':
           return this.validateWorkflow(claudeConfig.workflowContent ?? '');
+
+        case 'status':
+          return this.getStatus(userId);
 
         default:
           return { success: false, error: `Unknown action: ${claudeConfig.action}` };
@@ -328,6 +331,59 @@ Inclus:
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: `YAML invalide: ${errorMessage}` };
     }
+  }
+
+  private getStatus(userId: string): HandlerResult {
+    const pendingWorkflows = ClaudeHandler.listPendingWorkflows(userId);
+    const allPendingCount = ClaudeHandler.pendingWorkflows.size;
+
+    const status = {
+      configured: !!this.apiKey,
+      model: this.model,
+      maxTokens: this.maxTokens,
+      allowedHandlers: Array.from(this.allowedHandlers),
+      pendingWorkflows: {
+        forUser: pendingWorkflows.length,
+        total: allPendingCount,
+        list: pendingWorkflows.map(pw => ({
+          id: pw.id,
+          description: pw.description.substring(0, 50) + (pw.description.length > 50 ? '...' : ''),
+          createdAt: new Date(pw.createdAt).toISOString(),
+          expiresIn: Math.round((ClaudeHandler.PENDING_EXPIRY_MS - (Date.now() - pw.createdAt)) / 1000) + 's',
+        })),
+      },
+    };
+
+    const lines: string[] = [
+      '🤖 Claude Handler Status',
+      '',
+      `✅ Configured: ${status.configured ? 'Yes' : 'No'}`,
+      `📦 Model: ${status.model}`,
+      `📝 Max tokens: ${status.maxTokens}`,
+      '',
+      `⏳ Pending workflows: ${status.pendingWorkflows.forUser} (yours) / ${status.pendingWorkflows.total} (total)`,
+    ];
+
+    if (pendingWorkflows.length > 0) {
+      lines.push('');
+      for (const pw of status.pendingWorkflows.list) {
+        lines.push(`  • ${pw.id}: ${pw.description} (expires in ${pw.expiresIn})`);
+      }
+      lines.push('');
+      lines.push('💡 Use /activate <id> to deploy, /cancel <id> to discard');
+    }
+
+    lines.push('');
+    lines.push(`🔧 Allowed handlers: ${status.allowedHandlers.length}`);
+    lines.push(`  ${status.allowedHandlers.join(', ')}`);
+
+    return {
+      success: true,
+      data: {
+        status,
+        formatted: lines.join('\n'),
+      },
+    };
   }
 
   private extractHandlerTypes(yamlContent: string): string[] {
