@@ -262,6 +262,27 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - Le projet tourne sur Windows (dev) et Linux (prod/RPi)
 - Permissions Edit/Write dans `.claude/settings.local.json`
 
+## Historique des prompts (OBLIGATOIRE)
+
+**Dossier :** `prompt_history/` - Un fichier par jour `YYYY-MM-DD.md`
+
+**À chaque session :**
+1. Lire le dernier fichier pour contexte
+2. Ajouter les prompts utilisateur au fil de l'eau
+3. Format : résumé concis de la demande + décisions prises
+
+**À enregistrer :**
+- Demandes fonctionnelles (features, bugs, refactoring)
+- Décisions d'architecture
+- Choix techniques validés
+
+**À NE PAS enregistrer :**
+- Logs copiés-collés
+- Messages de debug/diagnostic
+- Questions techniques ponctuelles sans impact
+
+**Ce dossier est public** - ne contient que les intentions, pas de données sensibles.
+
 ## Procédure de mise à jour de ce fichier
 
 Après chaque session significative :
