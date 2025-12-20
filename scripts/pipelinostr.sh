@@ -400,9 +400,10 @@ workflow_refresh() {
                         rm "$target_file"
                     fi
 
-                    # Copy example to config
+                    # Copy example to config and disable by default
                     cp "$example_file" "$target_file"
-                    echo -e "${GREEN}✓${NC} Refreshed: $id → $target_name"
+                    sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed (disabled): $id → $target_name"
                     refreshed=$((refreshed + 1))
                 fi
             done
@@ -422,9 +423,10 @@ workflow_refresh() {
                         rm "$target_file"
                     fi
 
-                    # Copy example to config
+                    # Copy example to config and disable by default
                     cp "$example_file" "$target_file"
-                    echo -e "${GREEN}✓${NC} Refreshed: $target → $target_name"
+                    sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed (disabled): $target → $target_name"
                     refreshed=$((refreshed + 1))
                     break
                 fi
@@ -782,9 +784,10 @@ handler_refresh() {
                         rm "$target_file"
                     fi
 
-                    # Copy example
+                    # Copy example and disable by default
                     cp "$example_file" "$target_file"
-                    echo -e "${GREEN}✓${NC} Refreshed: $name"
+                    sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$target_file"
+                    echo -e "${GREEN}✓${NC} Refreshed (disabled): $name"
                     refreshed=$((refreshed + 1))
                 fi
             done
@@ -800,9 +803,10 @@ handler_refresh() {
                     rm "$target_file"
                 fi
 
-                # Copy example
+                # Copy example and disable by default
                 cp "$example_file" "$target_file"
-                echo -e "${GREEN}✓${NC} Refreshed: $target"
+                sed -i 's/^\(\s*\)enabled:\s*true/\1enabled: false/' "$target_file"
+                echo -e "${GREEN}✓${NC} Refreshed (disabled): $target"
                 refreshed=$((refreshed + 1))
             fi
 
