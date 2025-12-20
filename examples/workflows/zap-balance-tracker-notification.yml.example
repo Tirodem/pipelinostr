@@ -21,13 +21,13 @@ actions:
   - id: send_notification
     type: nostr_dm
     config:
-      to: "{{ parent.trigger.zap.sender }}"
+      to: "{{ trigger.zap.sender }}"
       content: |
-        Vous avez fait un zap de {{ parent.trigger.zap.amount }} SATs.
+        Vous avez fait un zap de {{ trigger.zap.amount }} SATs.
 
         Votre solde a ete credite!
         Solde precedent: {{ parent.actions.increment_balance.response.data.previous }} SATs
         Solde actuel: {{ parent.actions.increment_balance.response.data.value }} SATs
-        ({{ parent.actions.increment_balance.response.data.previous }} + {{ parent.trigger.zap.amount }})
+        ({{ parent.actions.increment_balance.response.data.previous }} + {{ trigger.zap.amount }})
 
         Merci pour votre soutien!
