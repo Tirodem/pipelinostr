@@ -27,11 +27,14 @@ usage() {
     echo "  workflow disable <id|all>             Disable workflow(s)"
     echo "  workflow show <id>                    Show workflow details"
     echo "  workflow refresh <id|id1,id2,...>     Refresh from example file"
+    echo "  workflow load-missing                 Deploy missing workflows from examples"
     echo ""
     echo "  handler list [all|enabled|disabled]   List handlers (default: all)"
     echo "  handler enable <name|all>             Enable handler(s)"
     echo "  handler disable <name|all>            Disable handler(s)"
     echo "  handler show <name>                   Show handler config"
+    echo "  handler refresh <name|name1,name2>    Refresh from example file"
+    echo "  handler load-missing                  Deploy missing handlers from examples"
     echo ""
     echo "  relay list                            List all relays from database"
     echo "  relay add <wss://...>                 Add a relay"
@@ -51,9 +54,12 @@ usage() {
     echo "  $0 workflow disable all"
     echo "  $0 workflow disable wf1,wf2,wf3"
     echo "  $0 workflow refresh pipelinostr-status"
+    echo "  $0 workflow load-missing"
     echo "  $0 handler list"
     echo "  $0 handler enable email"
     echo "  $0 handler disable traccar-sms,discord,twitter"
+    echo "  $0 handler refresh telegram,email"
+    echo "  $0 handler load-missing"
     echo "  $0 relay list"
     echo "  $0 relay add wss://relay.example.com"
     echo "  $0 relay blacklist +wss://spam.relay.com"
@@ -382,6 +388,49 @@ workflow_refresh() {
     fi
 }
 
+# Load missing workflows from examples
+workflow_load_missing() {
+    echo -e "${BLUE}Loading missing workflows from examples...${NC}"
+    echo ""
+
+    local loaded=0
+    local skipped=0
+
+    for example_file in "$EXAMPLES_WORKFLOWS_DIR"/*.yml.example "$EXAMPLES_WORKFLOWS_DIR"/*.yaml.example; do
+        [ -f "$example_file" ] || continue
+
+        # Get workflow ID from example file
+        local id=$(get_workflow_id "$example_file")
+        if [ -z "$id" ]; then
+            id=$(basename "$example_file" | sed 's/\.ya\?ml\.example$//')
+        fi
+
+        # Determine target filename
+        local target_name=$(basename "$example_file" | sed 's/\.example$//')
+        local target_file="$WORKFLOWS_DIR/$target_name"
+
+        # Check if already deployed
+        if [ -f "$target_file" ]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Copy example to config
+        cp "$example_file" "$target_file"
+        echo -e "${GREEN}✓${NC} Deployed: $id → $target_name"
+        loaded=$((loaded + 1))
+    done
+
+    echo ""
+    echo -e "Loaded: ${GREEN}$loaded${NC} | Already present: ${YELLOW}$skipped${NC}"
+
+    if [ $loaded -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+        echo "  $0 restart"
+    fi
+}
+
 # Get handler name from file (filename without extension)
 get_handler_name() {
     local file="$1"
@@ -564,6 +613,100 @@ handler_show() {
 
     echo -e "${RED}Error: Handler '$target' not found${NC}"
     exit 1
+}
+
+# Refresh handler from example (supports comma-separated list)
+handler_refresh() {
+    local input="$1"
+
+    if [ -z "$input" ]; then
+        echo -e "${RED}Error: Missing handler name${NC}"
+        echo "Usage: $0 handler refresh <name|name1,name2,...>"
+        exit 1
+    fi
+
+    local refreshed=0
+    local not_found=()
+
+    # Split by comma
+    IFS=',' read -ra targets <<< "$input"
+
+    for target in "${targets[@]}"; do
+        # Trim whitespace
+        target=$(echo "$target" | xargs)
+        local found_example=0
+
+        # Look for example file in config/handlers/
+        local example_file="$HANDLERS_DIR/${target}.yml.example"
+        if [ -f "$example_file" ]; then
+            found_example=1
+            local target_file="$HANDLERS_DIR/${target}.yml"
+
+            # Remove existing deployed version
+            if [ -f "$target_file" ]; then
+                rm "$target_file"
+                echo -e "${YELLOW}○${NC} Removed: $target_file"
+            fi
+
+            # Copy example
+            cp "$example_file" "$target_file"
+            echo -e "${GREEN}✓${NC} Refreshed: $target"
+            refreshed=$((refreshed + 1))
+        fi
+
+        if [ $found_example -eq 0 ]; then
+            not_found+=("$target")
+        fi
+    done
+
+    # Report not found
+    for nf in "${not_found[@]}"; do
+        echo -e "${RED}✗${NC} Example not found: $nf"
+        echo "  Looked for: $HANDLERS_DIR/${nf}.yml.example"
+    done
+
+    if [ $refreshed -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+        echo "  $0 restart"
+    fi
+}
+
+# Load missing handlers from examples
+handler_load_missing() {
+    echo -e "${BLUE}Loading missing handlers from examples...${NC}"
+    echo ""
+
+    local loaded=0
+    local skipped=0
+
+    for example_file in "$HANDLERS_DIR"/*.yml.example; do
+        [ -f "$example_file" ] || continue
+
+        # Get handler name from example file
+        local name=$(basename "$example_file" | sed 's/\.yml\.example$//')
+        local target_file="$HANDLERS_DIR/${name}.yml"
+
+        # Check if already deployed
+        if [ -f "$target_file" ]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Copy example
+        cp "$example_file" "$target_file"
+        echo -e "${GREEN}✓${NC} Deployed: $name"
+        loaded=$((loaded + 1))
+    done
+
+    echo ""
+    echo -e "Loaded: ${GREEN}$loaded${NC} | Already present: ${YELLOW}$skipped${NC}"
+
+    if [ $loaded -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+        echo "  $0 restart"
+    fi
 }
 
 # Show status
@@ -828,9 +971,12 @@ case "${1:-}" in
             refresh)
                 workflow_refresh "$3"
                 ;;
+            load-missing)
+                workflow_load_missing
+                ;;
             *)
                 echo -e "${RED}Unknown workflow command: ${2:-}${NC}"
-                echo "Use: $0 workflow [list|enable|disable|show|refresh]"
+                echo "Use: $0 workflow [list|enable|disable|show|refresh|load-missing]"
                 exit 1
                 ;;
         esac
@@ -849,9 +995,15 @@ case "${1:-}" in
             show)
                 handler_show "$3"
                 ;;
+            refresh)
+                handler_refresh "$3"
+                ;;
+            load-missing)
+                handler_load_missing
+                ;;
             *)
                 echo -e "${RED}Unknown handler command: ${2:-}${NC}"
-                echo "Use: $0 handler [list|enable|disable|show]"
+                echo "Use: $0 handler [list|enable|disable|show|refresh|load-missing]"
                 exit 1
                 ;;
         esac

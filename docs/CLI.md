@@ -75,6 +75,14 @@ Cherche les fichiers dans `examples/workflows/` avec les extensions :
 - `{id}.yml`
 - `{id}.yaml`
 
+### Déployer les workflows manquants
+
+Déploie tous les workflows exemples qui ne sont pas encore dans `config/workflows/` :
+
+```bash
+./scripts/pipelinostr.sh workflow load-missing
+```
+
 ## Handlers
 
 ### Lister les handlers
@@ -120,6 +128,28 @@ Cherche les fichiers dans `examples/workflows/` avec les extensions :
 
 ```bash
 ./scripts/pipelinostr.sh handler show telegram
+```
+
+### Rafraîchir depuis l'exemple
+
+Supprime le handler déployé et le remplace par la version exemple :
+
+```bash
+# Un handler
+./scripts/pipelinostr.sh handler refresh telegram
+
+# Plusieurs handlers
+./scripts/pipelinostr.sh handler refresh telegram,email,zulip
+```
+
+Cherche les fichiers dans `config/handlers/` avec l'extension `.yml.example`.
+
+### Déployer les handlers manquants
+
+Déploie tous les handlers exemples qui ne sont pas encore déployés :
+
+```bash
+./scripts/pipelinostr.sh handler load-missing
 ```
 
 ## Relays
