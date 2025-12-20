@@ -23,7 +23,7 @@ actions:
       content: |
         Requete invalide.
 
-        {{ parent.actions.validate_request.data.error_message }}
+        {{ parent.actions.validate_request.response.error_message }}
 
         Limites:
         - Max {{ parent.variables.max_request_length }} caracteres

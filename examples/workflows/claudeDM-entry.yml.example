@@ -88,7 +88,7 @@ actions:
       workflow_id: zap-balance-tracker
       namespace: balances
       key: "balance:{{ trigger.from }}"
-      amount: "{{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }}"
+      amount: "{{ sats_cost actions.claude_request.response.tokens_used variables.sats_per_1k_tokens }}"
       min_value: 0
       track_history: true
 
@@ -107,9 +107,9 @@ actions:
     config:
       to: "{{ trigger.from }}"
       content: |
-        {{ actions.claude_request.data.response }}
+        {{ actions.claude_request.response.response }}
 
         ---
-        Tokens: {{ actions.claude_request.data.tokens_used }} (in: {{ actions.claude_request.data.input_tokens }}, out: {{ actions.claude_request.data.output_tokens }})
-        Cout: {{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }} SATs
-        Solde: {{ actions.get_new_balance.data.value | default: 0 }} SATs
+        Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
+        Cout: {{ sats_cost actions.claude_request.response.tokens_used variables.sats_per_1k_tokens }} SATs
+        Solde: {{ actions.get_new_balance.response.value | default: 0 }} SATs
