@@ -19,7 +19,7 @@ actions:
   - id: reply
     type: nostr_dm
     config:
-      recipient: "{{ parent.trigger.author_npub }}"
+      recipient: "{{ parent.trigger.from }}"
       content: |
         Requete invalide.
 

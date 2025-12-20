@@ -36,7 +36,7 @@ trigger:
   filters:
     kinds: [4, 1059]  # Encrypted DMs (NIP-04 and NIP-17)
     # from_whitelist: true  # Uncomment to restrict to whitelist
-    content_pattern: "^/claudeDM\\s+(.{1,4000})$"
+    content_pattern: "^/claudeDM\\s+(?<question>.{1,4000})$"
 
 # Configuration variables
 variables:
@@ -52,7 +52,7 @@ actions:
       action: check
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ trigger.author_npub }}"
+      key: "balance:{{ trigger.from }}"
       operator: gte
       compare_value: "{{ variables.min_balance_sats }}"
     on_fail:
@@ -66,14 +66,14 @@ actions:
       action: get
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ trigger.author_npub }}"
+      key: "balance:{{ trigger.from }}"
 
   # Step 3: Send request to Claude
   - id: claude_request
     type: claude
     config:
       action: chat
-      message: "{{ match.1 }}"
+      message: "{{ match.question }}"
       max_tokens: "{{ variables.max_tokens }}"
     on_fail:
       workflow: claudeDM-error-response
@@ -87,7 +87,7 @@ actions:
       action: decrement
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ trigger.author_npub }}"
+      key: "balance:{{ trigger.from }}"
       amount: "{{ sats_cost actions.claude_request.data.tokens_used variables.sats_per_1k_tokens }}"
       min_value: 0
       track_history: true
@@ -99,13 +99,13 @@ actions:
       action: get
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ trigger.author_npub }}"
+      key: "balance:{{ trigger.from }}"
 
   # Step 6: Reply to user with response and cost info
   - id: reply
     type: nostr_dm
     config:
-      recipient: "{{ trigger.author_npub }}"
+      recipient: "{{ trigger.from }}"
       content: |
         {{ actions.claude_request.data.response }}
 

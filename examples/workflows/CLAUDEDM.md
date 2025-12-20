@@ -193,7 +193,7 @@ System handler (always enabled) for persistent state management.
     action: check
     workflow_id: zap-balance-tracker
     namespace: balances
-    key: "balance:{{ trigger.author_npub }}"
+    key: "balance:{{ trigger.from }}"
     operator: gte
     compare_value: 40
   on_fail:

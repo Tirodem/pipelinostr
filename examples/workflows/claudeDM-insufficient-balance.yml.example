@@ -18,12 +18,12 @@ actions:
       action: get
       workflow_id: zap-balance-tracker
       namespace: balances
-      key: "balance:{{ parent.trigger.author_npub }}"
+      key: "balance:{{ parent.trigger.from }}"
 
   - id: reply
     type: nostr_dm
     config:
-      recipient: "{{ parent.trigger.author_npub }}"
+      recipient: "{{ parent.trigger.from }}"
       content: |
         Solde insuffisant pour utiliser ClaudeDM.
 
