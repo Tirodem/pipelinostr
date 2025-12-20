@@ -232,7 +232,8 @@ export class WorkflowDbHandler implements Handler {
       return { success: false, error: 'Missing required parameter: key' };
     }
 
-    const amount = params.amount ?? 1;
+    // Convert amount to number (may come as string from template)
+    const amount = Number(params.amount) || 1;
 
     const result = db.incrementState(workflowId, namespace, params.key, amount, {
       create_if_missing: params.create_if_missing ?? true,
@@ -284,10 +285,11 @@ export class WorkflowDbHandler implements Handler {
       return { success: false, error: 'Missing required parameter: key' };
     }
 
-    const amount = params.amount ?? 1;
+    // Convert amount to number (may come as string from template)
+    const amount = Number(params.amount) || 1;
 
     const result = db.decrementState(workflowId, namespace, params.key, amount, {
-      min_value: params.min_value ?? 0,
+      min_value: Number(params.min_value) || 0,
       source_event_id: sourceEventId,
       source_pubkey: sourcePubkey,
       track_history: params.track_history ?? false,
