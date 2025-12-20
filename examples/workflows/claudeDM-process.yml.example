@@ -17,7 +17,16 @@ trigger:
   source_workflow: claudeDM-balance-gate
 
 actions:
-  # Step 1: Call Claude API (with web search for up-to-date info)
+  # Step 1: Get balance BEFORE processing
+  - id: get_balance_before
+    type: workflow_db
+    config:
+      action: get
+      workflow_id: zap-balance-tracker
+      namespace: balances
+      key: "balance:{{ trigger.from }}"
+
+  # Step 2: Call Claude API (with web search for up-to-date info)
   - id: claude_request
     type: claude
     config:
@@ -29,7 +38,7 @@ actions:
       workflow: claudeDM-error-response
       pass_context: true
 
-  # Step 2: Debit user's balance based on tokens used
+  # Step 3: Debit user's balance based on tokens used
   # Cost = ceil(tokens_used / 100), minimum 1 SAT (10 SATs per 1K tokens)
   - id: debit_balance
     type: workflow_db
@@ -42,8 +51,8 @@ actions:
       min_value: 0
       track_history: true
 
-  # Step 3: Get new balance after debit
-  - id: get_new_balance
+  # Step 4: Get balance AFTER debit
+  - id: get_balance_after
     type: workflow_db
     config:
       action: get
@@ -51,7 +60,7 @@ actions:
       namespace: balances
       key: "balance:{{ trigger.from }}"
 
-  # Step 4: Reply to user with response and cost info
+  # Step 5: Reply to user with response and cost info
   - id: reply
     type: nostr_dm
     config:
@@ -62,4 +71,4 @@ actions:
         ---
         Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
         Cout: {{ token_cost actions.claude_request.response.tokens_used }} SATs
-        Solde: {{ default actions.get_new_balance.response.value 0 }} SATs
+        Solde: {{ default actions.get_balance_before.response.value 0 }} → {{ default actions.get_balance_after.response.value 0 }} SATs
