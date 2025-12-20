@@ -2,7 +2,7 @@
 
 > **Objectif :** Fichier lu automatiquement par Claude Code pour restaurer le contexte entre sessions.
 > **Dernière mise à jour :** 2025-12-20
-> **Dernier commit :** 297898a - feat: add load-missing and refresh commands for workflows and handlers
+> **Dernier commit :** ed494a8 - refactor: split BACKLOG.md into active and archived sections
 
 ## Projet en bref
 
@@ -68,8 +68,12 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 - Workflow pipelinostr-status.yml.example créé
 - Infos retournées : commit, workflows, handlers, 10 dernières exécutions, RAM/CPU/disk, OS
 - Fix workflow : `actions.*.response` (pas `data`), `from_whitelist` (pas `require_whitelist`)
-- Ajout `/claude status` : action status dans claude.handler.ts + workflow
+- Ajout `/claude status` : action status dans claude.handler.ts (workflow supprimé, action gardée)
 - CLI : `workflow load-missing`, `handler load-missing`, `handler refresh`
+- CLI : `workflow clean [--purge]`, `handler clean [--purge]`
+- load-missing désactive par défaut les éléments déployés
+- Backlog : ajout Claude Smart Reply + Intent Classifier, annulation Claude API Status
+- Split BACKLOG.md → backlog-old.md (archives) + script `split-backlog.cjs`
 
 ### 2025-12-19
 - Ajout backlog : SMS Gateway for Android (capcom6)
