@@ -94,6 +94,9 @@ class LcdDisplayManager {
       // Initialize LCD
       await this.initLcd();
 
+      // Wait for LCD to stabilize after initialization
+      await this.delay(100);
+
       this.connected = true;
       logger.info(
         { i2cBus: this.i2cBus, i2cAddress: `0x${this.i2cAddress.toString(16)}` },
@@ -247,8 +250,9 @@ class LcdDisplayManager {
 
     this.workflowActive = false;
 
-    // Re-initialize LCD before update (fixes display corruption)
-    await this.initLcd();
+    // Send HOME command to reset cursor position
+    await this.sendCommand(LCD_HOME);
+    await this.delay(5);
 
     // Force full redraw by resetting cache
     this.currentLines = ['', '', '', ''];
@@ -275,8 +279,9 @@ class LcdDisplayManager {
       this.idleTimeout = null;
     }
 
-    // Re-initialize LCD before update (fixes display corruption)
-    await this.initLcd();
+    // Send HOME command to reset cursor position
+    await this.sendCommand(LCD_HOME);
+    await this.delay(5);
 
     // Force full redraw
     this.currentLines = ['', '', '', ''];
@@ -298,8 +303,9 @@ class LcdDisplayManager {
 
     const statusLine = success ? 'Done!' : 'Failed!';
 
-    // Re-initialize LCD before update (fixes display corruption)
-    await this.initLcd();
+    // Send HOME command to reset cursor position
+    await this.sendCommand(LCD_HOME);
+    await this.delay(5);
 
     // Show status briefly
     this.currentLines = ['', '', '', ''];
