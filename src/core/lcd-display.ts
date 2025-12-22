@@ -104,9 +104,9 @@ class LcdDisplayManager {
       );
 
       // Show idle screen
-      logger.debug('[LCD] Calling showIdle...');
+      logger.info('[LCD] Calling showIdle...');
       await this.showIdle();
-      logger.debug('[LCD] showIdle completed');
+      logger.info('[LCD] showIdle completed');
 
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -349,7 +349,7 @@ class LcdDisplayManager {
 
     this.currentLines[row] = paddedText;
 
-    logger.debug({ row, text: paddedText.trim() }, '[LCD] Writing line');
+    logger.info({ row, text: paddedText.trim() }, '[LCD] Writing line');
     await this.setCursor(0, row);
     await this.delay(2); // Wait for cursor to be set
     await this.writeString(paddedText);
