@@ -65,6 +65,14 @@ fi
 echo -e "${GREEN}Pull successful${NC}"
 echo ""
 
+echo "=== Installing dependencies ==="
+if ! npm install --silent; then
+    echo -e "${RED}npm install failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}Dependencies up to date${NC}"
+echo ""
+
 echo "=== Building project ==="
 if ! npm run build; then
     echo -e "${RED}Build failed${NC}"
