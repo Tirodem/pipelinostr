@@ -237,6 +237,12 @@ class LcdDisplayManager {
     if (!this.connected) return;
 
     this.workflowActive = false;
+
+    // Clear screen first for instant update
+    await this.sendCommand(LCD_CLEAR);
+    await this.delay(2);
+    this.currentLines = ['', '', '', ''];
+
     await this.setLines([
       this.centerText('PipeliNostr'),
       this.centerText('Waiting for you'),
@@ -298,10 +304,15 @@ class LcdDisplayManager {
       this.idleTimeout = null;
     }
 
+    // Clear screen first for instant update
+    await this.sendCommand(LCD_CLEAR);
+    await this.delay(2);
+    this.currentLines = ['', '', '', ''];
+
     await this.setLines([
       this.centerText('Processing...'),
-      this.truncateText(workflowName, LCD_COLS),
-      this.truncateText(triggerSource, LCD_COLS),
+      this.centerText(this.truncateText(workflowName, LCD_COLS)),
+      this.centerText(this.truncateText(triggerSource, LCD_COLS)),
       this.centerText('Wait for it!')
     ]);
   }
