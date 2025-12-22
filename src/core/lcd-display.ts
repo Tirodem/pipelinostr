@@ -253,34 +253,19 @@ class LcdDisplayManager {
 
   /**
    * Show workflow processing screen
+   * Currently disabled due to display corruption issues
    */
   async showProcessing(_workflowName: string, _triggerSource: string): Promise<void> {
-    if (!this.connected) return;
-
-    this.workflowActive = true;
-
-    // Cancel any pending idle timeout
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-      this.idleTimeout = null;
-    }
-
-    // Simple message - avoid complex text that causes display issues
-    this.currentLines = ['', '', '', ''];
-    await this.setLine(0, this.centerText('Workflow'));
-    await this.setLine(1, this.centerText('is running...'));
-    await this.setLine(2, '');
-    await this.setLine(3, '');
+    // Disabled - keep home screen visible
+    // TODO: Fix LCD write issues after initialization
   }
 
   /**
-   * Show workflow completion - return to idle immediately
+   * Show workflow completion
+   * Currently disabled due to display corruption issues
    */
   async showComplete(_success: boolean): Promise<void> {
-    if (!this.connected) return;
-
-    // Return to idle screen immediately
-    await this.showIdle();
+    // Disabled - keep home screen visible
   }
 
   /**
