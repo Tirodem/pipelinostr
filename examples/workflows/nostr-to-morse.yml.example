@@ -69,7 +69,7 @@ actions:
     when: "!match.speed && actions.generate_audio_normal.success"
     config:
       action: voice
-      voice_files: "{{ actions.generate_audio_normal.response.files }}"
+      voice_files: "{{ actions.generate_audio_normal.response.value.files }}"
 
   # Confirmation DM
   - id: confirm_normal
@@ -80,9 +80,9 @@ actions:
       content: |
         Morse (~12 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_normal.response.morse }}
+        {{ actions.play_morse_normal.response.value.morse }}
 
-        ({{ actions.play_morse_normal.response.total_dots }} points, {{ actions.play_morse_normal.response.total_dashes }} traits)
+        ({{ actions.play_morse_normal.response.value.total_dots }} points, {{ actions.play_morse_normal.response.value.total_dashes }} traits)
 
   # ============================================
   # SLOW SPEED (~6 WPM)
@@ -114,7 +114,7 @@ actions:
     when: "match.speed === 'slow' && actions.generate_audio_slow.success"
     config:
       action: voice
-      voice_files: "{{ actions.generate_audio_slow.response.files }}"
+      voice_files: "{{ actions.generate_audio_slow.response.value.files }}"
 
   # Confirmation DM
   - id: confirm_slow
@@ -125,9 +125,9 @@ actions:
       content: |
         Morse lent (~6 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_slow.response.morse }}
+        {{ actions.play_morse_slow.response.value.morse }}
 
-        ({{ actions.play_morse_slow.response.total_dots }} points, {{ actions.play_morse_slow.response.total_dashes }} traits)
+        ({{ actions.play_morse_slow.response.value.total_dots }} points, {{ actions.play_morse_slow.response.value.total_dashes }} traits)
 
   # ============================================
   # FAST SPEED (~20 WPM)
@@ -159,7 +159,7 @@ actions:
     when: "match.speed === 'fast' && actions.generate_audio_fast.success"
     config:
       action: voice
-      voice_files: "{{ actions.generate_audio_fast.response.files }}"
+      voice_files: "{{ actions.generate_audio_fast.response.value.files }}"
 
   # Confirmation DM
   - id: confirm_fast
@@ -170,6 +170,6 @@ actions:
       content: |
         Morse rapide (~20 WPM): "{{ match.text }}"
 
-        {{ actions.play_morse_fast.response.morse }}
+        {{ actions.play_morse_fast.response.value.morse }}
 
-        ({{ actions.play_morse_fast.response.total_dots }} points, {{ actions.play_morse_fast.response.total_dashes }} traits)
+        ({{ actions.play_morse_fast.response.value.total_dots }} points, {{ actions.play_morse_fast.response.value.total_dashes }} traits)

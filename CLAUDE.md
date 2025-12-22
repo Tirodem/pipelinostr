@@ -339,6 +339,37 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - L'utilisateur parle français
 - Préférer les réponses concises
 - Utiliser TodoWrite pour tâches complexes (3+ étapes)
+
+### RÈGLE ABSOLUE : Vérifier avant d'affirmer
+
+**AVANT de mentionner un fichier, une commande ou un chemin :**
+1. **Fichiers** : Utiliser `Glob` ou `Read` pour vérifier l'existence
+2. **Commandes CLI** : Vérifier dans `scripts/` ou `package.json`
+3. **Config** : Le fichier principal est `config/config.yml` (PAS `pipelinostr.yml`)
+4. **Chemins** : Ne JAMAIS inventer un chemin sans l'avoir vérifié
+
+**Fichiers de config connus :**
+- Config principale : `config/config.yml`
+- Handlers : `config/handlers/*.yml`
+- Workflows : `config/workflows/*.yml`
+- Exemples workflows : `examples/workflows/*.yml.example`
+
+**Si incertain :** Utiliser Glob/Grep pour trouver le bon fichier AVANT de répondre.
+
+### RÈGLE ABSOLUE : Distinguer repo local vs serveur de production
+
+**Le repo local contient des TEMPLATES. Le serveur de production a sa propre config.**
+
+1. **Ne JAMAIS conclure** sur l'état du serveur en lisant les fichiers du repo
+2. **Les fichiers `config/*.yml` dans le repo** sont des templates/exemples
+3. **Pour connaître l'état réel du serveur** : demander à l'utilisateur ou lui donner une commande à exécuter
+4. **Ne JAMAIS dire "X n'est pas activé"** en se basant sur le repo local
+
+**Exemple d'erreur à NE PAS reproduire :**
+- ❌ Lire `config/config.yml` du repo → conclure "la queue n'est pas activée"
+- ✅ Demander : "Peux-tu vérifier sur le serveur avec `grep queue config/config.yml` ?"
+
+**Violation = conclusions fausses et perte de temps.**
 - **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
 - **APRÈS PUSH** : Toujours donner les commandes serveur complètes :
   ```bash
