@@ -5,6 +5,10 @@
  */
 
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -450,9 +454,10 @@ export class GpioHandler implements Handler {
     console.log(`[GPIO] Unit duration: ${unitMs}ms (~${Math.round(1200 / unitMs)} WPM)`);
     console.log(`[GPIO] Buzzer type: ${isPassive ? `passive (${toneFreq}Hz)` : 'active'}`);
 
-    // For passive buzzer, set PWM frequency
+    // For passive buzzer, set PWM frequency using pigs command
     if (isPassive) {
-      (gpio as any).pwmFrequency?.(toneFreq);
+      await this.setPwmFrequency(pinNumber, toneFreq);
+      console.log(`[GPIO] PWM frequency set to ${toneFreq}Hz on pin ${pinNumber}`);
     }
 
     // Play the Morse sequence
@@ -475,13 +480,13 @@ export class GpioHandler implements Handler {
             if (symbol === '.') {
               // Dot: 1 unit ON
               if (isPassive) {
-                (gpio as any).pwmWrite?.(128); // 50% duty cycle for tone
+                await this.setPwmDutyCycle(pinNumber, 128); // 50% duty cycle for tone
               } else {
                 gpio.write(1);
               }
               await this.delay(unitMs);
               if (isPassive) {
-                (gpio as any).pwmWrite?.(0);
+                await this.setPwmDutyCycle(pinNumber, 0); // PWM off
               } else {
                 gpio.write(0);
               }
@@ -489,13 +494,13 @@ export class GpioHandler implements Handler {
             } else if (symbol === '-') {
               // Dash: 3 units ON
               if (isPassive) {
-                (gpio as any).pwmWrite?.(128);
+                await this.setPwmDutyCycle(pinNumber, 128); // 50% duty cycle for tone
               } else {
                 gpio.write(1);
               }
               await this.delay(unitMs * 3);
               if (isPassive) {
-                (gpio as any).pwmWrite?.(0);
+                await this.setPwmDutyCycle(pinNumber, 0); // PWM off
               } else {
                 gpio.write(0);
               }
@@ -523,7 +528,7 @@ export class GpioHandler implements Handler {
 
     // Ensure buzzer is off
     if (isPassive) {
-      (gpio as any).pwmWrite?.(0);
+      await this.setPwmDutyCycle(pinNumber, 0); // PWM off
     } else {
       gpio.write(0);
     }
@@ -567,6 +572,32 @@ export class GpioHandler implements Handler {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Set PWM frequency on a pin using pigs command
+   * @param pin GPIO pin number
+   * @param freq Frequency in Hz
+   */
+  private async setPwmFrequency(pin: number, freq: number): Promise<void> {
+    try {
+      await execAsync(`pigs pfs ${pin} ${freq}`);
+    } catch (err) {
+      console.warn(`[GPIO] Failed to set PWM frequency via pigs: ${err}`);
+    }
+  }
+
+  /**
+   * Set PWM duty cycle on a pin using pigs command
+   * @param pin GPIO pin number
+   * @param dutyCycle Duty cycle 0-255
+   */
+  private async setPwmDutyCycle(pin: number, dutyCycle: number): Promise<void> {
+    try {
+      await execAsync(`pigs p ${pin} ${dutyCycle}`);
+    } catch (err) {
+      console.warn(`[GPIO] Failed to set PWM duty cycle via pigs: ${err}`);
+    }
   }
 
   async shutdown(): Promise<void> {
