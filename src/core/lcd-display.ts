@@ -303,6 +303,7 @@ class LcdDisplayManager {
 
     for (let i = 0; i < LCD_ROWS; i++) {
       await this.setLine(i, lines[i] || '');
+      await this.delay(5); // Give LCD time to process
     }
   }
 
@@ -320,6 +321,7 @@ class LcdDisplayManager {
     this.currentLines[row] = paddedText;
 
     await this.setCursor(0, row);
+    await this.delay(2); // Wait for cursor to be set
     await this.writeString(paddedText);
   }
 
