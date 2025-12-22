@@ -33,5 +33,5 @@ actions:
   - id: reply
     type: nostr_dm
     config:
-      to: "{{ trigger.pubkey }}"
+      to: "{{ trigger.from }}"
       content: "{{ actions.get_status.response.formatted }}"

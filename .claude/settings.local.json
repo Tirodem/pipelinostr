@@ -50,7 +50,8 @@
       "Bash(mv:*)",
       "Bash(rm:*)",
       "Bash(npm i:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "WebFetch(domain:s3.fr-par.scw.cloud)"
     ],
     "deny": [],
     "ask": []

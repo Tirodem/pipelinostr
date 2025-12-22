@@ -132,31 +132,31 @@ class LcdDisplayManager {
    */
   private async initLcd(): Promise<void> {
     // Wait for LCD to power up
-    await this.delay(100);
+    await this.delay(200);
 
     // Initialize in 4-bit mode - HD44780 standard sequence
     // Send 0x3 (8-bit mode) three times, then 0x2 (4-bit mode)
     // With Freenove pinout, nibbles go to P0-P3
     await this.write4bits(0x03);  // Function set 8-bit (0x30 >> 4 = 0x03)
-    await this.delay(10);
+    await this.delay(50);
     await this.write4bits(0x03);  // Function set 8-bit
-    await this.delay(5);
+    await this.delay(50);
     await this.write4bits(0x03);  // Function set 8-bit
-    await this.delay(5);
+    await this.delay(50);
     await this.write4bits(0x02);  // Function set 4-bit (0x20 >> 4 = 0x02)
-    await this.delay(5);
+    await this.delay(50);
 
     // Configure LCD
     await this.sendCommand(LCD_FUNCTION_SET);  // 4-bit, 2 lines, 5x8
-    await this.delay(5);
+    await this.delay(50);
     await this.sendCommand(LCD_DISPLAY_ON);    // Display on, cursor off
-    await this.delay(5);
+    await this.delay(50);
     await this.sendCommand(LCD_CLEAR);         // Clear display
-    await this.delay(5);
+    await this.delay(50);
     await this.sendCommand(LCD_ENTRY_MODE);    // Increment, no shift (left to right)
-    await this.delay(5);
+    await this.delay(50);
     await this.sendCommand(LCD_HOME);          // Cursor home
-    await this.delay(5);
+    await this.delay(50);
   }
 
   /**
@@ -173,9 +173,9 @@ class LcdDisplayManager {
    */
   private async pulseEnable(data: number): Promise<void> {
     await this.i2cWrite(data | LCD_ENABLE);
-    await this.delay(0.5);
+    await this.delay(2);
     await this.i2cWrite(data & ~LCD_ENABLE);
-    await this.delay(0.5);
+    await this.delay(2);
   }
 
   /**
@@ -324,7 +324,7 @@ class LcdDisplayManager {
 
     for (let i = 0; i < LCD_ROWS; i++) {
       await this.setLine(i, lines[i] || '');
-      await this.delay(5); // Give LCD time to process
+      await this.delay(50); // Give LCD time to process
     }
   }
 
