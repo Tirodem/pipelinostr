@@ -49,7 +49,8 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(rm:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
