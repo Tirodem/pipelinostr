@@ -28,11 +28,14 @@ const execAsync = promisify(exec);
 const LCD_COLS = 20;
 const LCD_ROWS = 4;
 
-// I2C LCD commands (HD44780 via PCF8574)
-const LCD_BACKLIGHT = 0x08;
-const LCD_ENABLE = 0x04;
-const LCD_COMMAND = 0x00;
-const LCD_DATA = 0x01;
+// I2C LCD commands (HD44780 via PCF8574 - Freenove pinout)
+// P0-P3 = D4-D7, P4 = RS, P5 = RW, P6 = E, P7 = Backlight
+const LCD_BACKLIGHT = 0x80;  // P7
+const LCD_ENABLE = 0x40;     // P6
+const LCD_RW = 0x20;         // P5 (always 0 for write)
+const LCD_RS = 0x10;         // P4
+const LCD_COMMAND = 0x00;    // RS=0
+const LCD_DATA = 0x10;       // RS=1 (P4)
 
 // LCD initialization commands
 const LCD_CLEAR = 0x01;
@@ -125,19 +128,22 @@ class LcdDisplayManager {
 
   /**
    * Initialize the LCD display
+   * Freenove pinout: D4-D7 on P0-P3
    */
   private async initLcd(): Promise<void> {
     // Wait for LCD to power up
     await this.delay(100);
 
     // Initialize in 4-bit mode - HD44780 standard sequence
-    await this.write4bits(0x30);  // Function set 8-bit
+    // Send 0x3 (8-bit mode) three times, then 0x2 (4-bit mode)
+    // With Freenove pinout, nibbles go to P0-P3
+    await this.write4bits(0x03);  // Function set 8-bit (0x30 >> 4 = 0x03)
     await this.delay(10);
-    await this.write4bits(0x30);  // Function set 8-bit
+    await this.write4bits(0x03);  // Function set 8-bit
     await this.delay(5);
-    await this.write4bits(0x30);  // Function set 8-bit
+    await this.write4bits(0x03);  // Function set 8-bit
     await this.delay(5);
-    await this.write4bits(0x20);  // Function set 4-bit
+    await this.write4bits(0x02);  // Function set 4-bit (0x20 >> 4 = 0x02)
     await this.delay(5);
 
     // Configure LCD
@@ -188,10 +194,11 @@ class LcdDisplayManager {
 
   /**
    * Send a byte (as two 4-bit nibbles)
+   * Freenove pinout: D4-D7 on P0-P3, so nibbles go to low bits
    */
   private async sendByte(value: number, mode: number): Promise<void> {
-    const high = (value & 0xF0) | mode;
-    const low = ((value << 4) & 0xF0) | mode;
+    const high = ((value >> 4) & 0x0F) | mode;  // High nibble to P0-P3
+    const low = (value & 0x0F) | mode;          // Low nibble to P0-P3
     await this.write4bits(high);
     await this.write4bits(low);
   }
@@ -253,19 +260,51 @@ class LcdDisplayManager {
 
   /**
    * Show workflow processing screen
-   * Currently disabled due to display corruption issues
    */
-  async showProcessing(_workflowName: string, _triggerSource: string): Promise<void> {
-    // Disabled - keep home screen visible
-    // TODO: Fix LCD write issues after initialization
+  async showProcessing(workflowName: string, triggerSource: string): Promise<void> {
+    if (!this.connected) return;
+
+    this.workflowActive = true;
+
+    // Cancel any pending idle timeout
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
+
+    // Force full redraw
+    this.currentLines = ['', '', '', ''];
+    await this.setLines([
+      this.centerText('Processing...'),
+      this.truncateText(workflowName, LCD_COLS),
+      this.truncateText(triggerSource, LCD_COLS),
+      this.centerText('Wait for it!')
+    ]);
   }
 
   /**
    * Show workflow completion
-   * Currently disabled due to display corruption issues
    */
-  async showComplete(_success: boolean): Promise<void> {
-    // Disabled - keep home screen visible
+  async showComplete(success: boolean): Promise<void> {
+    if (!this.connected) return;
+
+    this.workflowActive = false;
+
+    const statusLine = success ? 'Done!' : 'Failed!';
+
+    // Show status briefly
+    this.currentLines = ['', '', '', ''];
+    await this.setLines([
+      this.centerText(statusLine),
+      '',
+      '',
+      ''
+    ]);
+
+    // Return to idle after 2 seconds
+    this.idleTimeout = setTimeout(() => {
+      this.showIdle();
+    }, 2000);
   }
 
   /**
