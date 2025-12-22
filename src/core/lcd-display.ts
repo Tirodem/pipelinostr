@@ -278,9 +278,16 @@ class LcdDisplayManager {
 
     const statusLine = success ? 'Done!' : 'Failed!';
 
-    // Update line 1 with status
-    await this.setLine(0, this.centerText(statusLine));
-    await this.setLine(3, '');
+    // Force full redraw by resetting cache
+    this.currentLines = ['', '', '', ''];
+
+    // Show completion screen
+    await this.setLines([
+      this.centerText(statusLine),
+      '',
+      '',
+      ''
+    ]);
 
     // Return to idle after 3 seconds
     this.idleTimeout = setTimeout(() => {
