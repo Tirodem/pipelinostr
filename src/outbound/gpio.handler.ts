@@ -179,7 +179,8 @@ export class GpioHandler implements Handler {
           return this.playMorse(
             pinNumber,
             params.text || '',
-            params.unit_ms || 100
+            params.unit_ms || 100,
+            params.tone_freq ?? 800  // Default 800Hz for passive buzzer, use 0 for active buzzer
           );
         default:
           return { success: false, error: `Action inconnue: ${params.action}` };
@@ -425,11 +426,13 @@ export class GpioHandler implements Handler {
    * @param pinNumber GPIO pin connected to buzzer
    * @param text Text to convert and play
    * @param unitMs Duration of one unit in milliseconds (default: 100ms = 12 WPM)
+   * @param toneFreq Frequency for passive buzzer (0 = active buzzer, default: 800Hz)
    */
   private async playMorse(
     pinNumber: number,
     text: string,
-    unitMs: number
+    unitMs: number,
+    toneFreq: number = 800
   ): Promise<HandlerResult> {
     if (!text.trim()) {
       return { success: false, error: 'No text provided for Morse code' };
@@ -440,10 +443,17 @@ export class GpioHandler implements Handler {
 
     // Convert text to Morse
     const morseSequence = this.textToMorse(text);
+    const isPassive = toneFreq > 0;
 
     console.log(`[GPIO] Playing Morse on pin ${pinNumber}: "${text}"`);
     console.log(`[GPIO] Morse sequence: ${morseSequence}`);
     console.log(`[GPIO] Unit duration: ${unitMs}ms (~${Math.round(1200 / unitMs)} WPM)`);
+    console.log(`[GPIO] Buzzer type: ${isPassive ? `passive (${toneFreq}Hz)` : 'active'}`);
+
+    // For passive buzzer, set PWM frequency
+    if (isPassive) {
+      (gpio as any).pwmFrequency?.(toneFreq);
+    }
 
     // Play the Morse sequence
     const words = text.toUpperCase().split(/\s+/).filter(w => w.length > 0);
@@ -464,15 +474,31 @@ export class GpioHandler implements Handler {
 
             if (symbol === '.') {
               // Dot: 1 unit ON
-              gpio.write(1);
+              if (isPassive) {
+                (gpio as any).pwmWrite?.(128); // 50% duty cycle for tone
+              } else {
+                gpio.write(1);
+              }
               await this.delay(unitMs);
-              gpio.write(0);
+              if (isPassive) {
+                (gpio as any).pwmWrite?.(0);
+              } else {
+                gpio.write(0);
+              }
               totalDots++;
             } else if (symbol === '-') {
               // Dash: 3 units ON
-              gpio.write(1);
+              if (isPassive) {
+                (gpio as any).pwmWrite?.(128);
+              } else {
+                gpio.write(1);
+              }
               await this.delay(unitMs * 3);
-              gpio.write(0);
+              if (isPassive) {
+                (gpio as any).pwmWrite?.(0);
+              } else {
+                gpio.write(0);
+              }
               totalDashes++;
             }
 
@@ -495,6 +521,13 @@ export class GpioHandler implements Handler {
       }
     }
 
+    // Ensure buzzer is off
+    if (isPassive) {
+      (gpio as any).pwmWrite?.(0);
+    } else {
+      gpio.write(0);
+    }
+
     console.log(`[GPIO] Morse complete: ${totalDots} dots, ${totalDashes} dashes`);
 
     return {
@@ -505,6 +538,8 @@ export class GpioHandler implements Handler {
         text: text,
         morse: morseSequence,
         unit_ms: unitMs,
+        tone_freq: toneFreq,
+        buzzer_type: isPassive ? 'passive' : 'active',
         total_dots: totalDots,
         total_dashes: totalDashes,
         wpm: Math.round(1200 / unitMs),
