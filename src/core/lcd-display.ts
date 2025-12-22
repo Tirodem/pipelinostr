@@ -254,7 +254,7 @@ class LcdDisplayManager {
   /**
    * Show workflow processing screen
    */
-  async showProcessing(workflowName: string, triggerSource: string): Promise<void> {
+  async showProcessing(_workflowName: string, _triggerSource: string): Promise<void> {
     if (!this.connected) return;
 
     this.workflowActive = true;
@@ -265,40 +265,22 @@ class LcdDisplayManager {
       this.idleTimeout = null;
     }
 
-    // Force full redraw by resetting cache
+    // Simple message - avoid complex text that causes display issues
     this.currentLines = ['', '', '', ''];
-
-    await this.setLines([
-      this.centerText('Processing...'),
-      this.truncateText(workflowName, LCD_COLS),
-      this.truncateText(triggerSource, LCD_COLS),
-      this.centerText('Wait for it!')
-    ]);
+    await this.setLine(0, this.centerText('Workflow'));
+    await this.setLine(1, this.centerText('is running...'));
+    await this.setLine(2, '');
+    await this.setLine(3, '');
   }
 
   /**
-   * Show workflow completion briefly, then return to idle
+   * Show workflow completion - return to idle immediately
    */
-  async showComplete(success: boolean): Promise<void> {
+  async showComplete(_success: boolean): Promise<void> {
     if (!this.connected) return;
 
-    const statusLine = success ? 'Done!' : 'Failed!';
-
-    // Force full redraw by resetting cache
-    this.currentLines = ['', '', '', ''];
-
-    // Show completion screen
-    await this.setLines([
-      this.centerText(statusLine),
-      '',
-      '',
-      ''
-    ]);
-
-    // Return to idle after 3 seconds
-    this.idleTimeout = setTimeout(() => {
-      this.showIdle();
-    }, 3000);
+    // Return to idle screen immediately
+    await this.showIdle();
   }
 
   /**
