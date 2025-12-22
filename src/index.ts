@@ -12,6 +12,7 @@ import { WebhookServer, type WebhookServerConfig, type WebhookEvent } from './in
 import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from './inbound/api-poller.js';
 import { SchedulerManager, type SchedulerManagerConfig, type SchedulerEvent } from './inbound/scheduler.js';
 import { WorkflowEngine } from './core/workflow-engine.js';
+import { lcdDisplay } from './core/lcd-display.js';
 import { QueueWorker, enqueueNostrEvent, enqueueWebhookEvent } from './queue/queue-worker.js';
 import { EmailHandler, type EmailHandlerOptions } from './outbound/email.handler.js';
 import { HttpHandler } from './outbound/http.handler.js';
@@ -1454,6 +1455,16 @@ async function main(): Promise<void> {
     initDatabase(config.database.path);
     logger.info({ path: config.database.path }, 'Database initialized');
 
+    // Initialize LCD display (if configured)
+    if (config.lcd?.enabled) {
+      await lcdDisplay.initialize({
+        enabled: true,
+        ...(config.lcd.i2c_bus !== undefined && { i2c_bus: config.lcd.i2c_bus }),
+        ...(config.lcd.i2c_address !== undefined && { i2c_address: config.lcd.i2c_address }),
+        ...(config.lcd.npub_names && { npub_names: config.lcd.npub_names }),
+      });
+    }
+
     // Initialize relay manager
     const relayManager = new RelayManager({
       primaryRelays: config.relays.primary,
@@ -1796,6 +1807,9 @@ async function shutdown(): Promise<void> {
 
     // Shutdown relay manager
     await appState.relayManager.shutdown();
+
+    // Shutdown LCD display
+    await lcdDisplay.shutdown();
 
     // Close database
     getDatabase().close();

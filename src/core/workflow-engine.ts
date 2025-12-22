@@ -6,6 +6,7 @@ import type { Handler, HandlerResult } from '../outbound/handler.interface.js';
 import { WorkflowLoader } from './workflow-loader.js';
 import { WorkflowMatcher } from './workflow-matcher.js';
 import { expressionEvaluator } from './expression-evaluator.js';
+import { lcdDisplay } from './lcd-display.js';
 import type {
   WorkflowDefinition,
   WorkflowAction,
@@ -168,6 +169,12 @@ export class WorkflowEngine {
   ): Promise<WorkflowExecutionResult> {
     logger.info({ workflowId: workflow.id, workflowName: workflow.name }, 'Executing workflow');
 
+    // Update LCD display (only for top-level workflows, not hooks)
+    if (!parentInfo) {
+      const triggerSource = lcdDisplay.formatTriggerSource(triggerContext.from);
+      lcdDisplay.showProcessing(workflow.name, triggerSource).catch(() => {});
+    }
+
     const context: WorkflowContext = {
       trigger: triggerContext,
       match: match.groups,
@@ -286,6 +293,11 @@ export class WorkflowEngine {
       },
       'Workflow completed'
     );
+
+    // Update LCD display with completion status (only for top-level workflows)
+    if (!parentInfo) {
+      lcdDisplay.showComplete(success).catch(() => {});
+    }
 
     const result: WorkflowExecutionResult = {
       workflowId: workflow.id,

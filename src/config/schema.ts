@@ -88,6 +88,12 @@ export interface PipelinostrConfig {
     cleanup_days?: number;
     cleanup_interval?: number;
   };
+  lcd?: {
+    enabled: boolean;
+    i2c_bus?: number;
+    i2c_address?: number;
+    npub_names?: Record<string, string>;
+  };
 }
 
 const configSchema = {
@@ -254,6 +260,16 @@ const configSchema = {
         stuck_timeout_minutes: { type: 'integer' },
         cleanup_days: { type: 'integer' },
         cleanup_interval: { type: 'integer' },
+      },
+      required: ['enabled'],
+    },
+    lcd: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        i2c_bus: { type: 'integer' },
+        i2c_address: { type: 'integer' },
+        npub_names: { type: 'object', additionalProperties: { type: 'string' } },
       },
       required: ['enabled'],
     },

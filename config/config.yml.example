@@ -93,3 +93,15 @@ queue:
   stuck_timeout_minutes: 10     # Reset des evenements bloques
   cleanup_days: 7               # Conservation des evenements completes
   cleanup_interval: 100         # Nettoyage tous les N cycles
+
+# Affichage LCD I2C 20x4 (optionnel, Raspberry Pi uniquement)
+# Affiche le status des workflows en temps reel
+# Prerequis: sudo apt install i2c-tools && sudo raspi-config (activer I2C)
+lcd:
+  enabled: false                # true = active l'affichage LCD
+  i2c_bus: 1                    # Bus I2C (1 sur la plupart des Raspberry Pi)
+  i2c_address: 0x27             # Adresse I2C du LCD (0x27 ou 0x3F selon module)
+  # Mapping npub -> nom d'affichage (optionnel)
+  # npub_names:
+  #   "npub1abc...": "Alice"
+  #   "npub1xyz...": "Bob"
