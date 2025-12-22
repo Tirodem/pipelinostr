@@ -234,9 +234,7 @@ class LcdDisplayManager {
 
     this.workflowActive = false;
 
-    // Clear screen first for instant update
-    await this.sendCommand(LCD_CLEAR);
-    await this.delay(2);
+    // Force full redraw by resetting cache
     this.currentLines = ['', '', '', ''];
 
     await this.setLines([
@@ -261,15 +259,13 @@ class LcdDisplayManager {
       this.idleTimeout = null;
     }
 
-    // Clear screen first for instant update
-    await this.sendCommand(LCD_CLEAR);
-    await this.delay(2);
+    // Force full redraw by resetting cache
     this.currentLines = ['', '', '', ''];
 
     await this.setLines([
       this.centerText('Processing...'),
-      this.centerText(this.truncateText(workflowName, LCD_COLS)),
-      this.centerText(this.truncateText(triggerSource, LCD_COLS)),
+      this.truncateText(workflowName, LCD_COLS),
+      this.truncateText(triggerSource, LCD_COLS),
       this.centerText('Wait for it!')
     ]);
   }
