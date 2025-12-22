@@ -15,7 +15,9 @@
 #
 # Prerequisites:
 #   - Raspberry Pi with pigpiod running
-#   - Active buzzer connected to GPIO 27 (or passive buzzer)
+#   - Buzzer connected to GPIO 27:
+#     - Passive buzzer: set tone_freq to desired frequency (default: 800Hz)
+#     - Active buzzer: set tone_freq: 0
 #   - Telegram bot configured (for audio sending)
 #   - ffmpeg installed (for OGG conversion)
 #   - See docs/GPIO-MORSE-BUZZER.md for circuit diagram
@@ -52,6 +54,7 @@ actions:
       action: morse
       text: "{{ match.text }}"
       unit_ms: 100
+      tone_freq: 800  # Hz for passive buzzer (use 0 for active buzzer)
 
   # Generate audio file
   - id: generate_audio_normal
@@ -97,6 +100,7 @@ actions:
       action: morse
       text: "{{ match.text }}"
       unit_ms: 200
+      tone_freq: 800  # Hz for passive buzzer (use 0 for active buzzer)
 
   # Generate audio file
   - id: generate_audio_slow
@@ -142,6 +146,7 @@ actions:
       action: morse
       text: "{{ match.text }}"
       unit_ms: 60
+      tone_freq: 800  # Hz for passive buzzer (use 0 for active buzzer)
 
   # Generate audio file
   - id: generate_audio_fast
