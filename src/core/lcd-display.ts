@@ -68,10 +68,6 @@ class LcdDisplayManager {
   private workflowActive: boolean = false;
   private backlight: boolean = true;
 
-  // Chenillard animation
-  private chenillardInterval: NodeJS.Timeout | null = null;
-  private chenillardPosition: number = 0;
-
   // Profile name cache (npub -> display name)
   private profileCache: Map<string, string> = new Map();
   private profileFetchPromises: Map<string, Promise<string | null>> = new Map();
@@ -249,42 +245,6 @@ class LcdDisplayManager {
       this.centerText('to be awesome'),
       ''
     ]);
-
-    // Start chenillard animation on line 4
-    this.startChenillard();
-  }
-
-  /**
-   * Start the chenillard (moving *) animation on line 4
-   */
-  private startChenillard(): void {
-    // Stop any existing animation
-    this.stopChenillard();
-
-    this.chenillardPosition = 0;
-    this.chenillardInterval = setInterval(async () => {
-      if (!this.connected || this.workflowActive) {
-        this.stopChenillard();
-        return;
-      }
-
-      // Create line with * at current position
-      const line = ' '.repeat(this.chenillardPosition) + '*' + ' '.repeat(LCD_COLS - 1 - this.chenillardPosition);
-      await this.setLine(3, line);
-
-      // Move position
-      this.chenillardPosition = (this.chenillardPosition + 1) % LCD_COLS;
-    }, 150);
-  }
-
-  /**
-   * Stop the chenillard animation
-   */
-  private stopChenillard(): void {
-    if (this.chenillardInterval) {
-      clearInterval(this.chenillardInterval);
-      this.chenillardInterval = null;
-    }
   }
 
   /**
@@ -294,9 +254,6 @@ class LcdDisplayManager {
     if (!this.connected) return;
 
     this.workflowActive = true;
-
-    // Stop chenillard animation
-    this.stopChenillard();
 
     // Cancel any pending idle timeout
     if (this.idleTimeout) {
@@ -561,9 +518,6 @@ class LcdDisplayManager {
    * Shutdown the LCD display
    */
   async shutdown(): Promise<void> {
-    // Stop animations
-    this.stopChenillard();
-
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);
       this.idleTimeout = null;
