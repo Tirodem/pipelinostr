@@ -173,6 +173,8 @@ export class WorkflowEngine {
     if (!parentInfo) {
       const triggerSource = lcdDisplay.formatTriggerSource(triggerContext.from);
       lcdDisplay.showProcessing(workflow.name, triggerSource).catch(() => {});
+      // Pre-fetch profile name in background (will update display when ready)
+      lcdDisplay.prefetchProfile(triggerContext.from).catch(() => {});
     }
 
     const context: WorkflowContext = {

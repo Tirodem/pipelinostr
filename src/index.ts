@@ -1484,6 +1484,11 @@ async function main(): Promise<void> {
     });
     await relayManager.initialize();
 
+    // Set relay URLs for LCD profile fetching
+    if (config.lcd?.enabled) {
+      lcdDisplay.setRelayUrls(config.relays.primary);
+    }
+
     // Initialize relay discovery (if enabled)
     let relayDiscovery: RelayDiscovery | undefined;
     if (config.relays.discovery?.enabled) {

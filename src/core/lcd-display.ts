@@ -20,6 +20,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../persistence/logger.js';
+import { nip19 } from 'nostr-tools';
 
 const execAsync = promisify(exec);
 
@@ -50,6 +51,13 @@ export interface LcdConfig {
   npub_names?: Record<string, string>;
 }
 
+// Profile metadata from kind 0 events
+interface NostrProfile {
+  name?: string;
+  display_name?: string;
+  nip05?: string;
+}
+
 class LcdDisplayManager {
   private config: LcdConfig = { enabled: false };
   private i2cBus: number = 1;
@@ -59,6 +67,11 @@ class LcdDisplayManager {
   private idleTimeout: NodeJS.Timeout | null = null;
   private workflowActive: boolean = false;
   private backlight: boolean = true;
+
+  // Profile name cache (npub -> display name)
+  private profileCache: Map<string, string> = new Map();
+  private profileFetchPromises: Map<string, Promise<string | null>> = new Map();
+  private relayUrls: string[] = [];
 
   async initialize(config: LcdConfig): Promise<void> {
     this.config = config;
@@ -308,6 +321,13 @@ class LcdDisplayManager {
   }
 
   /**
+   * Set relay URLs for profile fetching
+   */
+  setRelayUrls(urls: string[]): void {
+    this.relayUrls = urls;
+  }
+
+  /**
    * Format trigger source for display
    * Converts npub to name or short format
    */
@@ -316,11 +336,18 @@ class LcdDisplayManager {
 
     // Check if it's an npub
     if (source.startsWith('npub1')) {
-      // Check for custom name mapping
+      // Check cache first
+      const cachedName = this.profileCache.get(source);
+      if (cachedName) {
+        return cachedName;
+      }
+
+      // Check for static config mapping (fallback)
       if (this.config.npub_names && this.config.npub_names[source]) {
         return this.config.npub_names[source];
       }
-      // Use short format: first 8 + last 4 chars
+
+      // Use short format as fallback
       return `${source.slice(0, 8)}...${source.slice(-4)}`;
     }
 
@@ -335,6 +362,99 @@ class LcdDisplayManager {
     }
 
     return source;
+  }
+
+  /**
+   * Fetch and cache profile name for an npub
+   * Returns the display name or null if not found
+   */
+  async fetchProfileName(npub: string): Promise<string | null> {
+    // Check cache first
+    if (this.profileCache.has(npub)) {
+      return this.profileCache.get(npub) || null;
+    }
+
+    // Check if already fetching
+    if (this.profileFetchPromises.has(npub)) {
+      return this.profileFetchPromises.get(npub) || null;
+    }
+
+    // No relays configured
+    if (this.relayUrls.length === 0) {
+      return null;
+    }
+
+    // Start fetch
+    const fetchPromise = this.doFetchProfile(npub);
+    this.profileFetchPromises.set(npub, fetchPromise);
+
+    try {
+      const name = await fetchPromise;
+      if (name) {
+        this.profileCache.set(npub, name);
+        logger.debug({ npub: npub.slice(0, 12), name }, '[LCD] Profile name cached');
+      }
+      return name;
+    } finally {
+      this.profileFetchPromises.delete(npub);
+    }
+  }
+
+  /**
+   * Actually fetch profile from relays
+   */
+  private async doFetchProfile(npub: string): Promise<string | null> {
+    try {
+      // Decode npub to hex pubkey
+      const decoded = nip19.decode(npub);
+      if (decoded.type !== 'npub') {
+        return null;
+      }
+      const pubkey = decoded.data as string;
+
+      // Use SimplePool from nostr-tools
+      const { SimplePool } = await import('nostr-tools');
+      const pool = new SimplePool();
+
+      try {
+        // Fetch kind 0 (metadata) event with timeout
+        const event = await Promise.race([
+          pool.get(this.relayUrls, { kinds: [0], authors: [pubkey] }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+
+        if (event?.content) {
+          const profile = JSON.parse(event.content) as NostrProfile;
+          // Prefer display_name, then name
+          const displayName = profile.display_name || profile.name;
+          if (displayName) {
+            // Truncate to fit LCD (max 20 chars)
+            return displayName.length > 20 ? displayName.slice(0, 17) + '...' : displayName;
+          }
+        }
+      } finally {
+        pool.close(this.relayUrls);
+      }
+    } catch (error) {
+      logger.debug({ npub: npub.slice(0, 12), error }, '[LCD] Failed to fetch profile');
+    }
+
+    return null;
+  }
+
+  /**
+   * Pre-fetch profile name and update display if needed
+   */
+  async prefetchProfile(npub: string): Promise<void> {
+    if (!npub.startsWith('npub1')) return;
+    if (this.profileCache.has(npub)) return;
+
+    const name = await this.fetchProfileName(npub);
+
+    // If we got a name and workflow is still showing this trigger, update display
+    if (name && this.workflowActive && this.currentLines[2]?.includes('...')) {
+      await this.setLine(2, this.truncateText(name, LCD_COLS));
+    }
   }
 
   /**
