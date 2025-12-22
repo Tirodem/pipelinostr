@@ -45,8 +45,21 @@ export class ExpressionEvaluator {
   }
 
   // Render a template string with context
-  renderTemplate(template: string, context: WorkflowContext): string {
+  // Returns the raw value if template is a single expression like {{ path.to.value }}
+  // Otherwise returns the rendered string
+  renderTemplate(template: string, context: WorkflowContext): unknown {
     if (!template) return '';
+
+    // Check if the template is just a single expression (no surrounding text)
+    // This allows passing arrays/objects through templates
+    const singleExprMatch = template.match(/^\{\{\s*([^}|]+?)\s*\}\}$/);
+    if (singleExprMatch) {
+      const path = singleExprMatch[1]!.trim();
+      // No filters, just a path - return the raw value
+      const value = this.resolveValue(path, context);
+      // Return the actual value (could be array, object, etc.)
+      return value;
+    }
 
     try {
       // Use Handlebars-based template engine for full helper support
