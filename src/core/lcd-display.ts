@@ -128,23 +128,29 @@ class LcdDisplayManager {
    */
   private async initLcd(): Promise<void> {
     // Wait for LCD to power up
-    await this.delay(50);
+    await this.delay(100);
 
-    // Initialize in 4-bit mode
-    await this.write4bits(0x03 << 4);
+    // Initialize in 4-bit mode - HD44780 standard sequence
+    await this.write4bits(0x30);  // Function set 8-bit
+    await this.delay(10);
+    await this.write4bits(0x30);  // Function set 8-bit
     await this.delay(5);
-    await this.write4bits(0x03 << 4);
+    await this.write4bits(0x30);  // Function set 8-bit
     await this.delay(5);
-    await this.write4bits(0x03 << 4);
-    await this.delay(1);
-    await this.write4bits(0x02 << 4);
+    await this.write4bits(0x20);  // Function set 4-bit
+    await this.delay(5);
 
     // Configure LCD
-    await this.sendCommand(LCD_FUNCTION_SET);
-    await this.sendCommand(LCD_DISPLAY_ON);
-    await this.sendCommand(LCD_CLEAR);
-    await this.delay(2);
-    await this.sendCommand(LCD_ENTRY_MODE);
+    await this.sendCommand(LCD_FUNCTION_SET);  // 4-bit, 2 lines, 5x8
+    await this.delay(5);
+    await this.sendCommand(LCD_DISPLAY_ON);    // Display on, cursor off
+    await this.delay(5);
+    await this.sendCommand(LCD_CLEAR);         // Clear display
+    await this.delay(5);
+    await this.sendCommand(LCD_ENTRY_MODE);    // Increment, no shift (left to right)
+    await this.delay(5);
+    await this.sendCommand(LCD_HOME);          // Cursor home
+    await this.delay(5);
   }
 
   /**
