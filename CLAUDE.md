@@ -314,9 +314,9 @@ pipelinostr-status.yml     /pipelinostr status → system info
 ### Variables template
 - `trigger.*` : Données de l'événement déclencheur (héritées du parent via hooks)
 - `match.*` : Groupes capturés par regex (hérités du parent via hooks)
-- `actions.{id}.response.*` : Résultats des actions précédentes
-  - `actions.{id}.response.success` : boolean
-  - `actions.{id}.response.value` : valeur retournée (PAS `.data.value` !)
+- `actions.{id}.response.*` : Résultats des actions précédentes (contient directement `data` du handler)
+  - `actions.{id}.success` : boolean (succès de l'action)
+  - `actions.{id}.response.*` : données retournées par le handler (ex: `.response.morse`, `.response.files`)
   - `actions.{id}.response.found` : pour workflow_db get
 - `variables.*` : Variables définies dans le workflow courant
 - `parent.*` : Métadonnées du workflow parent (hooks uniquement)
