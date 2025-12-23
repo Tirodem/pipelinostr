@@ -71,6 +71,9 @@ class LcdDisplayManager {
   private workflowActive: boolean = false;
   private backlight: boolean = true;
 
+  // Generation counter to cancel outdated screen updates
+  private displayGeneration: number = 0;
+
   // Profile name cache (npub -> display name)
   private profileCache: Map<string, string> = new Map();
   private profileFetchPromises: Map<string, Promise<string | null>> = new Map();
@@ -250,6 +253,8 @@ class LcdDisplayManager {
   async showIdle(): Promise<void> {
     if (!this.connected) return;
 
+    // Increment generation to cancel any pending screen updates
+    const generation = ++this.displayGeneration;
     this.workflowActive = false;
 
     // Send HOME command to reset cursor position
@@ -264,7 +269,7 @@ class LcdDisplayManager {
       this.centerText('Waiting for you'),
       this.centerText('to be awesome'),
       ''
-    ]);
+    ], generation);
   }
 
   /**
@@ -273,6 +278,8 @@ class LcdDisplayManager {
   async showProcessing(workflowName: string, triggerSource: string): Promise<void> {
     if (!this.connected) return;
 
+    // Increment generation to cancel any pending screen updates
+    const generation = ++this.displayGeneration;
     this.workflowActive = true;
 
     // Cancel any pending idle timeout
@@ -292,45 +299,61 @@ class LcdDisplayManager {
       this.truncateText(workflowName, LCD_COLS),
       this.truncateText(triggerSource, LCD_COLS),
       this.centerText('Wait for it!')
-    ]);
+    ], generation);
   }
 
   /**
    * Show workflow completion
    */
-  async showComplete(success: boolean): Promise<void> {
+  async showComplete(success: boolean, workflowName?: string, triggerSource?: string): Promise<void> {
     if (!this.connected) return;
 
+    // Increment generation to cancel any pending screen updates
+    const generation = ++this.displayGeneration;
     this.workflowActive = false;
 
     const statusLine = success ? 'Done!' : 'Failed!';
+
+    // Cancel any pending idle timeout
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
 
     // Send HOME command to reset cursor position
     await this.sendCommand(LCD_HOME);
     await this.delay(5);
 
-    // Show status briefly
+    // Show completion status with workflow info
     this.currentLines = ['', '', '', ''];
     await this.setLines([
       this.centerText(statusLine),
-      '',
-      '',
+      workflowName ? this.truncateText(workflowName, LCD_COLS) : '',
+      triggerSource ? this.truncateText(triggerSource, LCD_COLS) : '',
       ''
-    ]);
+    ], generation);
 
-    // Return to idle after 2 seconds
+    // Return to idle after 10 seconds
     this.idleTimeout = setTimeout(() => {
       this.showIdle();
-    }, 2000);
+    }, 10000);
   }
 
   /**
    * Set all 4 lines at once
+   * @param generation - The display generation when this was called (for cancellation)
    */
-  async setLines(lines: string[]): Promise<void> {
+  async setLines(lines: string[], generation?: number): Promise<void> {
     if (!this.connected) return;
 
+    const currentGen = generation ?? this.displayGeneration;
+
     for (let i = 0; i < LCD_ROWS; i++) {
+      // Check if a newer screen update has started
+      if (this.displayGeneration !== currentGen) {
+        logger.info({ cancelled: currentGen, current: this.displayGeneration }, '[LCD] Screen update cancelled');
+        return;
+      }
       await this.setLine(i, lines[i] || '');
       await this.delay(50); // Give LCD time to process
     }
