@@ -1,0 +1,29 @@
+# Relay Ping - Simple test workflow
+#
+# Usage: /ping
+# Responds with "pong" - useful for testing if PipeliNostr is running
+#
+# This workflow is also used as a simple example for:
+#   /pipelinostr workflow fetch <event_id>
+#
+# To publish this workflow to Nostr (so others can import it):
+#   1. Copy the YAML content (without comments)
+#   2. Post as a kind:1 note or kind:30023 article
+#   3. Share the nevent/note ID
+
+id: relay-ping
+name: Relay Ping
+enabled: true
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4]
+    from_whitelist: true
+    content_pattern: "^/ping$"
+
+actions:
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: pong
