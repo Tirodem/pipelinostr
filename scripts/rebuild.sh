@@ -84,6 +84,43 @@ echo ""
 echo "=== Restarting PipeliNostr ==="
 ./scripts/restart.sh
 
+# Check if morse_listener is enabled and verify arecord works
+if grep -q "morse_listener:" config/config.yml 2>/dev/null; then
+    MORSE_ENABLED=$(grep -A1 "morse_listener:" config/config.yml | grep "enabled:" | grep -o "true\|false" || echo "false")
+    if [ "$MORSE_ENABLED" = "true" ]; then
+        echo ""
+        echo "=== Checking Morse Listener ==="
+
+        # Get device from config
+        MORSE_DEVICE=$(grep -A5 "morse_listener:" config/config.yml | grep "device:" | sed 's/.*device:[[:space:]]*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
+        if [ -z "$MORSE_DEVICE" ]; then
+            MORSE_DEVICE="plughw:3,0"
+        fi
+
+        echo "Testing audio device: $MORSE_DEVICE"
+
+        # Quick test: try to capture 0.5 seconds of audio
+        if timeout 2 arecord -D "$MORSE_DEVICE" -f S16_LE -r 44100 -c 1 -d 1 -q /dev/null 2>/dev/null; then
+            echo -e "${GREEN}✓ Audio device $MORSE_DEVICE is working${NC}"
+
+            # Check if MorseListener started in logs
+            sleep 2
+            if grep -q "MorseListener.*Started listening" logs/pipelinostr.log 2>/dev/null | tail -5; then
+                echo -e "${GREEN}✓ Morse Listener is running${NC}"
+            else
+                echo -e "${YELLOW}⚠ Morse Listener may not have started - check logs${NC}"
+            fi
+        else
+            echo -e "${RED}✗ Audio device $MORSE_DEVICE failed${NC}"
+            echo ""
+            echo "Available capture devices:"
+            arecord -l 2>/dev/null || echo "  (none found)"
+            echo ""
+            echo -e "${YELLOW}Update morse_listener.device in config/config.yml${NC}"
+        fi
+    fi
+fi
+
 echo ""
 echo "=== Logs (Ctrl+C to exit) ==="
 tail -f logs/pipelinostr.log
