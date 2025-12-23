@@ -71,6 +71,9 @@ class LcdDisplayManager {
   private workflowActive: boolean = false;
   private backlight: boolean = true;
 
+  // Mutex for I2C operations - prevents concurrent writes
+  private writeLock: Promise<void> = Promise.resolve();
+
   // Profile name cache (npub -> display name)
   private profileCache: Map<string, string> = new Map();
   private profileFetchPromises: Map<string, Promise<string | null>> = new Map();
@@ -245,26 +248,50 @@ class LcdDisplayManager {
   }
 
   /**
+   * Execute a function with exclusive access to the LCD
+   * Prevents concurrent I2C operations that corrupt the display
+   */
+  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    // Wait for any pending operation to complete
+    const previousLock = this.writeLock;
+    let releaseLock: () => void;
+
+    // Create a new lock that will be released when this operation completes
+    this.writeLock = new Promise<void>(resolve => {
+      releaseLock = resolve;
+    });
+
+    try {
+      await previousLock;
+      return await fn();
+    } finally {
+      releaseLock!();
+    }
+  }
+
+  /**
    * Show idle screen (no workflow active)
    */
   async showIdle(): Promise<void> {
     if (!this.connected) return;
 
-    this.workflowActive = false;
+    return this.withLock(async () => {
+      this.workflowActive = false;
 
-    // Send HOME command to reset cursor position
-    await this.sendCommand(LCD_HOME);
-    await this.delay(5);
+      // Send HOME command to reset cursor position
+      await this.sendCommand(LCD_HOME);
+      await this.delay(5);
 
-    // Force full redraw by resetting cache
-    this.currentLines = ['', '', '', ''];
+      // Force full redraw by resetting cache
+      this.currentLines = ['', '', '', ''];
 
-    await this.setLines([
-      this.centerText('PipeliNostr'),
-      this.centerText('Waiting for you'),
-      this.centerText('to be awesome'),
-      ''
-    ]);
+      await this.setLines([
+        this.centerText('PipeliNostr'),
+        this.centerText('Waiting for you'),
+        this.centerText('to be awesome'),
+        ''
+      ]);
+    });
   }
 
   /**
@@ -273,26 +300,28 @@ class LcdDisplayManager {
   async showProcessing(workflowName: string, triggerSource: string): Promise<void> {
     if (!this.connected) return;
 
-    this.workflowActive = true;
+    return this.withLock(async () => {
+      this.workflowActive = true;
 
-    // Cancel any pending idle timeout
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-      this.idleTimeout = null;
-    }
+      // Cancel any pending idle timeout
+      if (this.idleTimeout) {
+        clearTimeout(this.idleTimeout);
+        this.idleTimeout = null;
+      }
 
-    // Send HOME command to reset cursor position
-    await this.sendCommand(LCD_HOME);
-    await this.delay(5);
+      // Send HOME command to reset cursor position
+      await this.sendCommand(LCD_HOME);
+      await this.delay(5);
 
-    // Force full redraw
-    this.currentLines = ['', '', '', ''];
-    await this.setLines([
-      this.centerText('Processing...'),
-      this.truncateText(workflowName, LCD_COLS),
-      this.truncateText(triggerSource, LCD_COLS),
-      this.centerText('Wait for it!')
-    ]);
+      // Force full redraw
+      this.currentLines = ['', '', '', ''];
+      await this.setLines([
+        this.centerText('Processing...'),
+        this.truncateText(workflowName, LCD_COLS),
+        this.truncateText(triggerSource, LCD_COLS),
+        this.centerText('Wait for it!')
+      ]);
+    });
   }
 
   /**
@@ -301,27 +330,29 @@ class LcdDisplayManager {
   async showComplete(success: boolean): Promise<void> {
     if (!this.connected) return;
 
-    this.workflowActive = false;
+    return this.withLock(async () => {
+      this.workflowActive = false;
 
-    const statusLine = success ? 'Done!' : 'Failed!';
+      const statusLine = success ? 'Done!' : 'Failed!';
 
-    // Send HOME command to reset cursor position
-    await this.sendCommand(LCD_HOME);
-    await this.delay(5);
+      // Send HOME command to reset cursor position
+      await this.sendCommand(LCD_HOME);
+      await this.delay(5);
 
-    // Show status briefly
-    this.currentLines = ['', '', '', ''];
-    await this.setLines([
-      this.centerText(statusLine),
-      '',
-      '',
-      ''
-    ]);
+      // Show status briefly
+      this.currentLines = ['', '', '', ''];
+      await this.setLines([
+        this.centerText(statusLine),
+        '',
+        '',
+        ''
+      ]);
 
-    // Return to idle after 2 seconds
-    this.idleTimeout = setTimeout(() => {
-      this.showIdle();
-    }, 2000);
+      // Return to idle after 10 seconds
+      this.idleTimeout = setTimeout(() => {
+        this.showIdle();
+      }, 10000);
+    });
   }
 
   /**

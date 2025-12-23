@@ -54,7 +54,8 @@
       "WebFetch(domain:s3.fr-par.scw.cloud)",
       "Bash(git log:*)",
       "Bash(git show:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git revert:*)"
     ],
     "deny": [],
     "ask": []
