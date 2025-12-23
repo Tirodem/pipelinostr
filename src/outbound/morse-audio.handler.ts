@@ -220,15 +220,15 @@ export class MorseAudioHandler implements Handler {
           }
         }
 
-        // Space between letters: 3 units (we add 2 more since 1 is from symbol spacing)
+        // Space between letters: 3 units total
         if (charIndex < word.length - 1) {
-          this.addSilence(samples, samplesPerUnit * 2);
+          this.addSilence(samples, samplesPerUnit * 3);
         }
       }
 
-      // Space between words: 7 units (we add 4 more since 3 is from letter spacing)
+      // Space between words: 7 units total
       if (wordIndex < words.length - 1) {
-        this.addSilence(samples, samplesPerUnit * 4);
+        this.addSilence(samples, samplesPerUnit * 7);
       }
     }
 
