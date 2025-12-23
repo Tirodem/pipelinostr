@@ -414,11 +414,21 @@ export class MorseListener extends EventEmitter {
       const validCount = message.replace(/[\s?]/g, '').length;
       const unknownRatio = unknownCount / (unknownCount + validCount);
 
+      // Check if message contains only dot-letters (E, I, S, H, 5) - likely fan/noise
+      const dotOnlyLetters = /^[EISH5\s?]+$/i;
+      const hasDash = this.rawMorse.includes('-');
+
       if (unknownRatio > 0.5 || unknownCount > 5) {
         // Too many unknown characters - probably noise
         logger.info(
           { text: message, unknownCount, validCount, unknownRatio },
           '[MorseListener] Message discarded (too much noise)'
+        );
+      } else if (dotOnlyLetters.test(message) && !hasDash) {
+        // Only dot-based letters with no dashes - likely background noise (fan, etc.)
+        logger.info(
+          { text: message, raw: this.rawMorse.trim() },
+          '[MorseListener] Message discarded (dot-only, likely noise)'
         );
       } else {
         const event: MorseDecodedEvent = {
