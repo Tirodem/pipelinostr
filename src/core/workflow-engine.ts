@@ -170,10 +170,9 @@ export class WorkflowEngine {
     logger.info({ workflowId: workflow.id, workflowName: workflow.name }, 'Executing workflow');
 
     // Update LCD display (only for top-level workflows, not hooks)
-    let lcdTriggerSource: string | undefined;
     if (!parentInfo) {
-      lcdTriggerSource = lcdDisplay.formatTriggerSource(triggerContext.from);
-      lcdDisplay.showProcessing(workflow.name, lcdTriggerSource).catch(() => {});
+      const triggerSource = lcdDisplay.formatTriggerSource(triggerContext.from);
+      lcdDisplay.showProcessing(workflow.name, triggerSource).catch(() => {});
       // Pre-fetch profile name in background (will update display when ready)
       lcdDisplay.prefetchProfile(triggerContext.from).catch(() => {});
     }
@@ -299,7 +298,7 @@ export class WorkflowEngine {
 
     // Update LCD display with completion status (only for top-level workflows)
     if (!parentInfo) {
-      lcdDisplay.showComplete(success, workflow.name, lcdTriggerSource).catch(() => {});
+      lcdDisplay.showComplete(success).catch(() => {});
     }
 
     const result: WorkflowExecutionResult = {
