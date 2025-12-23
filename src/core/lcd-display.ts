@@ -28,14 +28,14 @@ const execAsync = promisify(exec);
 const LCD_COLS = 20;
 const LCD_ROWS = 4;
 
-// I2C LCD commands (HD44780 via PCF8574 - Freenove pinout)
-// P0-P3 = D4-D7, P4 = RS, P5 = RW, P6 = E, P7 = Backlight
-const LCD_BACKLIGHT = 0x80;  // P7
-const LCD_ENABLE = 0x40;     // P6
-const LCD_RW = 0x20;         // P5 (always 0 for write)
-const LCD_RS = 0x10;         // P4
+// I2C LCD commands (HD44780 via PCF8574 - Standard pinout)
+// P0 = RS, P1 = RW, P2 = E, P3 = Backlight, P4-P7 = D4-D7
+const LCD_BACKLIGHT = 0x08;  // P3
+const LCD_ENABLE = 0x04;     // P2
+const LCD_RW = 0x02;         // P1 (always 0 for write)
+const LCD_RS = 0x01;         // P0
 const LCD_COMMAND = 0x00;    // RS=0
-const LCD_DATA = 0x10;       // RS=1 (P4)
+const LCD_DATA = 0x01;       // RS=1 (P0)
 
 // LCD initialization commands
 const LCD_CLEAR = 0x01;
@@ -133,7 +133,7 @@ class LcdDisplayManager {
 
   /**
    * Initialize the LCD display
-   * Freenove pinout: D4-D7 on P0-P3
+   * Standard pinout: D4-D7 on P4-P7
    */
   private async initLcd(): Promise<void> {
     // Wait for LCD to power up
@@ -141,14 +141,14 @@ class LcdDisplayManager {
 
     // Initialize in 4-bit mode - HD44780 standard sequence
     // Send 0x3 (8-bit mode) three times, then 0x2 (4-bit mode)
-    // With Freenove pinout, nibbles go to P0-P3
-    await this.write4bits(0x03);  // Function set 8-bit (0x30 >> 4 = 0x03)
+    // With standard pinout, nibbles go to P4-P7 (high bits)
+    await this.write4bits(0x30);  // Function set 8-bit
     await this.delay(50);
-    await this.write4bits(0x03);  // Function set 8-bit
+    await this.write4bits(0x30);  // Function set 8-bit
     await this.delay(50);
-    await this.write4bits(0x03);  // Function set 8-bit
+    await this.write4bits(0x30);  // Function set 8-bit
     await this.delay(50);
-    await this.write4bits(0x02);  // Function set 4-bit (0x20 >> 4 = 0x02)
+    await this.write4bits(0x20);  // Function set 4-bit
     await this.delay(50);
 
     // Configure LCD
@@ -199,11 +199,11 @@ class LcdDisplayManager {
 
   /**
    * Send a byte (as two 4-bit nibbles)
-   * Freenove pinout: D4-D7 on P0-P3, so nibbles go to low bits
+   * Standard pinout: D4-D7 on P4-P7, so nibbles go to high bits
    */
   private async sendByte(value: number, mode: number): Promise<void> {
-    const high = ((value >> 4) & 0x0F) | mode;  // High nibble to P0-P3
-    const low = (value & 0x0F) | mode;          // Low nibble to P0-P3
+    const high = (value & 0xF0) | mode;         // High nibble to P4-P7
+    const low = ((value << 4) & 0xF0) | mode;   // Low nibble to P4-P7
     await this.write4bits(high);
     await this.write4bits(low);
   }
