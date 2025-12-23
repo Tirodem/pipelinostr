@@ -87,11 +87,29 @@ export class WorkflowLoader {
       actions: (raw['actions'] as unknown[]).map((action, index) => {
         const a = action as Record<string, unknown>;
         const onFailRaw = a['on_fail'] as Record<string, unknown> | undefined;
+
+        // Extract config: either from nested 'config' key or from all non-reserved fields
+        const reservedKeys = new Set(['id', 'type', 'when', 'on_fail', 'retry', 'config', 'condition']);
+        let config: Record<string, unknown>;
+
+        if (a['config'] && typeof a['config'] === 'object') {
+          // Use nested config object
+          config = a['config'] as Record<string, unknown>;
+        } else {
+          // Extract all non-reserved fields as config
+          config = {};
+          for (const [key, value] of Object.entries(a)) {
+            if (!reservedKeys.has(key)) {
+              config[key] = value;
+            }
+          }
+        }
+
         return {
           id: (a['id'] as string) ?? `action_${index}`,
           type: a['type'] as string,
-          config: (a['config'] as Record<string, unknown>) ?? {},
-          when: a['when'] as string | undefined,
+          config,
+          when: (a['when'] as string | undefined) ?? (a['condition'] as string | undefined),
           on_fail: onFailRaw ? {
             workflow: onFailRaw['workflow'] as string,
             pass_context: (onFailRaw['pass_context'] as boolean) ?? true,
