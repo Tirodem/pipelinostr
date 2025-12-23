@@ -360,15 +360,15 @@ export class MorseListener extends EventEmitter {
       // Dot
       this.currentSymbols += '.';
       this.rawMorse += '.';
-      logger.debug({ duration }, '[MorseListener] Detected DOT');
+      logger.info({ duration, max: DOT_MAX }, '[MorseListener] Detected DOT');
     } else if (duration >= DASH_MIN && duration < DASH_MAX) {
       // Dash
       this.currentSymbols += '-';
       this.rawMorse += '-';
-      logger.debug({ duration }, '[MorseListener] Detected DASH');
+      logger.info({ duration, min: DASH_MIN, max: DASH_MAX }, '[MorseListener] Detected DASH');
     } else {
       // Too long, probably noise
-      logger.debug({ duration }, '[MorseListener] Ignored (too long)');
+      logger.info({ duration, dashMax: DASH_MAX }, '[MorseListener] Ignored (too long)');
     }
   }
 
