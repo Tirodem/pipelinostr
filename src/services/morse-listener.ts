@@ -12,8 +12,8 @@ import { EventEmitter } from 'events';
 import { logger } from '../persistence/logger.js';
 
 // Morse code timing (in milliseconds)
-// Based on ~15 WPM (words per minute)
-const UNIT_MS = 80;  // Duration of one unit (dot)
+// Based on ~12 WPM (words per minute) - matches morse-audio.handler default
+const UNIT_MS = 100;  // Duration of one unit (dot)
 const DOT_MAX = UNIT_MS * 2;      // Max duration for a dot
 const DASH_MIN = UNIT_MS * 2;     // Min duration for a dash
 const DASH_MAX = UNIT_MS * 5;     // Max duration for a dash
