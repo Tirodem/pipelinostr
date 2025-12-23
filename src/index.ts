@@ -13,6 +13,7 @@ import { ApiPollerManager, type ApiPollerManagerConfig, type PollerEvent } from 
 import { SchedulerManager, type SchedulerManagerConfig, type SchedulerEvent } from './inbound/scheduler.js';
 import { WorkflowEngine } from './core/workflow-engine.js';
 import { lcdDisplay } from './core/lcd-display.js';
+import { createMorseListener, getMorseListener, type MorseDecodedEvent } from './services/morse-listener.js';
 import { QueueWorker, enqueueNostrEvent, enqueueWebhookEvent } from './queue/queue-worker.js';
 import { EmailHandler, type EmailHandlerOptions } from './outbound/email.handler.js';
 import { HttpHandler } from './outbound/http.handler.js';
@@ -1309,6 +1310,42 @@ function createInboundEvent(source: string, data: WebhookEvent | PollerEvent | S
   };
 }
 
+/**
+ * Create an inbound event from decoded Morse code
+ */
+function createMorseEvent(data: MorseDecodedEvent): {
+  id: string;
+  pubkey: string;
+  pubkeyNpub: string;
+  kind: number;
+  created_at: number;
+  tags: string[][];
+  sig: string;
+  rawContent: string;
+  decryptedContent?: string;
+  encryptionType: 'none';
+  isEncrypted: boolean;
+  isFromWhitelist: boolean;
+  relayUrl: string;
+} {
+  const id = `morse-${data.timestamp.getTime()}`;
+  return {
+    id,
+    pubkey: 'morse_listener',
+    pubkeyNpub: 'morse_listener',
+    kind: 20003, // Custom kind for morse events
+    created_at: Math.floor(data.timestamp.getTime() / 1000),
+    tags: [['source', 'morse_listener'], ['raw', data.raw]],
+    sig: '',
+    rawContent: data.text,
+    decryptedContent: data.text,
+    encryptionType: 'none',
+    isEncrypted: false,
+    isFromWhitelist: true, // Morse events bypass whitelist
+    relayUrl: 'morse_listener',
+  };
+}
+
 async function initializeInboundHandlers(
   state: AppState,
   workflowEngine: WorkflowEngine
@@ -1434,6 +1471,48 @@ async function initializeInboundHandlers(
     }
   } catch (error) {
     logger.debug('Scheduler not configured, skipping');
+  }
+
+  // Morse Listener
+  try {
+    const config = await loadConfig();
+    if (config.morse_listener?.enabled) {
+      const morseListener = createMorseListener({
+        enabled: true,
+        ...(config.morse_listener.device && { device: config.morse_listener.device }),
+        ...(config.morse_listener.frequency && { frequency: config.morse_listener.frequency }),
+        ...(config.morse_listener.threshold && { threshold: config.morse_listener.threshold }),
+        ...(config.morse_listener.sample_rate && { sample_rate: config.morse_listener.sample_rate }),
+      });
+
+      // Connect to workflow engine
+      morseListener.on('decoded', async (event: MorseDecodedEvent) => {
+        const processedEvent = createMorseEvent(event);
+        const results = await workflowEngine.processEvent(processedEvent);
+
+        for (const result of results) {
+          if (result.success) {
+            logger.info(
+              { workflowId: result.workflowId, source: 'morse_listener', text: event.text },
+              'Morse workflow executed'
+            );
+          } else {
+            logger.error(
+              { workflowId: result.workflowId, error: result.error },
+              'Morse workflow failed'
+            );
+          }
+        }
+      });
+
+      await morseListener.start();
+      logger.info(
+        { device: config.morse_listener.device, frequency: config.morse_listener.frequency },
+        'Morse listener enabled'
+      );
+    }
+  } catch (error) {
+    logger.debug('Morse listener not configured, skipping');
   }
 }
 
@@ -1815,6 +1894,12 @@ async function shutdown(): Promise<void> {
 
     // Shutdown LCD display
     await lcdDisplay.shutdown();
+
+    // Shutdown Morse listener
+    const morseListener = getMorseListener();
+    if (morseListener?.isRunning()) {
+      morseListener.stop();
+    }
 
     // Close database
     getDatabase().close();

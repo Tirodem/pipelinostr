@@ -1,0 +1,48 @@
+# Morse Code Received Workflow
+#
+# Triggered when Morse code is detected and decoded by the microphone.
+# Sends the decoded message via Telegram and Nostr DM.
+#
+# Prerequisites:
+# 1. Configure morse_listener in config/config.yml:
+#    morse_listener:
+#      enabled: true
+#      device: "plughw:3,0"  # Your ALSA device (check with: arecord -l)
+#      frequency: 800        # Tone frequency to detect (Hz)
+#      threshold: 0.3        # Detection sensitivity (0-1)
+#      sample_rate: 44100    # Audio sample rate
+#
+# 2. Hardware setup:
+#    - USB sound card (e.g., SABRENT)
+#    - Condenser microphone
+#
+# The workflow receives:
+#   - trigger.content: Decoded text (e.g., "SOS")
+#   - trigger.tags: [["source", "morse_listener"], ["raw", "... --- ..."]]
+
+id: morse-received
+name: Morse Code Received
+enabled: true
+
+trigger:
+  type: internal
+  source: morse_listener
+
+actions:
+  # Send to Telegram
+  - id: telegram
+    type: telegram
+    chat_id: "${TELEGRAM_CHAT_ID}"
+    message: |
+      Morse code received:
+
+      {{ trigger.content }}
+
+      Raw: {{ trigger.tags.1.1 }}
+
+  # Send as Nostr DM to self
+  - id: nostr_dm
+    type: nostr_dm
+    recipient: "${MY_NPUB}"  # Your npub
+    message: |
+      Morse code decoded: {{ trigger.content }}

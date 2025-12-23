@@ -105,3 +105,14 @@ lcd:
   # npub_names:
   #   "npub1abc...": "Alice"
   #   "npub1xyz...": "Bob"
+
+# Morse Code Listener (optionnel, Linux uniquement)
+# Ecoute le microphone pour decoder du code Morse
+# Prerequis: carte son USB + microphone
+# Verifier le peripherique: arecord -l
+morse_listener:
+  enabled: false                # true = active l'ecoute Morse
+  device: "plughw:3,0"          # Peripherique ALSA (verifier avec: arecord -l)
+  frequency: 800                # Frequence de tonalite a detecter (Hz)
+  threshold: 0.3                # Sensibilite de detection (0-1, plus bas = plus sensible)
+  sample_rate: 44100            # Taux d'echantillonnage audio

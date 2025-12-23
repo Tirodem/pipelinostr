@@ -94,6 +94,13 @@ export interface PipelinostrConfig {
     i2c_address?: number;
     npub_names?: Record<string, string>;
   };
+  morse_listener?: {
+    enabled: boolean;
+    device?: string;         // ALSA device (e.g., "plughw:3,0")
+    frequency?: number;      // Target frequency in Hz (default: 800)
+    threshold?: number;      // Detection threshold (0-1, default: 0.3)
+    sample_rate?: number;    // Sample rate (default: 44100)
+  };
 }
 
 const configSchema = {
@@ -270,6 +277,17 @@ const configSchema = {
         i2c_bus: { type: 'integer' },
         i2c_address: { type: 'integer' },
         npub_names: { type: 'object', additionalProperties: { type: 'string' } },
+      },
+      required: ['enabled'],
+    },
+    morse_listener: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        device: { type: 'string' },
+        frequency: { type: 'integer' },
+        threshold: { type: 'number' },
+        sample_rate: { type: 'integer' },
       },
       required: ['enabled'],
     },
