@@ -27,7 +27,7 @@ export interface WorkflowFilter {
 }
 
 export interface WorkflowTrigger {
-  type: 'nostr_event' | 'http_webhook';
+  type: 'nostr_event' | 'http_webhook' | 'internal';
 
   // For nostr_event
   filters?: WorkflowFilter;
@@ -38,6 +38,9 @@ export interface WorkflowTrigger {
     method?: string;
     body_schema?: Record<string, unknown>;
   };
+
+  // For internal triggers (e.g., morse_listener)
+  source?: string;
 }
 
 // Hook for action-level failure handling

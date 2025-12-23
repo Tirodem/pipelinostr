@@ -101,6 +101,33 @@ export class WorkflowMatcher {
     };
 
     for (const workflow of workflows) {
+      // Handle internal triggers (e.g., morse_listener)
+      if (workflow.trigger.type === 'internal') {
+        const triggerSource = workflow.trigger.source;
+        const eventSourceTag = event.tags.find(t => t[0] === 'source');
+        const eventSource = eventSourceTag?.[1];
+
+        if (triggerSource && eventSource === triggerSource) {
+          const matchResult: MatchResult = { matched: true, groups: {} };
+          const matchData = {
+            workflow,
+            match: matchResult,
+            context: triggerContext,
+          };
+
+          if (workflow.enabled) {
+            enabled.push(matchData);
+            logger.debug(
+              { workflowId: workflow.id, source: eventSource },
+              'Internal workflow matched'
+            );
+          } else {
+            disabled.push(matchData);
+          }
+        }
+        continue;
+      }
+
       if (workflow.trigger.type !== 'nostr_event') continue;
 
       // Skip expensive regex checks for disabled workflows (just basic filter matching for visibility)
