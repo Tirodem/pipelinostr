@@ -1,0 +1,32 @@
+# PipeliNostr Workflow Disable Command
+#
+# Usage: /pipelinostr workflow disable <workflow_id>
+# Disables a workflow by setting enabled: false in its YAML file.
+
+id: pipelinostr-workflow-disable
+name: PipeliNostr Workflow Disable
+enabled: true
+
+trigger:
+  type: dm
+  from_whitelist: true
+  filters:
+    content_pattern: "^/pipelinostr\\s+workflow\\s+disable\\s+(\\S+)"
+
+actions:
+  - id: disable
+    type: system
+    action: workflow_disable
+    workflow_id: "{{ match.1 }}"
+
+  - id: reply_success
+    type: nostr_dm
+    condition: "{{ actions.disable.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "{{ actions.disable.response.formatted }}"
+
+  - id: reply_error
+    type: nostr_dm
+    condition: "{{ not actions.disable.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "Error: {{ actions.disable.error }}"

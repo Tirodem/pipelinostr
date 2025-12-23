@@ -1,0 +1,24 @@
+# PipeliNostr Workflow List Command
+#
+# Usage: /pipelinostr workflow list
+# Lists all workflows with their enabled/disabled status
+
+id: pipelinostr-workflow-list
+name: PipeliNostr Workflow List
+enabled: true
+
+trigger:
+  type: dm
+  from_whitelist: true
+  filters:
+    content_pattern: "^/pipelinostr\\s+workflow\\s+list$"
+
+actions:
+  - id: list
+    type: system
+    action: workflow_list
+
+  - id: reply
+    type: nostr_dm
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "{{ actions.list.response.formatted }}"

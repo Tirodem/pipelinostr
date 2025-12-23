@@ -1,0 +1,42 @@
+# PipeliNostr Workflow Fetch Command
+#
+# Usage: /pipelinostr workflow fetch <event_id>
+# Imports a workflow from a Nostr event (nevent1..., note1..., or hex ID)
+# The workflow is saved as DISABLED by default for security.
+#
+# Example:
+#   /pipelinostr workflow fetch nevent1qqsw...
+#   /pipelinostr workflow fetch note1abc...
+
+id: pipelinostr-workflow-fetch
+name: PipeliNostr Workflow Fetch
+enabled: true
+
+trigger:
+  type: dm
+  from_whitelist: true
+  filters:
+    content_pattern: "^/pipelinostr\\s+workflow\\s+fetch\\s+(\\S+)"
+
+actions:
+  - id: fetch
+    type: system
+    action: workflow_fetch
+    event_id: "{{ match.1 }}"
+    relay_urls:
+      - "wss://relay.damus.io"
+      - "wss://nos.lol"
+      - "wss://relay.primal.net"
+      - "wss://relay.nostr.band"
+
+  - id: reply_success
+    type: nostr_dm
+    condition: "{{ actions.fetch.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "{{ actions.fetch.response.formatted }}"
+
+  - id: reply_error
+    type: nostr_dm
+    condition: "{{ not actions.fetch.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "Error: {{ actions.fetch.error }}"

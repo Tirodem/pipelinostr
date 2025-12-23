@@ -1,16 +1,22 @@
 import { execSync } from 'node:child_process';
 import * as os from 'node:os';
-import { statSync, readdirSync, readFileSync } from 'node:fs';
+import { statSync, readdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
+import { nip19 } from 'nostr-tools';
 import { logger } from '../persistence/logger.js';
 import { getDatabase } from '../persistence/database.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
 export interface SystemActionConfig extends HandlerConfig {
-  action: 'status' | 'health';
+  action: 'status' | 'health' | 'workflow_fetch' | 'workflow_enable' | 'workflow_disable' | 'workflow_list' | 'workflow_delete';
   workflows_dir?: string;
   recent_executions_limit?: number;
+  // For workflow_fetch
+  event_id?: string;           // nevent1..., note1..., or hex event ID
+  relay_urls?: string[];       // Relays to fetch from
+  // For workflow_enable/disable/delete
+  workflow_id?: string;        // Workflow ID to enable/disable/delete
 }
 
 interface WorkflowInfo {
@@ -117,6 +123,16 @@ export class SystemHandler implements Handler {
           success: true,
           data: health,
         };
+      } else if (action === 'workflow_fetch') {
+        return await this.workflowFetch(systemConfig);
+      } else if (action === 'workflow_enable') {
+        return await this.workflowSetEnabled(systemConfig, true);
+      } else if (action === 'workflow_disable') {
+        return await this.workflowSetEnabled(systemConfig, false);
+      } else if (action === 'workflow_list') {
+        return await this.workflowList(systemConfig);
+      } else if (action === 'workflow_delete') {
+        return await this.workflowDelete(systemConfig);
       }
 
       return {
@@ -443,6 +459,243 @@ export class SystemHandler implements Handler {
     const healthy = Object.values(checks).every((v) => v);
 
     return { healthy, checks };
+  }
+
+  /**
+   * Fetch a workflow from a Nostr event
+   */
+  private async workflowFetch(config: SystemActionConfig): Promise<HandlerResult> {
+    const eventIdInput = config.event_id;
+    if (!eventIdInput) {
+      return { success: false, error: 'event_id is required' };
+    }
+
+    // Decode event ID (supports nevent1, note1, or hex)
+    let eventId: string;
+    let relayHints: string[] = [];
+
+    try {
+      if (eventIdInput.startsWith('nevent1')) {
+        const decoded = nip19.decode(eventIdInput);
+        if (decoded.type !== 'nevent') {
+          return { success: false, error: 'Invalid nevent' };
+        }
+        eventId = decoded.data.id;
+        relayHints = decoded.data.relays ?? [];
+      } else if (eventIdInput.startsWith('note1')) {
+        const decoded = nip19.decode(eventIdInput);
+        if (decoded.type !== 'note') {
+          return { success: false, error: 'Invalid note' };
+        }
+        eventId = decoded.data;
+      } else {
+        // Assume hex event ID
+        eventId = eventIdInput;
+      }
+    } catch (err) {
+      return { success: false, error: `Failed to decode event ID: ${err}` };
+    }
+
+    // Combine relay hints with provided relays
+    const relays = [...new Set([...relayHints, ...(config.relay_urls ?? [])])];
+    if (relays.length === 0) {
+      return { success: false, error: 'No relays available. Provide relay_urls or use nevent with relay hints.' };
+    }
+
+    // Fetch the event
+    let eventContent: string;
+    let eventAuthor: string;
+    try {
+      const { SimplePool } = await import('nostr-tools');
+      const pool = new SimplePool();
+
+      try {
+        const event = await Promise.race([
+          pool.get(relays, { ids: [eventId] }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000))
+        ]);
+
+        if (!event) {
+          return { success: false, error: 'Event not found on relays (timeout)' };
+        }
+
+        eventContent = event.content;
+        eventAuthor = event.pubkey;
+      } finally {
+        pool.close(relays);
+      }
+    } catch (err) {
+      return { success: false, error: `Failed to fetch event: ${err}` };
+    }
+
+    // Parse YAML content
+    let workflowData: Record<string, unknown>;
+    try {
+      workflowData = yaml.load(eventContent) as Record<string, unknown>;
+    } catch (err) {
+      return { success: false, error: `Failed to parse workflow YAML: ${err}` };
+    }
+
+    // Validate required fields
+    const workflowId = workflowData.id as string;
+    const workflowName = workflowData.name as string;
+    if (!workflowId) {
+      return { success: false, error: 'Workflow YAML must have an "id" field' };
+    }
+
+    // Force workflow to be disabled on import
+    workflowData.enabled = false;
+
+    // Add metadata about import
+    workflowData._imported = {
+      from_event: eventId,
+      from_author: eventAuthor,
+      from_author_npub: nip19.npubEncode(eventAuthor),
+      imported_at: new Date().toISOString(),
+    };
+
+    // Save workflow file
+    const workflowsDir = config.workflows_dir ?? this.workflowsDir;
+    const filePath = join(workflowsDir, `${workflowId}.yml`);
+
+    // Check if file already exists
+    if (existsSync(filePath)) {
+      return { success: false, error: `Workflow "${workflowId}" already exists. Delete it first or use a different ID.` };
+    }
+
+    try {
+      const yamlContent = yaml.dump(workflowData, { lineWidth: -1 });
+      writeFileSync(filePath, yamlContent, 'utf-8');
+    } catch (err) {
+      return { success: false, error: `Failed to save workflow: ${err}` };
+    }
+
+    // Build summary for response
+    const triggers = this.extractTriggers(workflowData);
+    const actions = (workflowData.actions as Array<{ id?: string; type?: string }>) ?? [];
+    const actionSummary = actions.map(a => a.type ?? a.id ?? 'unknown').join(', ');
+
+    const summary = [
+      `✅ Workflow imported (disabled)`,
+      ``,
+      `📋 ID: ${workflowId}`,
+      `📝 Name: ${workflowName ?? workflowId}`,
+      `👤 Author: ${nip19.npubEncode(eventAuthor).slice(0, 12)}...`,
+      `🎯 Triggers: ${triggers.join(', ') || 'none'}`,
+      `⚡ Actions: ${actionSummary || 'none'}`,
+      ``,
+      `To enable: /pipelinostr workflow enable ${workflowId}`,
+    ].join('\n');
+
+    logger.info({ workflowId, eventId, author: eventAuthor }, 'Workflow imported from Nostr');
+
+    return {
+      success: true,
+      data: {
+        workflow_id: workflowId,
+        workflow_name: workflowName,
+        author: eventAuthor,
+        author_npub: nip19.npubEncode(eventAuthor),
+        event_id: eventId,
+        file_path: filePath,
+        formatted: summary,
+      },
+    };
+  }
+
+  /**
+   * Enable or disable a workflow
+   */
+  private async workflowSetEnabled(config: SystemActionConfig, enabled: boolean): Promise<HandlerResult> {
+    const workflowId = config.workflow_id;
+    if (!workflowId) {
+      return { success: false, error: 'workflow_id is required' };
+    }
+
+    const workflowsDir = config.workflows_dir ?? this.workflowsDir;
+    const filePath = join(workflowsDir, `${workflowId}.yml`);
+
+    if (!existsSync(filePath)) {
+      return { success: false, error: `Workflow "${workflowId}" not found` };
+    }
+
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      const workflowData = yaml.load(content) as Record<string, unknown>;
+
+      workflowData.enabled = enabled;
+
+      const yamlContent = yaml.dump(workflowData, { lineWidth: -1 });
+      writeFileSync(filePath, yamlContent, 'utf-8');
+
+      const action = enabled ? 'enabled' : 'disabled';
+      logger.info({ workflowId, enabled }, `Workflow ${action}`);
+
+      return {
+        success: true,
+        data: {
+          workflow_id: workflowId,
+          enabled,
+          formatted: `${enabled ? '✅' : '❌'} Workflow "${workflowId}" ${action}`,
+        },
+      };
+    } catch (err) {
+      return { success: false, error: `Failed to update workflow: ${err}` };
+    }
+  }
+
+  /**
+   * List all workflows
+   */
+  private async workflowList(config: SystemActionConfig): Promise<HandlerResult> {
+    const workflowsDir = config.workflows_dir ?? this.workflowsDir;
+    const workflows = this.getWorkflows(workflowsDir);
+
+    const lines = [
+      `📋 Workflows (${workflows.filter(w => w.enabled).length}/${workflows.length} enabled)`,
+      '',
+      ...workflows.map(w => `${w.enabled ? '✅' : '❌'} ${w.id}: ${w.name}`),
+    ];
+
+    return {
+      success: true,
+      data: {
+        workflows,
+        formatted: lines.join('\n'),
+      },
+    };
+  }
+
+  /**
+   * Delete a workflow
+   */
+  private async workflowDelete(config: SystemActionConfig): Promise<HandlerResult> {
+    const workflowId = config.workflow_id;
+    if (!workflowId) {
+      return { success: false, error: 'workflow_id is required' };
+    }
+
+    const workflowsDir = config.workflows_dir ?? this.workflowsDir;
+    const filePath = join(workflowsDir, `${workflowId}.yml`);
+
+    if (!existsSync(filePath)) {
+      return { success: false, error: `Workflow "${workflowId}" not found` };
+    }
+
+    try {
+      unlinkSync(filePath);
+      logger.info({ workflowId }, 'Workflow deleted');
+
+      return {
+        success: true,
+        data: {
+          workflow_id: workflowId,
+          formatted: `🗑️ Workflow "${workflowId}" deleted`,
+        },
+      };
+    } catch (err) {
+      return { success: false, error: `Failed to delete workflow: ${err}` };
+    }
   }
 
   async shutdown(): Promise<void> {

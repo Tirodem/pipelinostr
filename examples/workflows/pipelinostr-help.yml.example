@@ -1,0 +1,43 @@
+# PipeliNostr Help Command
+#
+# Usage: /pipelinostr help
+# Shows available PipeliNostr commands
+
+id: pipelinostr-help
+name: PipeliNostr Help
+enabled: true
+
+trigger:
+  type: dm
+  from_whitelist: true
+  filters:
+    content_pattern: "^/pipelinostr\\s+help$"
+
+actions:
+  - id: reply
+    type: nostr_dm
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: |
+      PipeliNostr Commands:
+
+      /pipelinostr status
+        Show system status, workflows, resources
+
+      /pipelinostr workflow list
+        List all workflows
+
+      /pipelinostr workflow fetch <event_id>
+        Import workflow from Nostr event
+        (nevent1..., note1..., or hex ID)
+
+      /pipelinostr workflow enable <id>
+        Enable a workflow
+
+      /pipelinostr workflow disable <id>
+        Disable a workflow
+
+      /pipelinostr workflow delete <id>
+        Delete a workflow (permanent!)
+
+      /pipelinostr help
+        Show this help

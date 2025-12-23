@@ -1,0 +1,33 @@
+# PipeliNostr Workflow Delete Command
+#
+# Usage: /pipelinostr workflow delete <workflow_id>
+# Permanently deletes a workflow file.
+# WARNING: This action cannot be undone!
+
+id: pipelinostr-workflow-delete
+name: PipeliNostr Workflow Delete
+enabled: true
+
+trigger:
+  type: dm
+  from_whitelist: true
+  filters:
+    content_pattern: "^/pipelinostr\\s+workflow\\s+delete\\s+(\\S+)"
+
+actions:
+  - id: delete
+    type: system
+    action: workflow_delete
+    workflow_id: "{{ match.1 }}"
+
+  - id: reply_success
+    type: nostr_dm
+    condition: "{{ actions.delete.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "{{ actions.delete.response.formatted }}"
+
+  - id: reply_error
+    type: nostr_dm
+    condition: "{{ not actions.delete.success }}"
+    recipient: "{{ trigger.pubkey_npub }}"
+    message: "Error: {{ actions.delete.error }}"
