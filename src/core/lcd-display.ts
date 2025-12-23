@@ -442,6 +442,56 @@ class LcdDisplayManager {
   }
 
   /**
+   * Format trigger source for display (async version)
+   * Tries to fetch profile name with a short timeout before falling back
+   */
+  async formatTriggerSourceAsync(source: string | undefined, timeoutMs: number = 500): Promise<string> {
+    if (!source) return 'Manual';
+
+    // Check if it's an npub
+    if (source.startsWith('npub1')) {
+      // Check cache first
+      const cachedName = this.profileCache.get(source);
+      if (cachedName) {
+        return cachedName;
+      }
+
+      // Check for static config mapping
+      if (this.config.npub_names && this.config.npub_names[source]) {
+        return this.config.npub_names[source];
+      }
+
+      // Try to fetch with timeout
+      try {
+        const name = await Promise.race([
+          this.fetchProfileName(source),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
+        ]);
+        if (name) {
+          return name;
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+
+      // Use short format as fallback
+      return `${source.slice(0, 8)}...${source.slice(-4)}`;
+    }
+
+    // HTTP trigger
+    if (source === 'http' || source === 'webhook') {
+      return 'HTTP';
+    }
+
+    // Hook trigger
+    if (source === 'hook') {
+      return 'Hook';
+    }
+
+    return source;
+  }
+
+  /**
    * Fetch and cache profile name for an npub
    * Returns the display name or null if not found
    */

@@ -171,10 +171,9 @@ export class WorkflowEngine {
 
     // Update LCD display (only for top-level workflows, not hooks)
     if (!parentInfo) {
-      const triggerSource = lcdDisplay.formatTriggerSource(triggerContext.from);
+      // Try to fetch profile name with short timeout before displaying
+      const triggerSource = await lcdDisplay.formatTriggerSourceAsync(triggerContext.from);
       lcdDisplay.showProcessing(workflow.name, triggerSource).catch(() => {});
-      // Pre-fetch profile name in background (will update display when ready)
-      lcdDisplay.prefetchProfile(triggerContext.from).catch(() => {});
     }
 
     const context: WorkflowContext = {
