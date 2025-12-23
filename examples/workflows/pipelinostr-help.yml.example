@@ -8,16 +8,17 @@ name: PipeliNostr Help
 enabled: true
 
 trigger:
-  type: dm
-  from_whitelist: true
+  type: nostr_event
   filters:
+    kinds: [4]
+    from_whitelist: true
     content_pattern: "^/pipelinostr\\s+help$"
 
 actions:
   - id: reply
     type: nostr_dm
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: |
+    to: "{{ trigger.from }}"
+    content: |
       PipeliNostr Commands:
 
       /pipelinostr status

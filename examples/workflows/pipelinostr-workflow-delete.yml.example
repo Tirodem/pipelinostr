@@ -9,25 +9,26 @@ name: PipeliNostr Workflow Delete
 enabled: true
 
 trigger:
-  type: dm
-  from_whitelist: true
+  type: nostr_event
   filters:
+    kinds: [4]
+    from_whitelist: true
     content_pattern: "^/pipelinostr\\s+workflow\\s+delete\\s+(\\S+)"
 
 actions:
   - id: delete
     type: system
     action: workflow_delete
-    workflow_id: "{{ match.1 }}"
+    workflow_id: "{{ match.$1 }}"
 
   - id: reply_success
     type: nostr_dm
-    condition: "{{ actions.delete.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "{{ actions.delete.response.formatted }}"
+    when: "{{ actions.delete.success }}"
+    to: "{{ trigger.from }}"
+    content: "{{ actions.delete.response.formatted }}"
 
   - id: reply_error
     type: nostr_dm
-    condition: "{{ not actions.delete.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "Error: {{ actions.delete.error }}"
+    when: "{{ not actions.delete.success }}"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.delete.error }}"

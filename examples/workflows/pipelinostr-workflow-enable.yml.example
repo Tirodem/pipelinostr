@@ -11,25 +11,26 @@ name: PipeliNostr Workflow Enable
 enabled: true
 
 trigger:
-  type: dm
-  from_whitelist: true
+  type: nostr_event
   filters:
+    kinds: [4]
+    from_whitelist: true
     content_pattern: "^/pipelinostr\\s+workflow\\s+enable\\s+(\\S+)"
 
 actions:
   - id: enable
     type: system
     action: workflow_enable
-    workflow_id: "{{ match.1 }}"
+    workflow_id: "{{ match.$1 }}"
 
   - id: reply_success
     type: nostr_dm
-    condition: "{{ actions.enable.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "{{ actions.enable.response.formatted }}"
+    when: "{{ actions.enable.success }}"
+    to: "{{ trigger.from }}"
+    content: "{{ actions.enable.response.formatted }}"
 
   - id: reply_error
     type: nostr_dm
-    condition: "{{ not actions.enable.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "Error: {{ actions.enable.error }}"
+    when: "{{ not actions.enable.success }}"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.enable.error }}"

@@ -13,16 +13,17 @@ name: PipeliNostr Workflow Fetch
 enabled: true
 
 trigger:
-  type: dm
-  from_whitelist: true
+  type: nostr_event
   filters:
+    kinds: [4]
+    from_whitelist: true
     content_pattern: "^/pipelinostr\\s+workflow\\s+fetch\\s+(\\S+)"
 
 actions:
   - id: fetch
     type: system
     action: workflow_fetch
-    event_id: "{{ match.1 }}"
+    event_id: "{{ match.$1 }}"
     relay_urls:
       - "wss://relay.damus.io"
       - "wss://nos.lol"
@@ -31,12 +32,12 @@ actions:
 
   - id: reply_success
     type: nostr_dm
-    condition: "{{ actions.fetch.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "{{ actions.fetch.response.formatted }}"
+    when: "{{ actions.fetch.success }}"
+    to: "{{ trigger.from }}"
+    content: "{{ actions.fetch.response.formatted }}"
 
   - id: reply_error
     type: nostr_dm
-    condition: "{{ not actions.fetch.success }}"
-    recipient: "{{ trigger.pubkey_npub }}"
-    message: "Error: {{ actions.fetch.error }}"
+    when: "{{ not actions.fetch.success }}"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.fetch.error }}"
