@@ -348,10 +348,10 @@ class LcdDisplayManager {
         ''
       ]);
 
-      // Return to idle after 10 seconds
+      // Return to idle after 2 seconds
       this.idleTimeout = setTimeout(() => {
         this.showIdle();
-      }, 10000);
+      }, 2000);
     });
   }
 
