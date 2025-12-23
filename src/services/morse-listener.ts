@@ -284,9 +284,6 @@ export class MorseListener extends EventEmitter {
     }
   }
 
-  // Debug counter
-  private debugCounter: number = 0;
-
   /**
    * Process a magnitude reading from Goertzel
    */
@@ -304,19 +301,6 @@ export class MorseListener extends EventEmitter {
     const threshold = this.magnitudeBaseline +
       (this.config.threshold! * (maxMagnitude - this.magnitudeBaseline));
     const isToneNow = magnitude > threshold && magnitude > this.magnitudeBaseline * 2;
-
-    // Debug: log every 50 samples (~1 second)
-    this.debugCounter++;
-    if (this.debugCounter >= 50) {
-      this.debugCounter = 0;
-      logger.info({
-        magnitude: magnitude.toFixed(2),
-        baseline: this.magnitudeBaseline.toFixed(2),
-        max: maxMagnitude.toFixed(2),
-        threshold: threshold.toFixed(2),
-        isTone: isToneNow
-      }, '[MorseListener] Debug magnitude');
-    }
 
     const now = Date.now();
 
@@ -366,15 +350,15 @@ export class MorseListener extends EventEmitter {
       // Dot
       this.currentSymbols += '.';
       this.rawMorse += '.';
-      logger.info({ duration, max: DOT_MAX }, '[MorseListener] Detected DOT');
+      logger.debug({ duration }, '[MorseListener] Detected DOT');
     } else if (duration >= DASH_MIN && duration < DASH_MAX) {
       // Dash
       this.currentSymbols += '-';
       this.rawMorse += '-';
-      logger.info({ duration, min: DASH_MIN, max: DASH_MAX }, '[MorseListener] Detected DASH');
+      logger.debug({ duration }, '[MorseListener] Detected DASH');
     } else {
       // Too long, probably noise
-      logger.info({ duration, dashMax: DASH_MAX }, '[MorseListener] Ignored (too long)');
+      logger.debug({ duration }, '[MorseListener] Ignored (too long)');
     }
   }
 
