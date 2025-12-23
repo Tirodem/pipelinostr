@@ -120,6 +120,14 @@ export class MorseListener extends EventEmitter {
   private rawMorse: string = '';        // Raw morse for debugging
   private messageTimeout: NodeJS.Timeout | null = null;
 
+  // Auto-restart state
+  private restartCount: number = 0;
+  private lastRestartTime: number = 0;
+  private restartTimeout: NodeJS.Timeout | null = null;
+  private static readonly MAX_RESTARTS = 5;
+  private static readonly RESTART_WINDOW_MS = 60000;  // Reset restart count after 1 minute of stability
+  private static readonly RESTART_DELAY_MS = 2000;    // Wait 2 seconds before restart
+
   constructor(config: MorseListenerConfig) {
     super();
     this.config = {
@@ -183,6 +191,11 @@ export class MorseListener extends EventEmitter {
     this.process.on('close', (code) => {
       logger.info({ code }, '[MorseListener] Process closed');
       this.running = false;
+
+      // Auto-restart if not intentionally stopped
+      if (this.config.enabled) {
+        this.scheduleRestart();
+      }
     });
 
     this.running = true;
@@ -196,6 +209,13 @@ export class MorseListener extends EventEmitter {
    * Stop listening
    */
   stop(): void {
+    // Disable auto-restart
+    this.config.enabled = false;
+
+    if (this.restartTimeout) {
+      clearTimeout(this.restartTimeout);
+      this.restartTimeout = null;
+    }
     if (this.process) {
       this.process.kill();
       this.process = null;
@@ -207,6 +227,44 @@ export class MorseListener extends EventEmitter {
     this.running = false;
     this.goertzel?.reset();
     logger.info('[MorseListener] Stopped');
+  }
+
+  /**
+   * Schedule an automatic restart after crash
+   */
+  private scheduleRestart(): void {
+    const now = Date.now();
+
+    // Reset restart count if we've been stable for a while
+    if (now - this.lastRestartTime > MorseListener.RESTART_WINDOW_MS) {
+      this.restartCount = 0;
+    }
+
+    // Check if we've exceeded max restarts
+    if (this.restartCount >= MorseListener.MAX_RESTARTS) {
+      logger.error(
+        { restartCount: this.restartCount, windowMs: MorseListener.RESTART_WINDOW_MS },
+        '[MorseListener] Max restarts exceeded, giving up'
+      );
+      this.emit('error', new Error('Max restarts exceeded'));
+      return;
+    }
+
+    this.restartCount++;
+    this.lastRestartTime = now;
+
+    logger.warn(
+      { restartCount: this.restartCount, maxRestarts: MorseListener.MAX_RESTARTS },
+      '[MorseListener] Scheduling restart'
+    );
+
+    this.restartTimeout = setTimeout(() => {
+      this.restartTimeout = null;
+      logger.info('[MorseListener] Restarting...');
+      this.start().catch((error) => {
+        logger.error({ error: error.message }, '[MorseListener] Restart failed');
+      });
+    }, MorseListener.RESTART_DELAY_MS);
   }
 
   /**
@@ -348,19 +406,34 @@ export class MorseListener extends EventEmitter {
   private finalizeMessage(): void {
     this.finalizeLetter();
 
-    if (this.currentMessage.length > 0) {
-      const event: MorseDecodedEvent = {
-        text: this.currentMessage.trim(),
-        raw: this.rawMorse.trim(),
-        timestamp: new Date(),
-      };
+    const message = this.currentMessage.trim();
 
-      logger.info(
-        { text: event.text, raw: event.raw },
-        '[MorseListener] Message decoded'
-      );
+    if (message.length > 0) {
+      // Check if message is garbage (too many unknown characters)
+      const unknownCount = (message.match(/\?/g) || []).length;
+      const validCount = message.replace(/[\s?]/g, '').length;
+      const unknownRatio = unknownCount / (unknownCount + validCount);
 
-      this.emit('decoded', event);
+      if (unknownRatio > 0.5 || unknownCount > 5) {
+        // Too many unknown characters - probably noise
+        logger.info(
+          { text: message, unknownCount, validCount, unknownRatio },
+          '[MorseListener] Message discarded (too much noise)'
+        );
+      } else {
+        const event: MorseDecodedEvent = {
+          text: message,
+          raw: this.rawMorse.trim(),
+          timestamp: new Date(),
+        };
+
+        logger.info(
+          { text: event.text, raw: event.raw },
+          '[MorseListener] Message decoded'
+        );
+
+        this.emit('decoded', event);
+      }
     }
 
     // Reset state
