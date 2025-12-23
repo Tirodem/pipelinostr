@@ -356,7 +356,13 @@ export class MorseListener extends EventEmitter {
    * Process a detected tone duration
    */
   private processTone(duration: number): void {
-    if (duration < DOT_MAX) {
+    // Ignore very short durations (noise spikes)
+    const MIN_DURATION = 50;  // Minimum 50ms to be considered a real tone
+
+    if (duration < MIN_DURATION) {
+      // Too short, ignore as noise
+      return;
+    } else if (duration < DOT_MAX) {
       // Dot
       this.currentSymbols += '.';
       this.rawMorse += '.';
