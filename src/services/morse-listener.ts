@@ -284,6 +284,9 @@ export class MorseListener extends EventEmitter {
     }
   }
 
+  // Debug counter
+  private debugCounter: number = 0;
+
   /**
    * Process a magnitude reading from Goertzel
    */
@@ -301,6 +304,19 @@ export class MorseListener extends EventEmitter {
     const threshold = this.magnitudeBaseline +
       (this.config.threshold! * (maxMagnitude - this.magnitudeBaseline));
     const isToneNow = magnitude > threshold && magnitude > this.magnitudeBaseline * 2;
+
+    // Debug: log every 50 samples (~1 second)
+    this.debugCounter++;
+    if (this.debugCounter >= 50) {
+      this.debugCounter = 0;
+      logger.info({
+        magnitude: magnitude.toFixed(2),
+        baseline: this.magnitudeBaseline.toFixed(2),
+        max: maxMagnitude.toFixed(2),
+        threshold: threshold.toFixed(2),
+        isTone: isToneNow
+      }, '[MorseListener] Debug magnitude');
+    }
 
     const now = Date.now();
 
