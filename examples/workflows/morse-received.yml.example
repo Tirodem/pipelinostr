@@ -33,16 +33,16 @@ actions:
   - id: telegram
     type: telegram
     chat_id: "${TELEGRAM_CHAT_ID}"
-    message: |
+    text: |
       Morse code received:
 
       {{ trigger.content }}
 
-      Raw: {{ trigger.tags.1.1 }}
+      Raw: {{ trigger.raw_morse }}
 
   # Send as Nostr DM to self
   - id: nostr_dm
     type: nostr_dm
-    recipient: "${MY_NPUB}"  # Your npub
-    message: |
+    to: "${MY_NPUB}"  # Your npub
+    content: |
       Morse code decoded: {{ trigger.content }}

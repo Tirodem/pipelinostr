@@ -109,10 +109,18 @@ export class WorkflowMatcher {
 
         if (triggerSource && eventSource === triggerSource) {
           const matchResult: MatchResult = { matched: true, groups: {} };
+
+          // Build extended context for internal triggers
+          const rawTag = event.tags.find(t => t[0] === 'raw');
+          const internalContext = {
+            ...triggerContext,
+            raw_morse: rawTag?.[1] ?? '',
+          };
+
           const matchData = {
             workflow,
             match: matchResult,
-            context: triggerContext,
+            context: internalContext,
           };
 
           if (workflow.enabled) {
