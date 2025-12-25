@@ -55,11 +55,38 @@ echo -e "${CYAN}Plateforme détectée : ${PLATFORM}${NC}"
 echo ""
 
 # =============================================================================
+# Installation des outils système
+# =============================================================================
+
+install_system_tools() {
+    echo -e "${CYAN}[1/6] Vérification des outils système...${NC}"
+
+    case "$PLATFORM" in
+        termux)
+            # Toujours vérifier/installer sqlite sur Termux (pour monitoring.sh)
+            if ! command -v sqlite3 &> /dev/null; then
+                echo -e "${YELLOW}  ⚠ sqlite3 non trouvé, installation...${NC}"
+                pkg install -y sqlite
+            fi
+            echo -e "${GREEN}  ✓ sqlite3 disponible${NC}"
+            ;;
+        *)
+            # Sur les autres plateformes, sqlite3 est généralement préinstallé
+            if command -v sqlite3 &> /dev/null; then
+                echo -e "${GREEN}  ✓ sqlite3 disponible${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ sqlite3 non trouvé (monitoring.sh ne fonctionnera pas)${NC}"
+            fi
+            ;;
+    esac
+}
+
+# =============================================================================
 # Installation de Node.js/npm
 # =============================================================================
 
 install_nodejs() {
-    echo -e "${CYAN}[1/5] Vérification de Node.js...${NC}"
+    echo -e "${CYAN}[2/6] Vérification de Node.js...${NC}"
 
     if command -v node &> /dev/null && command -v npm &> /dev/null; then
         NODE_VERSION=$(node -v)
@@ -74,7 +101,7 @@ install_nodejs() {
     case "$PLATFORM" in
         termux)
             pkg update -y
-            pkg install -y nodejs-lts git sqlite
+            pkg install -y nodejs-lts git
             ;;
         debian)
             # Utilise NodeSource pour avoir une version récente
@@ -123,7 +150,7 @@ install_nodejs() {
 
 create_directories() {
     echo ""
-    echo -e "${CYAN}[2/5] Création des dossiers...${NC}"
+    echo -e "${CYAN}[3/6] Création des dossiers...${NC}"
 
     mkdir -p data
     mkdir -p config/workflows
@@ -146,7 +173,7 @@ create_directories() {
 
 copy_config_files() {
     echo ""
-    echo -e "${CYAN}[3/5] Configuration...${NC}"
+    echo -e "${CYAN}[4/6] Configuration...${NC}"
 
     # .env
     if [ -f ".env" ]; then
@@ -179,7 +206,7 @@ copy_config_files() {
 
 run_npm_install() {
     echo ""
-    echo -e "${CYAN}[4/5] Installation des dépendances npm...${NC}"
+    echo -e "${CYAN}[5/6] Installation des dépendances npm...${NC}"
 
     if npm install --silent 2>&1 | tail -3; then
         echo -e "${GREEN}  ✓ Dépendances installées${NC}"
@@ -195,7 +222,7 @@ run_npm_install() {
 
 run_npm_build() {
     echo ""
-    echo -e "${CYAN}[5/5] Compilation TypeScript...${NC}"
+    echo -e "${CYAN}[6/6] Compilation TypeScript...${NC}"
 
     if npm run build 2>&1 | tail -3; then
         echo -e "${GREEN}  ✓ Projet compilé${NC}"
@@ -234,6 +261,7 @@ print_summary() {
 # Main
 # =============================================================================
 
+install_system_tools
 install_nodejs
 create_directories
 copy_config_files
