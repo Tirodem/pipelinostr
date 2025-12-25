@@ -381,6 +381,7 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - ✅ Demander : "Peux-tu vérifier sur le serveur avec `grep queue config/config.yml` ?"
 
 **Violation = conclusions fausses et perte de temps.**
+- **PipeliNostr n'est PAS un service systemd** : Ne JAMAIS utiliser `systemctl` ou `journalctl`. L'utilisateur lance le processus manuellement.
 - **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
 - **APRÈS PUSH** : Toujours donner les commandes serveur complètes :
   ```bash
