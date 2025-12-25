@@ -69,6 +69,11 @@ interface SystemStatus {
       used_mb: number;
       usage_percent: number;
     };
+    process_memory: {
+      rss_mb: number;
+      heap_used_mb: number;
+      heap_total_mb: number;
+    };
     disk: {
       path: string;
       total_gb: number;
@@ -317,6 +322,34 @@ export class SystemHandler implements Handler {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
+    // Get CPU info with fallback for Android/Termux where os.cpus() may be empty
+    let cpuModel = cpus[0]?.model ?? 'Unknown';
+    let cpuCores = cpus.length;
+
+    if (cpuCores === 0) {
+      // Fallback: try reading /proc/cpuinfo (Linux/Android)
+      try {
+        const cpuinfo = readFileSync('/proc/cpuinfo', 'utf-8');
+
+        // Count processors
+        const processorMatches = cpuinfo.match(/^processor\s*:/gm);
+        if (processorMatches) {
+          cpuCores = processorMatches.length;
+        }
+
+        // Get model name (try different fields used by different architectures)
+        const modelMatch = cpuinfo.match(/^(?:model name|Hardware|Processor)\s*:\s*(.+)$/m);
+        if (modelMatch && modelMatch[1]) {
+          cpuModel = modelMatch[1].trim();
+        }
+      } catch {
+        // /proc/cpuinfo not available
+      }
+    }
+
+    // Get process memory usage (PipeliNostr specific)
+    const processMemory = process.memoryUsage();
+
     // Get disk usage (cross-platform approach)
     let disk: SystemStatus['resources']['disk'] = null;
     try {
@@ -370,8 +403,8 @@ export class SystemHandler implements Handler {
 
     return {
       cpu: {
-        model: cpus[0]?.model ?? 'Unknown',
-        cores: cpus.length,
+        model: cpuModel,
+        cores: cpuCores,
         load_avg: os.loadavg(),
       },
       memory: {
@@ -379,6 +412,11 @@ export class SystemHandler implements Handler {
         free_mb: Math.round(freeMem / 1048576),
         used_mb: Math.round(usedMem / 1048576),
         usage_percent: Math.round((usedMem / totalMem) * 100),
+      },
+      process_memory: {
+        rss_mb: Math.round(processMemory.rss / 1048576),
+        heap_used_mb: Math.round(processMemory.heapUsed / 1048576),
+        heap_total_mb: Math.round(processMemory.heapTotal / 1048576),
       },
       disk,
     };
@@ -412,6 +450,7 @@ export class SystemHandler implements Handler {
       `📊 Resources:`,
       `  CPU: ${status.resources.cpu.cores} cores (${status.resources.cpu.model.substring(0, 30)})`,
       `  RAM: ${status.resources.memory.used_mb}MB / ${status.resources.memory.total_mb}MB (${status.resources.memory.usage_percent}%)`,
+      `  PipeliNostr: ${status.resources.process_memory.rss_mb}MB (heap: ${status.resources.process_memory.heap_used_mb}/${status.resources.process_memory.heap_total_mb}MB)`,
       ...(status.resources.disk
         ? [
             `  Disk: ${status.resources.disk.used_gb}GB / ${status.resources.disk.total_gb}GB (${status.resources.disk.usage_percent}%)`,
