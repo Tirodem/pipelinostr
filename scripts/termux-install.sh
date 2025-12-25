@@ -257,7 +257,29 @@ ENVEOF
 create_data_directory() {
     mkdir -p "$INSTALL_DIR/data"
     mkdir -p "$INSTALL_DIR/config/workflows"
+    mkdir -p "$INSTALL_DIR/config/handlers"
     log_success "Dossiers data/ et config/ créés"
+}
+
+create_config_file() {
+    log_step "Configuration principale"
+
+    local config_file="$INSTALL_DIR/config/config.yml"
+
+    if [ -f "$config_file" ]; then
+        log_warn "Le fichier config/config.yml existe déjà, conservation"
+        return 0
+    fi
+
+    if [ -f "$INSTALL_DIR/config/config.yml.example" ]; then
+        cp "$INSTALL_DIR/config/config.yml.example" "$config_file"
+        log_success "Fichier config/config.yml créé depuis config.yml.example"
+    else
+        log_error "Fichier config.yml.example introuvable"
+        return 1
+    fi
+
+    log_warn "N'oubliez pas de configurer config/config.yml"
 }
 
 # =============================================================================
@@ -501,6 +523,7 @@ main() {
 
     # Configuration
     create_env_file
+    create_config_file
     create_data_directory
     create_helper_scripts
 
