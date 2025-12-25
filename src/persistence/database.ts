@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { mkdirSync, existsSync } from 'node:fs';
+import initSqlJs, { Database as SqlJsDatabase, BindParams, SqlValue } from 'sql.js';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { logger } from './logger.js';
 import type { EventLog } from './models/event-log.js';
@@ -9,26 +9,72 @@ import type { QueuedEvent, QueuedEventStatus, QueuedEventType, QueueStats, Enque
 import type { WorkflowState, WorkflowStateHistory, WorkflowStateInput, IncrementOptions, DecrementOptions } from './models/workflow-state.js';
 
 export class PipelinostrDatabase {
-  private db: Database.Database;
+  private db!: SqlJsDatabase;
+  private dbPath: string;
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingSave = false;
 
-  constructor(dbPath: string) {
+  private constructor(dbPath: string) {
+    this.dbPath = dbPath;
+  }
+
+  static async create(dbPath: string): Promise<PipelinostrDatabase> {
+    const instance = new PipelinostrDatabase(dbPath);
+    await instance.initialize();
+    return instance;
+  }
+
+  private async initialize(): Promise<void> {
     // Ensure directory exists
-    const dir = dirname(dbPath);
+    const dir = dirname(this.dbPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
       logger.info({ path: dir }, 'Created database directory');
     }
 
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('foreign_keys = ON');
+    // Initialize sql.js
+    const SQL = await initSqlJs();
 
-    logger.info({ path: dbPath }, 'Database connected');
+    // Load existing database or create new
+    if (existsSync(this.dbPath)) {
+      const fileBuffer = readFileSync(this.dbPath);
+      this.db = new SQL.Database(fileBuffer);
+      logger.info({ path: this.dbPath }, 'Database loaded from file');
+    } else {
+      this.db = new SQL.Database();
+      logger.info({ path: this.dbPath }, 'New database created');
+    }
+
+    // Enable foreign keys
+    this.db.run('PRAGMA foreign_keys = ON');
+
     this.initializeTables();
+    this.save(); // Save initial state
+  }
+
+  private save(): void {
+    // Debounce saves to avoid too many writes
+    if (this.saveTimeout) {
+      this.pendingSave = true;
+      return;
+    }
+
+    this.pendingSave = false;
+    const data = this.db.export();
+    const buffer = Buffer.from(data);
+    writeFileSync(this.dbPath, buffer);
+
+    // Set timeout to batch subsequent saves
+    this.saveTimeout = setTimeout(() => {
+      this.saveTimeout = null;
+      if (this.pendingSave) {
+        this.save();
+      }
+    }, 100);
   }
 
   private initializeTables(): void {
-    this.db.exec(`
+    this.db.run(`
       -- Table principale : log de tous les events traités
       CREATE TABLE IF NOT EXISTS event_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,13 +94,15 @@ export class PipelinostrDatabase {
         target_identifier TEXT,
         target_response TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
-      CREATE INDEX IF NOT EXISTS idx_event_log_received_at ON event_log(received_at);
-      CREATE INDEX IF NOT EXISTS idx_event_log_source ON event_log(source_type, source_identifier);
-      CREATE INDEX IF NOT EXISTS idx_event_log_workflow ON event_log(workflow_id);
-      CREATE INDEX IF NOT EXISTS idx_event_log_status ON event_log(status);
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_log_received_at ON event_log(received_at)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_log_source ON event_log(source_type, source_identifier)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_log_workflow ON event_log(workflow_id)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_log_status ON event_log(status)');
 
+    this.db.run(`
       -- Table état des relays
       CREATE TABLE IF NOT EXISTS relay_state (
         url TEXT PRIMARY KEY,
@@ -70,8 +118,10 @@ export class PipelinostrDatabase {
         discovered_from TEXT NOT NULL,
         first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    this.db.run(`
       -- Table exécutions de workflows (détail)
       CREATE TABLE IF NOT EXISTS workflow_execution (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,11 +137,13 @@ export class PipelinostrDatabase {
         output_data TEXT,
         error_message TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
-      CREATE INDEX IF NOT EXISTS idx_workflow_execution_event ON workflow_execution(event_log_id);
-      CREATE INDEX IF NOT EXISTS idx_workflow_execution_workflow ON workflow_execution(workflow_id);
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_workflow_execution_event ON workflow_execution(event_log_id)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_workflow_execution_workflow ON workflow_execution(workflow_id)');
 
+    this.db.run(`
       -- Table file d'attente des événements
       CREATE TABLE IF NOT EXISTS event_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,15 +162,15 @@ export class PipelinostrDatabase {
         workflow_name TEXT,
         error_message TEXT,
         result_data TEXT
-      );
+      )
+    `);
 
-      CREATE INDEX IF NOT EXISTS idx_event_queue_status ON event_queue(status);
-      CREATE INDEX IF NOT EXISTS idx_event_queue_next_retry ON event_queue(next_retry_at);
-      CREATE INDEX IF NOT EXISTS idx_event_queue_priority ON event_queue(priority DESC, created_at ASC);
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_queue_status ON event_queue(status)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_queue_next_retry ON event_queue(next_retry_at)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_event_queue_priority ON event_queue(priority DESC, created_at ASC)');
 
+    this.db.run(`
       -- Table état des workflows (balances, compteurs, flags)
-      -- Note: workflow_id is metadata (last writer), not part of unique key
-      -- Unique key is (namespace, state_key) - namespace provides isolation
       CREATE TABLE IF NOT EXISTS workflow_state (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workflow_id TEXT NOT NULL,
@@ -135,12 +187,14 @@ export class PipelinostrDatabase {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(namespace, state_key)
-      );
+      )
+    `);
 
-      CREATE INDEX IF NOT EXISTS idx_workflow_state_lookup ON workflow_state(namespace, state_key);
-      CREATE INDEX IF NOT EXISTS idx_workflow_state_pubkey ON workflow_state(source_pubkey);
-      CREATE INDEX IF NOT EXISTS idx_workflow_state_updated ON workflow_state(updated_at);
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_workflow_state_lookup ON workflow_state(namespace, state_key)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_workflow_state_pubkey ON workflow_state(source_pubkey)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_workflow_state_updated ON workflow_state(updated_at)');
 
+    this.db.run(`
       -- Table historique des modifications d'état
       CREATE TABLE IF NOT EXISTS workflow_state_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,51 +208,82 @@ export class PipelinostrDatabase {
         source_event_id TEXT,
         source_pubkey TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_state_history_state ON workflow_state_history(state_id);
-      CREATE INDEX IF NOT EXISTS idx_state_history_time ON workflow_state_history(created_at);
+      )
     `);
 
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_state_history_state ON workflow_state_history(state_id)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_state_history_time ON workflow_state_history(created_at)');
+
     logger.debug('Database tables initialized');
+  }
+
+  // Helper to run a query and get all results as objects
+  private queryAll<T>(sql: string, params: BindParams = []): T[] {
+    const stmt = this.db.prepare(sql);
+    stmt.bind(params);
+    const results: T[] = [];
+    while (stmt.step()) {
+      results.push(stmt.getAsObject() as T);
+    }
+    stmt.free();
+    return results;
+  }
+
+  // Helper to run a query and get first result
+  private queryOne<T>(sql: string, params: BindParams = []): T | undefined {
+    const stmt = this.db.prepare(sql);
+    stmt.bind(params);
+    let result: T | undefined;
+    if (stmt.step()) {
+      result = stmt.getAsObject() as T;
+    }
+    stmt.free();
+    return result;
+  }
+
+  // Helper to run an insert and return lastInsertRowid
+  private insert(sql: string, params: BindParams = []): number {
+    this.db.run(sql, params);
+    const result = this.queryOne<{ id: number }>('SELECT last_insert_rowid() as id');
+    this.save();
+    return result?.id ?? 0;
+  }
+
+  // Helper to run an update/delete and return changes count
+  private execute(sql: string, params: BindParams = []): number {
+    this.db.run(sql, params);
+    const result = this.queryOne<{ changes: number }>('SELECT changes() as changes');
+    this.save();
+    return result?.changes ?? 0;
   }
 
   // ==================== EventLog ====================
 
   insertEventLog(event: Omit<EventLog, 'id' | 'created_at'>): number {
-    const stmt = this.db.prepare(`
+    return this.insert(`
       INSERT INTO event_log (
         received_at, workflow_matched_at, workflow_started_at, workflow_completed_at,
         source_type, source_identifier, source_raw,
         workflow_id, workflow_name, status, retry_count, error_message,
         target_type, target_identifier, target_response
-      ) VALUES (
-        @received_at, @workflow_matched_at, @workflow_started_at, @workflow_completed_at,
-        @source_type, @source_identifier, @source_raw,
-        @workflow_id, @workflow_name, @status, @retry_count, @error_message,
-        @target_type, @target_identifier, @target_response
-      )
-    `);
-
-    const result = stmt.run({
-      received_at: event.received_at.toISOString(),
-      workflow_matched_at: event.workflow_matched_at?.toISOString() ?? null,
-      workflow_started_at: event.workflow_started_at?.toISOString() ?? null,
-      workflow_completed_at: event.workflow_completed_at?.toISOString() ?? null,
-      source_type: event.source_type,
-      source_identifier: event.source_identifier ?? null,
-      source_raw: event.source_raw ?? null,
-      workflow_id: event.workflow_id ?? null,
-      workflow_name: event.workflow_name ?? null,
-      status: event.status,
-      retry_count: event.retry_count,
-      error_message: event.error_message ?? null,
-      target_type: event.target_type ?? null,
-      target_identifier: event.target_identifier ?? null,
-      target_response: event.target_response ?? null,
-    });
-
-    return result.lastInsertRowid as number;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      event.received_at.toISOString(),
+      event.workflow_matched_at?.toISOString() ?? null,
+      event.workflow_started_at?.toISOString() ?? null,
+      event.workflow_completed_at?.toISOString() ?? null,
+      event.source_type,
+      event.source_identifier ?? null,
+      event.source_raw ?? null,
+      event.workflow_id ?? null,
+      event.workflow_name ?? null,
+      event.status,
+      event.retry_count,
+      event.error_message ?? null,
+      event.target_type ?? null,
+      event.target_identifier ?? null,
+      event.target_response ?? null,
+    ]);
   }
 
   updateEventLogStatus(
@@ -206,69 +291,66 @@ export class PipelinostrDatabase {
     status: EventLog['status'],
     updates?: Partial<Pick<EventLog, 'workflow_matched_at' | 'workflow_started_at' | 'workflow_completed_at' | 'error_message' | 'retry_count' | 'target_type' | 'target_identifier' | 'target_response' | 'workflow_id' | 'workflow_name'>>
   ): void {
-    const fields = ['status = @status'];
-    const params: Record<string, unknown> = { id, status };
+    const fields = ['status = ?'];
+    const params: SqlValue[] = [status];
 
     if (updates?.workflow_matched_at) {
-      fields.push('workflow_matched_at = @workflow_matched_at');
-      params['workflow_matched_at'] = updates.workflow_matched_at.toISOString();
+      fields.push('workflow_matched_at = ?');
+      params.push(updates.workflow_matched_at.toISOString());
     }
     if (updates?.workflow_started_at) {
-      fields.push('workflow_started_at = @workflow_started_at');
-      params['workflow_started_at'] = updates.workflow_started_at.toISOString();
+      fields.push('workflow_started_at = ?');
+      params.push(updates.workflow_started_at.toISOString());
     }
     if (updates?.workflow_completed_at) {
-      fields.push('workflow_completed_at = @workflow_completed_at');
-      params['workflow_completed_at'] = updates.workflow_completed_at.toISOString();
+      fields.push('workflow_completed_at = ?');
+      params.push(updates.workflow_completed_at.toISOString());
     }
     if (updates?.error_message !== undefined) {
-      fields.push('error_message = @error_message');
-      params['error_message'] = updates.error_message;
+      fields.push('error_message = ?');
+      params.push(updates.error_message);
     }
     if (updates?.retry_count !== undefined) {
-      fields.push('retry_count = @retry_count');
-      params['retry_count'] = updates.retry_count;
+      fields.push('retry_count = ?');
+      params.push(updates.retry_count);
     }
     if (updates?.workflow_id !== undefined) {
-      fields.push('workflow_id = @workflow_id');
-      params['workflow_id'] = updates.workflow_id;
+      fields.push('workflow_id = ?');
+      params.push(updates.workflow_id);
     }
     if (updates?.workflow_name !== undefined) {
-      fields.push('workflow_name = @workflow_name');
-      params['workflow_name'] = updates.workflow_name;
+      fields.push('workflow_name = ?');
+      params.push(updates.workflow_name);
     }
     if (updates?.target_type !== undefined) {
-      fields.push('target_type = @target_type');
-      params['target_type'] = updates.target_type;
+      fields.push('target_type = ?');
+      params.push(updates.target_type);
     }
     if (updates?.target_identifier !== undefined) {
-      fields.push('target_identifier = @target_identifier');
-      params['target_identifier'] = updates.target_identifier;
+      fields.push('target_identifier = ?');
+      params.push(updates.target_identifier);
     }
     if (updates?.target_response !== undefined) {
-      fields.push('target_response = @target_response');
-      params['target_response'] = updates.target_response;
+      fields.push('target_response = ?');
+      params.push(updates.target_response);
     }
 
-    const stmt = this.db.prepare(`UPDATE event_log SET ${fields.join(', ')} WHERE id = @id`);
-    stmt.run(params);
+    params.push(id);
+    this.execute(`UPDATE event_log SET ${fields.join(', ')} WHERE id = ?`, params);
   }
 
   getEventLog(id: number): EventLog | undefined {
-    const stmt = this.db.prepare('SELECT * FROM event_log WHERE id = ?');
-    const row = stmt.get(id) as Record<string, unknown> | undefined;
+    const row = this.queryOne<Record<string, unknown>>('SELECT * FROM event_log WHERE id = ?', [id]);
     return row ? this.rowToEventLog(row) : undefined;
   }
 
   getRecentEventLogs(limit = 100, offset = 0): EventLog[] {
-    const stmt = this.db.prepare('SELECT * FROM event_log ORDER BY received_at DESC LIMIT ? OFFSET ?');
-    const rows = stmt.all(limit, offset) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM event_log ORDER BY received_at DESC LIMIT ? OFFSET ?', [limit, offset]);
     return rows.map((row) => this.rowToEventLog(row));
   }
 
   getEventLogsByStatus(status: EventLog['status'], limit = 100): EventLog[] {
-    const stmt = this.db.prepare('SELECT * FROM event_log WHERE status = ? ORDER BY received_at DESC LIMIT ?');
-    const rows = stmt.all(status, limit) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM event_log WHERE status = ? ORDER BY received_at DESC LIMIT ?', [status, limit]);
     return rows.map((row) => this.rowToEventLog(row));
   }
 
@@ -297,83 +379,82 @@ export class PipelinostrDatabase {
   // ==================== RelayState ====================
 
   upsertRelayState(relay: RelayState): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO relay_state (
-        url, status, consecutive_failures, last_success_at, last_failure_at,
-        last_failure_reason, quarantine_until, quarantine_level,
-        total_events_received, total_events_sent, discovered_from,
-        first_seen_at, updated_at
-      ) VALUES (
-        @url, @status, @consecutive_failures, @last_success_at, @last_failure_at,
-        @last_failure_reason, @quarantine_until, @quarantine_level,
-        @total_events_received, @total_events_sent, @discovered_from,
-        @first_seen_at, @updated_at
-      )
-      ON CONFLICT(url) DO UPDATE SET
-        status = @status,
-        consecutive_failures = @consecutive_failures,
-        last_success_at = @last_success_at,
-        last_failure_at = @last_failure_at,
-        last_failure_reason = @last_failure_reason,
-        quarantine_until = @quarantine_until,
-        quarantine_level = @quarantine_level,
-        total_events_received = @total_events_received,
-        total_events_sent = @total_events_sent,
-        updated_at = @updated_at
-    `);
+    // Check if exists
+    const existing = this.queryOne<Record<string, unknown>>('SELECT url FROM relay_state WHERE url = ?', [relay.url]);
 
-    stmt.run({
-      url: relay.url,
-      status: relay.status,
-      consecutive_failures: relay.consecutive_failures,
-      last_success_at: relay.last_success_at?.toISOString() ?? null,
-      last_failure_at: relay.last_failure_at?.toISOString() ?? null,
-      last_failure_reason: relay.last_failure_reason ?? null,
-      quarantine_until: relay.quarantine_until?.toISOString() ?? null,
-      quarantine_level: relay.quarantine_level,
-      total_events_received: relay.total_events_received,
-      total_events_sent: relay.total_events_sent,
-      discovered_from: relay.discovered_from,
-      first_seen_at: relay.first_seen_at.toISOString(),
-      updated_at: relay.updated_at.toISOString(),
-    });
+    if (existing) {
+      this.execute(`
+        UPDATE relay_state SET
+          status = ?, consecutive_failures = ?, last_success_at = ?, last_failure_at = ?,
+          last_failure_reason = ?, quarantine_until = ?, quarantine_level = ?,
+          total_events_received = ?, total_events_sent = ?, updated_at = ?
+        WHERE url = ?
+      `, [
+        relay.status,
+        relay.consecutive_failures,
+        relay.last_success_at?.toISOString() ?? null,
+        relay.last_failure_at?.toISOString() ?? null,
+        relay.last_failure_reason ?? null,
+        relay.quarantine_until?.toISOString() ?? null,
+        relay.quarantine_level,
+        relay.total_events_received,
+        relay.total_events_sent,
+        relay.updated_at.toISOString(),
+        relay.url,
+      ]);
+    } else {
+      this.insert(`
+        INSERT INTO relay_state (
+          url, status, consecutive_failures, last_success_at, last_failure_at,
+          last_failure_reason, quarantine_until, quarantine_level,
+          total_events_received, total_events_sent, discovered_from,
+          first_seen_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        relay.url,
+        relay.status,
+        relay.consecutive_failures,
+        relay.last_success_at?.toISOString() ?? null,
+        relay.last_failure_at?.toISOString() ?? null,
+        relay.last_failure_reason ?? null,
+        relay.quarantine_until?.toISOString() ?? null,
+        relay.quarantine_level,
+        relay.total_events_received,
+        relay.total_events_sent,
+        relay.discovered_from,
+        relay.first_seen_at.toISOString(),
+        relay.updated_at.toISOString(),
+      ]);
+    }
   }
 
   getRelayState(url: string): RelayState | undefined {
-    const stmt = this.db.prepare('SELECT * FROM relay_state WHERE url = ?');
-    const row = stmt.get(url) as Record<string, unknown> | undefined;
+    const row = this.queryOne<Record<string, unknown>>('SELECT * FROM relay_state WHERE url = ?', [url]);
     return row ? this.rowToRelayState(row) : undefined;
   }
 
   getAllRelayStates(): RelayState[] {
-    const stmt = this.db.prepare('SELECT * FROM relay_state ORDER BY url');
-    const rows = stmt.all() as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM relay_state ORDER BY url');
     return rows.map((row) => this.rowToRelayState(row));
   }
 
   getActiveRelays(): RelayState[] {
-    const stmt = this.db.prepare(`
+    const rows = this.queryAll<Record<string, unknown>>(`
       SELECT * FROM relay_state
       WHERE status = 'active'
       OR (status = 'quarantined' AND quarantine_until < datetime('now'))
       ORDER BY url
     `);
-    const rows = stmt.all() as Record<string, unknown>[];
     return rows.map((row) => this.rowToRelayState(row));
   }
 
   incrementRelayEventCount(url: string, type: 'received' | 'sent'): void {
     const field = type === 'received' ? 'total_events_received' : 'total_events_sent';
-    const stmt = this.db.prepare(`
-      UPDATE relay_state
-      SET ${field} = ${field} + 1, updated_at = datetime('now')
-      WHERE url = ?
-    `);
-    stmt.run(url);
+    this.execute(`UPDATE relay_state SET ${field} = ${field} + 1, updated_at = datetime('now') WHERE url = ?`, [url]);
   }
 
   recordRelaySuccess(url: string): void {
-    const stmt = this.db.prepare(`
+    this.execute(`
       UPDATE relay_state SET
         status = 'active',
         consecutive_failures = 0,
@@ -382,28 +463,32 @@ export class PipelinostrDatabase {
         quarantine_level = 0,
         updated_at = datetime('now')
       WHERE url = ?
-    `);
-    stmt.run(url);
+    `, [url]);
   }
 
   recordRelayFailure(url: string, reason: string, quarantineUntil?: Date, quarantineLevel?: number): void {
-    const stmt = this.db.prepare(`
-      UPDATE relay_state SET
-        status = CASE WHEN @quarantine_until IS NOT NULL THEN 'quarantined' ELSE status END,
-        consecutive_failures = consecutive_failures + 1,
-        last_failure_at = datetime('now'),
-        last_failure_reason = @reason,
-        quarantine_until = @quarantine_until,
-        quarantine_level = COALESCE(@quarantine_level, quarantine_level),
-        updated_at = datetime('now')
-      WHERE url = @url
-    `);
-    stmt.run({
-      url,
-      reason,
-      quarantine_until: quarantineUntil?.toISOString() ?? null,
-      quarantine_level: quarantineLevel ?? null,
-    });
+    if (quarantineUntil) {
+      this.execute(`
+        UPDATE relay_state SET
+          status = 'quarantined',
+          consecutive_failures = consecutive_failures + 1,
+          last_failure_at = datetime('now'),
+          last_failure_reason = ?,
+          quarantine_until = ?,
+          quarantine_level = ?,
+          updated_at = datetime('now')
+        WHERE url = ?
+      `, [reason, quarantineUntil.toISOString(), quarantineLevel ?? 0, url]);
+    } else {
+      this.execute(`
+        UPDATE relay_state SET
+          consecutive_failures = consecutive_failures + 1,
+          last_failure_at = datetime('now'),
+          last_failure_reason = ?,
+          updated_at = datetime('now')
+        WHERE url = ?
+      `, [reason, url]);
+    }
   }
 
   private rowToRelayState(row: Record<string, unknown>): RelayState {
@@ -427,33 +512,25 @@ export class PipelinostrDatabase {
   // ==================== WorkflowExecution ====================
 
   insertWorkflowExecution(execution: Omit<WorkflowExecution, 'id' | 'created_at'>): number {
-    const stmt = this.db.prepare(`
+    return this.insert(`
       INSERT INTO workflow_execution (
         event_log_id, workflow_id, action_id, action_type,
         started_at, completed_at, status, attempt_number,
         input_data, output_data, error_message
-      ) VALUES (
-        @event_log_id, @workflow_id, @action_id, @action_type,
-        @started_at, @completed_at, @status, @attempt_number,
-        @input_data, @output_data, @error_message
-      )
-    `);
-
-    const result = stmt.run({
-      event_log_id: execution.event_log_id ?? null,
-      workflow_id: execution.workflow_id,
-      action_id: execution.action_id,
-      action_type: execution.action_type,
-      started_at: execution.started_at.toISOString(),
-      completed_at: execution.completed_at?.toISOString() ?? null,
-      status: execution.status,
-      attempt_number: execution.attempt_number,
-      input_data: execution.input_data ?? null,
-      output_data: execution.output_data ?? null,
-      error_message: execution.error_message ?? null,
-    });
-
-    return result.lastInsertRowid as number;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      execution.event_log_id ?? null,
+      execution.workflow_id,
+      execution.action_id,
+      execution.action_type,
+      execution.started_at.toISOString(),
+      execution.completed_at?.toISOString() ?? null,
+      execution.status,
+      execution.attempt_number,
+      execution.input_data ?? null,
+      execution.output_data ?? null,
+      execution.error_message ?? null,
+    ]);
   }
 
   updateWorkflowExecution(
@@ -461,34 +538,33 @@ export class PipelinostrDatabase {
     updates: Partial<Pick<WorkflowExecution, 'completed_at' | 'status' | 'output_data' | 'error_message'>>
   ): void {
     const fields: string[] = [];
-    const params: Record<string, unknown> = { id };
+    const params: SqlValue[] = [];
 
     if (updates.completed_at) {
-      fields.push('completed_at = @completed_at');
-      params['completed_at'] = updates.completed_at.toISOString();
+      fields.push('completed_at = ?');
+      params.push(updates.completed_at.toISOString());
     }
     if (updates.status) {
-      fields.push('status = @status');
-      params['status'] = updates.status;
+      fields.push('status = ?');
+      params.push(updates.status);
     }
     if (updates.output_data !== undefined) {
-      fields.push('output_data = @output_data');
-      params['output_data'] = updates.output_data;
+      fields.push('output_data = ?');
+      params.push(updates.output_data);
     }
     if (updates.error_message !== undefined) {
-      fields.push('error_message = @error_message');
-      params['error_message'] = updates.error_message;
+      fields.push('error_message = ?');
+      params.push(updates.error_message);
     }
 
     if (fields.length > 0) {
-      const stmt = this.db.prepare(`UPDATE workflow_execution SET ${fields.join(', ')} WHERE id = @id`);
-      stmt.run(params);
+      params.push(id);
+      this.execute(`UPDATE workflow_execution SET ${fields.join(', ')} WHERE id = ?`, params);
     }
   }
 
   getWorkflowExecutions(eventLogId: number): WorkflowExecution[] {
-    const stmt = this.db.prepare('SELECT * FROM workflow_execution WHERE event_log_id = ? ORDER BY started_at');
-    const rows = stmt.all(eventLogId) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM workflow_execution WHERE event_log_id = ? ORDER BY started_at', [eventLogId]);
     return rows.map((row) => this.rowToWorkflowExecution(row));
   }
 
@@ -522,27 +598,20 @@ export class PipelinostrDatabase {
       ? new Date(Date.now() + options.delay_ms)
       : null;
 
-    const stmt = this.db.prepare(`
+    return this.insert(`
       INSERT INTO event_queue (
         event_type, event_id, event_data, priority, max_retries, next_retry_at
-      ) VALUES (
-        @event_type, @event_id, @event_data, @priority, @max_retries, @next_retry_at
-      )
-    `);
-
-    const result = stmt.run({
-      event_type: eventType,
-      event_id: eventId ?? null,
-      event_data: JSON.stringify(eventData),
-      priority: options.priority ?? 0,
-      max_retries: options.max_retries ?? 3,
-      next_retry_at: nextRetryAt?.toISOString() ?? null,
-    });
-
-    return result.lastInsertRowid as number;
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      eventType,
+      eventId ?? null,
+      JSON.stringify(eventData),
+      options.priority ?? 0,
+      options.max_retries ?? 3,
+      nextRetryAt?.toISOString() ?? null,
+    ]);
   }
 
-  // Record hook execution directly (for historical tracking, not processing)
   recordHookExecution(
     eventData: unknown,
     eventId: string,
@@ -552,32 +621,24 @@ export class PipelinostrDatabase {
     errorMessage?: string,
     resultData?: unknown
   ): number {
-    const stmt = this.db.prepare(`
+    return this.insert(`
       INSERT INTO event_queue (
         event_type, event_id, event_data, status, started_at, completed_at,
         workflow_id, workflow_name, error_message, result_data
-      ) VALUES (
-        'hook', @event_id, @event_data, @status, datetime('now'), datetime('now'),
-        @workflow_id, @workflow_name, @error_message, @result_data
-      )
-    `);
-
-    const result = stmt.run({
-      event_id: eventId,
-      event_data: JSON.stringify(eventData),
+      ) VALUES ('hook', ?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?, ?)
+    `, [
+      eventId,
+      JSON.stringify(eventData),
       status,
-      workflow_id: workflowId ?? null,
-      workflow_name: workflowName ?? null,
-      error_message: errorMessage ?? null,
-      result_data: resultData ? JSON.stringify(resultData) : null,
-    });
-
-    return result.lastInsertRowid as number;
+      workflowId ?? null,
+      workflowName ?? null,
+      errorMessage ?? null,
+      resultData ? JSON.stringify(resultData) : null,
+    ]);
   }
 
-  // Get next event to process (respects priority and retry timing)
   dequeueEvent(): QueuedEvent | undefined {
-    const stmt = this.db.prepare(`
+    const row = this.queryOne<Record<string, unknown>>(`
       SELECT * FROM event_queue
       WHERE status = 'pending'
         AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))
@@ -585,41 +646,31 @@ export class PipelinostrDatabase {
       LIMIT 1
     `);
 
-    const row = stmt.get() as Record<string, unknown> | undefined;
     if (!row) return undefined;
 
     // Mark as processing
-    const updateStmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = 'processing', started_at = datetime('now')
-      WHERE id = ?
-    `);
-    updateStmt.run(row['id']);
+    this.execute(`UPDATE event_queue SET status = 'processing', started_at = datetime('now') WHERE id = ?`, [row['id'] as number]);
 
     return this.rowToQueuedEvent(row);
   }
 
-  // Mark event as completed
   ackEvent(id: number, workflowId?: string, workflowName?: string, resultData?: unknown): void {
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = 'completed',
-          completed_at = datetime('now'),
-          workflow_id = @workflow_id,
-          workflow_name = @workflow_name,
-          result_data = @result_data
-      WHERE id = @id
-    `);
-
-    stmt.run({
+    this.execute(`
+      UPDATE event_queue SET
+        status = 'completed',
+        completed_at = datetime('now'),
+        workflow_id = ?,
+        workflow_name = ?,
+        result_data = ?
+      WHERE id = ?
+    `, [
+      workflowId ?? null,
+      workflowName ?? null,
+      resultData ? JSON.stringify(resultData) : null,
       id,
-      workflow_id: workflowId ?? null,
-      workflow_name: workflowName ?? null,
-      result_data: resultData ? JSON.stringify(resultData) : null,
-    });
+    ]);
   }
 
-  // Mark event with a specific final status (no_match, skipped_disabled)
   markEventStatus(
     id: number,
     status: QueuedEventStatus,
@@ -627,120 +678,103 @@ export class PipelinostrDatabase {
     workflowName?: string,
     resultData?: unknown
   ): void {
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = @status,
-          completed_at = datetime('now'),
-          workflow_id = @workflow_id,
-          workflow_name = @workflow_name,
-          result_data = @result_data
-      WHERE id = @id
-    `);
-
-    stmt.run({
-      id,
+    this.execute(`
+      UPDATE event_queue SET
+        status = ?,
+        completed_at = datetime('now'),
+        workflow_id = ?,
+        workflow_name = ?,
+        result_data = ?
+      WHERE id = ?
+    `, [
       status,
-      workflow_id: workflowId ?? null,
-      workflow_name: workflowName ?? null,
-      result_data: resultData ? JSON.stringify(resultData) : null,
-    });
+      workflowId ?? null,
+      workflowName ?? null,
+      resultData ? JSON.stringify(resultData) : null,
+      id,
+    ]);
   }
 
-  // Mark event as failed (will retry if under max_retries)
   nackEvent(id: number, errorMessage: string, requeue = true): void {
-    // Get current event to check retry count
     const event = this.getQueuedEvent(id);
     if (!event) return;
 
     const newRetryCount = event.retry_count + 1;
     const shouldRetry = requeue && newRetryCount < event.max_retries;
-
-    // Exponential backoff: 2^retry * 1000ms (1s, 2s, 4s, 8s, 16s...)
-    const backoffMs = Math.min(Math.pow(2, newRetryCount) * 1000, 300000); // Max 5 minutes
+    const backoffMs = Math.min(Math.pow(2, newRetryCount) * 1000, 300000);
     const nextRetryAt = new Date(Date.now() + backoffMs);
-
     const newStatus: QueuedEventStatus = shouldRetry ? 'pending' : (newRetryCount >= event.max_retries ? 'dead' : 'failed');
 
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = @status,
-          retry_count = @retry_count,
-          next_retry_at = @next_retry_at,
-          error_message = @error_message,
-          completed_at = CASE WHEN @status IN ('failed', 'dead') THEN datetime('now') ELSE NULL END
-      WHERE id = @id
-    `);
-
-    stmt.run({
-      id,
-      status: newStatus,
-      retry_count: newRetryCount,
-      next_retry_at: shouldRetry ? nextRetryAt.toISOString() : null,
-      error_message: errorMessage,
-    });
-
     if (shouldRetry) {
+      this.execute(`
+        UPDATE event_queue SET
+          status = ?,
+          retry_count = ?,
+          next_retry_at = ?,
+          error_message = ?
+        WHERE id = ?
+      `, [newStatus, newRetryCount, nextRetryAt.toISOString(), errorMessage, id]);
       logger.debug({ id, retryCount: newRetryCount, nextRetryAt }, 'Event requeued for retry');
     } else {
+      this.execute(`
+        UPDATE event_queue SET
+          status = ?,
+          retry_count = ?,
+          completed_at = datetime('now'),
+          error_message = ?
+        WHERE id = ?
+      `, [newStatus, newRetryCount, errorMessage, id]);
       logger.warn({ id, retryCount: newRetryCount, status: newStatus }, 'Event moved to dead letter');
     }
   }
 
   getQueuedEvent(id: number): QueuedEvent | undefined {
-    const stmt = this.db.prepare('SELECT * FROM event_queue WHERE id = ?');
-    const row = stmt.get(id) as Record<string, unknown> | undefined;
+    const row = this.queryOne<Record<string, unknown>>('SELECT * FROM event_queue WHERE id = ?', [id]);
     return row ? this.rowToQueuedEvent(row) : undefined;
   }
 
   getQueuedEventsByStatus(status: QueuedEventStatus, limit = 100): QueuedEvent[] {
-    const stmt = this.db.prepare('SELECT * FROM event_queue WHERE status = ? ORDER BY created_at DESC LIMIT ?');
-    const rows = stmt.all(status, limit) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM event_queue WHERE status = ? ORDER BY created_at DESC LIMIT ?', [status, limit]);
     return rows.map((row) => this.rowToQueuedEvent(row));
   }
 
   getRecentQueuedEvents(limit = 100): QueuedEvent[] {
-    const stmt = this.db.prepare('SELECT * FROM event_queue ORDER BY created_at DESC LIMIT ?');
-    const rows = stmt.all(limit) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>('SELECT * FROM event_queue ORDER BY created_at DESC LIMIT ?', [limit]);
     return rows.map((row) => this.rowToQueuedEvent(row));
   }
 
-  // Replay a failed/dead event
   replayEvent(id: number): boolean {
     const event = this.getQueuedEvent(id);
     if (!event || (event.status !== 'failed' && event.status !== 'dead')) {
       return false;
     }
 
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = 'pending',
-          retry_count = 0,
-          next_retry_at = NULL,
-          started_at = NULL,
-          completed_at = NULL,
-          error_message = NULL
+    this.execute(`
+      UPDATE event_queue SET
+        status = 'pending',
+        retry_count = 0,
+        next_retry_at = NULL,
+        started_at = NULL,
+        completed_at = NULL,
+        error_message = NULL
       WHERE id = ?
-    `);
-    stmt.run(id);
+    `, [id]);
 
     logger.info({ id }, 'Event replayed');
     return true;
   }
 
-  // Replay all failed events
   replayFailedEvents(): number {
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = 'pending',
-          retry_count = 0,
-          next_retry_at = NULL,
-          started_at = NULL,
-          completed_at = NULL,
-          error_message = NULL
+    const count = this.execute(`
+      UPDATE event_queue SET
+        status = 'pending',
+        retry_count = 0,
+        next_retry_at = NULL,
+        started_at = NULL,
+        completed_at = NULL,
+        error_message = NULL
       WHERE status IN ('failed', 'dead')
     `);
-    const result = stmt.run();
-    const count = result.changes;
 
     if (count > 0) {
       logger.info({ count }, 'Failed events replayed');
@@ -748,16 +782,10 @@ export class PipelinostrDatabase {
     return count;
   }
 
-  // Get queue statistics
   getQueueStats(): QueueStats {
-    const stmt = this.db.prepare(`
-      SELECT
-        status,
-        COUNT(*) as count
-      FROM event_queue
-      GROUP BY status
+    const rows = this.queryAll<{ status: string; count: number }>(`
+      SELECT status, COUNT(*) as count FROM event_queue GROUP BY status
     `);
-    const rows = stmt.all() as Array<{ status: string; count: number }>;
 
     const stats: QueueStats = {
       pending: 0,
@@ -781,32 +809,27 @@ export class PipelinostrDatabase {
     return stats;
   }
 
-  // Clean up old completed events (keep last N days)
   cleanupQueue(keepDays = 7): number {
-    const stmt = this.db.prepare(`
+    return this.execute(`
       DELETE FROM event_queue
       WHERE status = 'completed'
         AND completed_at < datetime('now', '-' || ? || ' days')
-    `);
-    const result = stmt.run(keepDays);
-    return result.changes;
+    `, [keepDays]);
   }
 
-  // Reset stuck processing events (for recovery after crash)
   resetStuckEvents(stuckMinutes = 10): number {
-    const stmt = this.db.prepare(`
-      UPDATE event_queue
-      SET status = 'pending',
-          started_at = NULL
+    const count = this.execute(`
+      UPDATE event_queue SET
+        status = 'pending',
+        started_at = NULL
       WHERE status = 'processing'
         AND started_at < datetime('now', '-' || ? || ' minutes')
-    `);
-    const result = stmt.run(stuckMinutes);
+    `, [stuckMinutes]);
 
-    if (result.changes > 0) {
-      logger.warn({ count: result.changes }, 'Reset stuck events');
+    if (count > 0) {
+      logger.warn({ count }, 'Reset stuck events');
     }
-    return result.changes;
+    return count;
   }
 
   private rowToQueuedEvent(row: Record<string, unknown>): QueuedEvent {
@@ -832,66 +855,72 @@ export class PipelinostrDatabase {
 
   // ==================== WorkflowState ====================
 
-  // Note: workflowId parameter kept for API compatibility but not used in lookup
-  // State is uniquely identified by (namespace, state_key)
   getState(_workflowId: string, namespace: string, key: string): WorkflowState | undefined {
-    const stmt = this.db.prepare(`
-      SELECT * FROM workflow_state
-      WHERE namespace = ? AND state_key = ?
-    `);
-    const row = stmt.get(namespace, key) as Record<string, unknown> | undefined;
+    const row = this.queryOne<Record<string, unknown>>(`
+      SELECT * FROM workflow_state WHERE namespace = ? AND state_key = ?
+    `, [namespace, key]);
     return row ? this.rowToWorkflowState(row) : undefined;
   }
 
   setState(input: WorkflowStateInput): number {
-    const stmt = this.db.prepare(`
-      INSERT INTO workflow_state (
-        workflow_id, namespace, state_key, value_type,
-        value_number, value_string, value_json, value_boolean,
-        source_event_id, event_log_id, source_pubkey
-      ) VALUES (
-        @workflow_id, @namespace, @state_key, @value_type,
-        @value_number, @value_string, @value_json, @value_boolean,
-        @source_event_id, @event_log_id, @source_pubkey
-      )
-      ON CONFLICT(namespace, state_key) DO UPDATE SET
-        workflow_id = @workflow_id,
-        value_type = @value_type,
-        value_number = @value_number,
-        value_string = @value_string,
-        value_json = @value_json,
-        value_boolean = @value_boolean,
-        source_event_id = @source_event_id,
-        event_log_id = @event_log_id,
-        source_pubkey = @source_pubkey,
-        updated_at = datetime('now')
-    `);
+    const existing = this.queryOne<Record<string, unknown>>(`
+      SELECT id FROM workflow_state WHERE namespace = ? AND state_key = ?
+    `, [input.namespace ?? 'default', input.state_key]);
 
-    const result = stmt.run({
-      workflow_id: input.workflow_id,
-      namespace: input.namespace ?? 'default',
-      state_key: input.state_key,
-      value_type: input.value_type ?? 'number',
-      value_number: input.value_number ?? null,
-      value_string: input.value_string ?? null,
-      value_json: input.value_json ? JSON.stringify(input.value_json) : null,
-      value_boolean: input.value_boolean !== undefined ? (input.value_boolean ? 1 : 0) : null,
-      source_event_id: input.source_event_id ?? null,
-      event_log_id: input.event_log_id ?? null,
-      source_pubkey: input.source_pubkey ?? null,
-    });
-
-    return result.lastInsertRowid as number;
+    if (existing) {
+      this.execute(`
+        UPDATE workflow_state SET
+          workflow_id = ?,
+          value_type = ?,
+          value_number = ?,
+          value_string = ?,
+          value_json = ?,
+          value_boolean = ?,
+          source_event_id = ?,
+          event_log_id = ?,
+          source_pubkey = ?,
+          updated_at = datetime('now')
+        WHERE namespace = ? AND state_key = ?
+      `, [
+        input.workflow_id,
+        input.value_type ?? 'number',
+        input.value_number ?? null,
+        input.value_string ?? null,
+        input.value_json ? JSON.stringify(input.value_json) : null,
+        input.value_boolean !== undefined ? (input.value_boolean ? 1 : 0) : null,
+        input.source_event_id ?? null,
+        input.event_log_id ?? null,
+        input.source_pubkey ?? null,
+        input.namespace ?? 'default',
+        input.state_key,
+      ]);
+      return existing['id'] as number;
+    } else {
+      return this.insert(`
+        INSERT INTO workflow_state (
+          workflow_id, namespace, state_key, value_type,
+          value_number, value_string, value_json, value_boolean,
+          source_event_id, event_log_id, source_pubkey
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        input.workflow_id,
+        input.namespace ?? 'default',
+        input.state_key,
+        input.value_type ?? 'number',
+        input.value_number ?? null,
+        input.value_string ?? null,
+        input.value_json ? JSON.stringify(input.value_json) : null,
+        input.value_boolean !== undefined ? (input.value_boolean ? 1 : 0) : null,
+        input.source_event_id ?? null,
+        input.event_log_id ?? null,
+        input.source_pubkey ?? null,
+      ]);
+    }
   }
 
-  // Note: workflowId parameter kept for API compatibility but not used
   deleteState(_workflowId: string, namespace: string, key: string): boolean {
-    const stmt = this.db.prepare(`
-      DELETE FROM workflow_state
-      WHERE namespace = ? AND state_key = ?
-    `);
-    const result = stmt.run(namespace, key);
-    return result.changes > 0;
+    const count = this.execute(`DELETE FROM workflow_state WHERE namespace = ? AND state_key = ?`, [namespace, key]);
+    return count > 0;
   }
 
   incrementState(
@@ -903,13 +932,12 @@ export class PipelinostrDatabase {
   ): { success: boolean; value: number; previous: number; error_code?: string } {
     const { create_if_missing = true, default_value = 0, max_value, source_event_id, source_pubkey, track_history = false } = options;
 
-    // Use transaction for atomicity
-    return this.db.transaction(() => {
-      // Get current state
+    // Manual transaction
+    this.db.run('BEGIN TRANSACTION');
+    try {
       let current = this.getState(workflowId, namespace, key);
       const oldValue = current?.value_number ?? default_value;
 
-      // Create if missing
       if (!current && create_if_missing) {
         this.setState({
           workflow_id: workflowId,
@@ -924,28 +952,26 @@ export class PipelinostrDatabase {
       }
 
       if (!current) {
+        this.db.run('ROLLBACK');
         return { success: false, value: 0, previous: 0, error_code: 'NOT_FOUND' };
       }
 
       const newValue = oldValue + amount;
 
-      // Check max limit
       if (max_value !== undefined && newValue > max_value) {
+        this.db.run('ROLLBACK');
         return { success: false, value: oldValue, previous: oldValue, error_code: 'LIMIT_EXCEEDED' };
       }
 
-      // Update value
-      const updateStmt = this.db.prepare(`
+      this.execute(`
         UPDATE workflow_state SET
-          value_number = @value,
-          source_event_id = COALESCE(@source_event_id, source_event_id),
-          source_pubkey = COALESCE(@source_pubkey, source_pubkey),
+          value_number = ?,
+          source_event_id = COALESCE(?, source_event_id),
+          source_pubkey = COALESCE(?, source_pubkey),
           updated_at = datetime('now')
-        WHERE id = @id
-      `);
-      updateStmt.run({ id: current.id, value: newValue, source_event_id, source_pubkey });
+        WHERE id = ?
+      `, [newValue, source_event_id ?? null, source_pubkey ?? null, current.id]);
 
-      // Track history if requested
       if (track_history) {
         this.insertStateHistory({
           state_id: current.id,
@@ -958,8 +984,12 @@ export class PipelinostrDatabase {
         });
       }
 
+      this.db.run('COMMIT');
       return { success: true, value: newValue, previous: oldValue };
-    })();
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    }
   }
 
   decrementState(
@@ -971,33 +1001,32 @@ export class PipelinostrDatabase {
   ): { success: boolean; value: number; previous: number; error_code?: string } {
     const { min_value = 0, source_event_id, source_pubkey, track_history = false } = options;
 
-    return this.db.transaction(() => {
+    this.db.run('BEGIN TRANSACTION');
+    try {
       const current = this.getState(workflowId, namespace, key);
 
       if (!current) {
+        this.db.run('ROLLBACK');
         return { success: false, value: 0, previous: 0, error_code: 'NOT_FOUND' };
       }
 
       const oldValue = current.value_number ?? 0;
       const newValue = oldValue - amount;
 
-      // Check min limit
       if (newValue < min_value) {
+        this.db.run('ROLLBACK');
         return { success: false, value: oldValue, previous: oldValue, error_code: 'INSUFFICIENT_BALANCE' };
       }
 
-      // Update value
-      const updateStmt = this.db.prepare(`
+      this.execute(`
         UPDATE workflow_state SET
-          value_number = @value,
-          source_event_id = COALESCE(@source_event_id, source_event_id),
-          source_pubkey = COALESCE(@source_pubkey, source_pubkey),
+          value_number = ?,
+          source_event_id = COALESCE(?, source_event_id),
+          source_pubkey = COALESCE(?, source_pubkey),
           updated_at = datetime('now')
-        WHERE id = @id
-      `);
-      updateStmt.run({ id: current.id, value: newValue, source_event_id, source_pubkey });
+        WHERE id = ?
+      `, [newValue, source_event_id ?? null, source_pubkey ?? null, current.id]);
 
-      // Track history if requested
       if (track_history) {
         this.insertStateHistory({
           state_id: current.id,
@@ -1010,15 +1039,17 @@ export class PipelinostrDatabase {
         });
       }
 
+      this.db.run('COMMIT');
       return { success: true, value: newValue, previous: oldValue };
-    })();
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    }
   }
 
-  // Note: workflowId parameter kept for API compatibility but not used in query
-  // Use namespace to filter states (primary isolation mechanism)
   listStates(_workflowId: string, namespace?: string, keyPattern?: string, limit = 100): WorkflowState[] {
     let sql = 'SELECT * FROM workflow_state WHERE 1=1';
-    const params: unknown[] = [];
+    const params: SqlValue[] = [];
 
     if (namespace) {
       sql += ' AND namespace = ?';
@@ -1033,47 +1064,34 @@ export class PipelinostrDatabase {
     sql += ' ORDER BY updated_at DESC LIMIT ?';
     params.push(limit);
 
-    const stmt = this.db.prepare(sql);
-    const rows = stmt.all(...params) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>(sql, params);
     return rows.map((row) => this.rowToWorkflowState(row));
   }
 
   private insertStateHistory(history: Omit<WorkflowStateHistory, 'id' | 'created_at'>): number {
-    const stmt = this.db.prepare(`
+    return this.insert(`
       INSERT INTO workflow_state_history (
         state_id, operation, old_value_number, old_value_string,
         new_value_number, new_value_string, delta,
         source_event_id, source_pubkey
-      ) VALUES (
-        @state_id, @operation, @old_value_number, @old_value_string,
-        @new_value_number, @new_value_string, @delta,
-        @source_event_id, @source_pubkey
-      )
-    `);
-
-    const result = stmt.run({
-      state_id: history.state_id,
-      operation: history.operation,
-      old_value_number: history.old_value_number ?? null,
-      old_value_string: history.old_value_string ?? null,
-      new_value_number: history.new_value_number ?? null,
-      new_value_string: history.new_value_string ?? null,
-      delta: history.delta ?? null,
-      source_event_id: history.source_event_id ?? null,
-      source_pubkey: history.source_pubkey ?? null,
-    });
-
-    return result.lastInsertRowid as number;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      history.state_id,
+      history.operation,
+      history.old_value_number ?? null,
+      history.old_value_string ?? null,
+      history.new_value_number ?? null,
+      history.new_value_string ?? null,
+      history.delta ?? null,
+      history.source_event_id ?? null,
+      history.source_pubkey ?? null,
+    ]);
   }
 
   getStateHistory(stateId: number, limit = 100): WorkflowStateHistory[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM workflow_state_history
-      WHERE state_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?
-    `);
-    const rows = stmt.all(stateId, limit) as Record<string, unknown>[];
+    const rows = this.queryAll<Record<string, unknown>>(`
+      SELECT * FROM workflow_state_history WHERE state_id = ? ORDER BY created_at DESC LIMIT ?
+    `, [stateId, limit]);
     return rows.map((row) => this.rowToWorkflowStateHistory(row));
   }
 
@@ -1115,14 +1133,21 @@ export class PipelinostrDatabase {
   // ==================== Utilities ====================
 
   close(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    // Force final save
+    const data = this.db.export();
+    const buffer = Buffer.from(data);
+    writeFileSync(this.dbPath, buffer);
     this.db.close();
     logger.info('Database connection closed');
   }
 
   getStats(): { events: number; relays: number; executions: number; queue: QueueStats } {
-    const events = (this.db.prepare('SELECT COUNT(*) as count FROM event_log').get() as { count: number }).count;
-    const relays = (this.db.prepare('SELECT COUNT(*) as count FROM relay_state').get() as { count: number }).count;
-    const executions = (this.db.prepare('SELECT COUNT(*) as count FROM workflow_execution').get() as { count: number }).count;
+    const events = this.queryOne<{ count: number }>('SELECT COUNT(*) as count FROM event_log')?.count ?? 0;
+    const relays = this.queryOne<{ count: number }>('SELECT COUNT(*) as count FROM relay_state')?.count ?? 0;
+    const executions = this.queryOne<{ count: number }>('SELECT COUNT(*) as count FROM workflow_execution')?.count ?? 0;
     const queue = this.getQueueStats();
     return { events, relays, executions, queue };
   }
@@ -1130,11 +1155,11 @@ export class PipelinostrDatabase {
 
 let dbInstance: PipelinostrDatabase | null = null;
 
-export function initDatabase(dbPath: string): PipelinostrDatabase {
+export async function initDatabase(dbPath: string): Promise<PipelinostrDatabase> {
   if (dbInstance) {
     return dbInstance;
   }
-  dbInstance = new PipelinostrDatabase(dbPath);
+  dbInstance = await PipelinostrDatabase.create(dbPath);
   return dbInstance;
 }
 

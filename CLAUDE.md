@@ -351,6 +351,15 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - Préférer les réponses concises
 - Utiliser TodoWrite pour tâches complexes (3+ étapes)
 
+### RÈGLE ABSOLUE : Demander confirmation avant les choix
+
+**Quand plusieurs options sont possibles (ex: librairie A vs B, approche X vs Y) :**
+1. Présenter les options avec leurs avantages/inconvénients
+2. **ATTENDRE la confirmation de l'utilisateur** avant d'agir
+3. Ne JAMAIS commencer une implémentation sans aval explicite
+
+**Violation = perte de temps et frustration.**
+
 ### RÈGLE ABSOLUE : Vérifier avant d'affirmer
 
 **AVANT de mentionner un fichier, une commande ou un chemin :**

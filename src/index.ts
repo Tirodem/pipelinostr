@@ -1533,7 +1533,7 @@ async function main(): Promise<void> {
     }
 
     // Initialize database
-    initDatabase(config.database.path);
+    await initDatabase(config.database.path);
     logger.info({ path: config.database.path }, 'Database initialized');
 
     // Initialize LCD display (if configured)

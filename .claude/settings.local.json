@@ -61,7 +61,8 @@
       "Bash(basename:*)",
       "Bash(for:*)",
       "Bash(powershell:*)",
-      "Bash(type:*)"
+      "Bash(type:*)",
+      "Bash(npm info:*)"
     ],
     "deny": [],
     "ask": []
