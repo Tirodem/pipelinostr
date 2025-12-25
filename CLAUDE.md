@@ -394,7 +394,7 @@ pipelinostr-status.yml     /pipelinostr status → system info
 - **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
 - **APRÈS PUSH** : Toujours donner les commandes serveur complètes :
   ```bash
-  ./scripts/rebuild.sh  # si code TypeScript modifié
+  ./scripts/rebuild.sh  # fait git pull + npm install + build (PAS BESOIN de git pull séparé !)
   ./scripts/pipelinostr.sh workflow refresh <ids>  # si workflow .example créé/modifié
   ./scripts/pipelinostr.sh workflow enable <ids>   # OBLIGATOIRE après refresh (désactivé par défaut)
   ./scripts/pipelinostr.sh handler refresh <ids>   # si handler .example créé/modifié
