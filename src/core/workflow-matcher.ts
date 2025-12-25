@@ -81,17 +81,18 @@ export class WorkflowMatcher {
       }
     }
 
-    // Determine DM format based on encryption type
+    // Determine DM format based on encryption type and NIP-18 prefix
     // nip04 = kind 4, nip44 = kind 14 (from unwrapped 1059)
+    // Amethyst NIP-18 prefix signals NIP-17 preference even when sent via NIP-04
     let dmFormat: 'nip04' | 'nip17' | undefined;
-    if (event.encryptionType === 'nip04') {
-      dmFormat = 'nip04';
-    } else if (event.encryptionType === 'nip44') {
+    if (event.encryptionType === 'nip44' || event.hasNip18Prefix) {
       dmFormat = 'nip17';
+    } else if (event.encryptionType === 'nip04') {
+      dmFormat = 'nip04';
     }
 
     logger.info(
-      { eventId: event.id, encryptionType: event.encryptionType, dmFormat },
+      { eventId: event.id, encryptionType: event.encryptionType, hasNip18Prefix: event.hasNip18Prefix, dmFormat },
       'DM format detected from event'
     );
 

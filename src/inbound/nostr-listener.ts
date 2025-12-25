@@ -32,6 +32,9 @@ export interface ProcessedEvent {
   isEncrypted: boolean;
   isFromWhitelist: boolean;
   relayUrl: string;
+
+  // NIP-18 prefix detected (Amethyst signals NIP-17 preference)
+  hasNip18Prefix?: boolean | undefined;
 }
 
 export type EventCallback = (event: ProcessedEvent) => void | Promise<void>;
@@ -246,6 +249,7 @@ export class NostrListener {
 
     let decryptedContent: string | undefined;
     let encryptionType: 'nip04' | 'nip44' | 'none' = 'none';
+    let hasNip18Prefix = false;
 
     // For Gift Wrap (kind 1059), the real sender is inside the rumor
     let realSenderPubkey = event.pubkey;
@@ -278,9 +282,10 @@ export class NostrListener {
           const result = await this.crypto.decryptEvent(event.kind, event.content, event.pubkey);
           decryptedContent = result.content;
           encryptionType = result.encryptionType;
+          hasNip18Prefix = result.hasNip18Prefix ?? false;
 
           logger.info(
-            { eventId: event.id, kind: event.kind, encryptionType, content: decryptedContent },
+            { eventId: event.id, kind: event.kind, encryptionType, hasNip18Prefix, content: decryptedContent },
             'Event received and decrypted'
           );
         }
@@ -311,6 +316,7 @@ export class NostrListener {
       isEncrypted,
       isFromWhitelist,
       relayUrl,
+      hasNip18Prefix,
     };
 
     logger.debug(

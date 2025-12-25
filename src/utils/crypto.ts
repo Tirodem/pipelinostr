@@ -9,6 +9,7 @@ const AMETHYST_NIP18_PREFIX = /^\[\/\/\]: # \(nip18\)\s*/;
 export interface DecryptedContent {
   content: string;
   encryptionType: 'nip04' | 'nip44' | 'none';
+  hasNip18Prefix?: boolean;  // Amethyst NIP-18 prefix was detected (signals NIP-17 preference)
 }
 
 export interface UnwrappedGiftWrap {
@@ -136,9 +137,10 @@ export class CryptoHelper {
     // Kind 4: NIP-04 encrypted DM
     if (kind === 4) {
       const decrypted = await this.decryptNip04(content, senderPubkey);
-      // Clean Amethyst prefix (some clients add it even for NIP-04)
+      // Detect Amethyst NIP-18 prefix (signals NIP-17 preference)
+      const hasNip18Prefix = AMETHYST_NIP18_PREFIX.test(decrypted);
       const cleanContent = cleanAmethystPrefix(decrypted);
-      return { content: cleanContent, encryptionType: 'nip04' };
+      return { content: cleanContent, encryptionType: 'nip04', hasNip18Prefix };
     }
 
     // Kind 1059: NIP-44 Gift Wrap - this is a legacy path
@@ -152,8 +154,9 @@ export class CryptoHelper {
     // Kind 14: NIP-17 private DM (uses NIP-44)
     if (kind === 14) {
       const decrypted = this.decryptNip44(content, senderPubkey);
+      const hasNip18Prefix = AMETHYST_NIP18_PREFIX.test(decrypted);
       const cleanContent = cleanAmethystPrefix(decrypted);
-      return { content: cleanContent, encryptionType: 'nip44' };
+      return { content: cleanContent, encryptionType: 'nip44', hasNip18Prefix };
     }
 
     // Unencrypted content
