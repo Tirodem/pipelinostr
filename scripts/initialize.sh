@@ -74,7 +74,7 @@ install_nodejs() {
     case "$PLATFORM" in
         termux)
             pkg update -y
-            pkg install -y nodejs-lts git
+            pkg install -y nodejs-lts git sqlite
             ;;
         debian)
             # Utilise NodeSource pour avoir une version récente
