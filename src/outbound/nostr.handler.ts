@@ -93,7 +93,7 @@ export class NostrHandler implements Handler {
       formatSource = 'default';
     }
 
-    logger.debug(
+    logger.info(
       {
         configDmFormat: config.dm_format,
         triggerDmFormat,

@@ -90,7 +90,7 @@ export class WorkflowMatcher {
       dmFormat = 'nip17';
     }
 
-    logger.debug(
+    logger.info(
       { eventId: event.id, encryptionType: event.encryptionType, dmFormat },
       'DM format detected from event'
     );
