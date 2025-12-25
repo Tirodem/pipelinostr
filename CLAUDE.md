@@ -402,6 +402,11 @@ pipelinostr-status.yml     /pipelinostr status → system info
   ```
   **NE JAMAIS OUBLIER** les commandes `enable` après `refresh` !
 
+  **SI UN .yml.example EST SUPPRIMÉ** : Toujours le signaler à l'utilisateur pour qu'il lance :
+  ```bash
+  ./scripts/pipelinostr.sh workflow clean  # supprime les workflows orphelins de la DB
+  ```
+
   **ATTENTION CLI** : Les IDs multiples sont séparés par des **VIRGULES**, pas des espaces !
   - ✅ `./scripts/pipelinostr.sh workflow refresh wallet-address,wallet-bill,wallet-check`
   - ❌ `./scripts/pipelinostr.sh workflow refresh wallet-address wallet-bill wallet-check`
