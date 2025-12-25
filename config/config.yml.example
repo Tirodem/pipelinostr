@@ -103,6 +103,14 @@ queue:
   cleanup_days: 7               # Conservation des evenements completes
   cleanup_interval: 100         # Nettoyage tous les N cycles
 
+# Configuration des workflows
+workflows:
+  # Notification d'erreur automatique
+  # Envoie un DM a l'expediteur quand un workflow echoue
+  error_notification:
+    enabled: true               # true = envoie un DM en cas d'erreur
+    dm_triggers_only: true      # true = seulement si le trigger est un DM (kind 4/1059)
+
 # Affichage LCD I2C 20x4 (optionnel, Raspberry Pi uniquement)
 # Affiche le status des workflows en temps reel
 # Prerequis: sudo apt install i2c-tools && sudo raspi-config (activer I2C)

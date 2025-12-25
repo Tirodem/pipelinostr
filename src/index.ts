@@ -1646,6 +1646,14 @@ async function main(): Promise<void> {
     });
     await workflowEngine.initialize();
 
+    // Configure error notification if enabled
+    if (config.workflows?.error_notification?.enabled) {
+      workflowEngine.setErrorNotificationConfig({
+        enabled: true,
+        dm_triggers_only: config.workflows.error_notification.dm_triggers_only ?? true,
+      });
+    }
+
     // Initialize Nostr listener
     const nostrListener = new NostrListener(
       {

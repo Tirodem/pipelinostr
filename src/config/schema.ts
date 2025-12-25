@@ -103,6 +103,12 @@ export interface PipelinostrConfig {
     threshold?: number;      // Detection threshold (0-1, default: 0.3)
     sample_rate?: number;    // Sample rate (default: 44100)
   };
+  workflows?: {
+    error_notification?: {
+      enabled: boolean;
+      dm_triggers_only?: boolean;  // Only notify if trigger was a Nostr DM (kind 4/1059), default: true
+    };
+  };
 }
 
 const configSchema = {
@@ -294,6 +300,19 @@ const configSchema = {
         sample_rate: { type: 'integer' },
       },
       required: ['enabled'],
+    },
+    workflows: {
+      type: 'object',
+      properties: {
+        error_notification: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            dm_triggers_only: { type: 'boolean' },
+          },
+          required: ['enabled'],
+        },
+      },
     },
   },
   required: ['pipelinostr', 'nostr', 'whitelist', 'relays', 'database', 'logging'],

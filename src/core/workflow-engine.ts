@@ -31,12 +31,19 @@ export type HookRecordFn = (
   context?: WorkflowContext
 ) => void;
 
+// Error notification config type
+interface ErrorNotificationConfig {
+  enabled: boolean;
+  dm_triggers_only?: boolean;
+}
+
 export class WorkflowEngine {
   private loader: WorkflowLoader;
   private matcher: WorkflowMatcher;
   private handlers: Map<string, Handler> = new Map();
   private globalRetryConfig: RetryConfig;
   private hookRecorder?: HookRecordFn | undefined;
+  private errorNotificationConfig?: ErrorNotificationConfig;
 
   constructor(options: {
     workflowsDir?: string;
@@ -46,6 +53,14 @@ export class WorkflowEngine {
     this.loader = new WorkflowLoader(options.workflowsDir);
     this.matcher = new WorkflowMatcher(options.whitelistNpubs ?? []);
     this.globalRetryConfig = options.retryConfig ?? defaultRetryConfig;
+  }
+
+  // Set error notification config
+  setErrorNotificationConfig(config: ErrorNotificationConfig): void {
+    this.errorNotificationConfig = config;
+    if (config.enabled) {
+      logger.info({ dmTriggersOnly: config.dm_triggers_only ?? true }, 'Error notification enabled');
+    }
   }
 
   // Set hook recorder for history tracking
@@ -318,7 +333,53 @@ export class WorkflowEngine {
       await this.executeHooks(workflow.hooks.on_fail, context, workflow, 'on_fail', result);
     }
 
+    // Send error notification DM if enabled and conditions are met
+    if (!success && !parentInfo && this.errorNotificationConfig?.enabled) {
+      await this.sendErrorNotification(workflow.id, result.error ?? 'Unknown error', triggerContext);
+    }
+
     return result;
+  }
+
+  // Send error notification DM to the trigger source
+  private async sendErrorNotification(
+    workflowId: string,
+    error: string,
+    trigger: TriggerContext
+  ): Promise<void> {
+    // Check if dm_triggers_only is set (default: true) and trigger is a DM
+    const dmTriggersOnly = this.errorNotificationConfig?.dm_triggers_only ?? true;
+    const isDmTrigger = trigger.kind === 4 || trigger.kind === 1059;
+
+    if (dmTriggersOnly && !isDmTrigger) {
+      logger.debug({ workflowId, kind: trigger.kind }, 'Error notification skipped (not a DM trigger)');
+      return;
+    }
+
+    // Get the nostr_dm handler
+    const dmHandler = this.handlers.get('nostr_dm');
+    if (!dmHandler) {
+      logger.warn('Error notification: nostr_dm handler not available');
+      return;
+    }
+
+    try {
+      const errorMessage = `❌ Workflow error\n\nWorkflow: ${workflowId}\nError: ${error}`;
+
+      await dmHandler.execute(
+        {
+          to: trigger.from,
+          content: errorMessage,
+          dm_format: trigger.dm_format, // Reply in same format as received
+        },
+        { trigger }
+      );
+
+      logger.info({ workflowId, to: trigger.from }, 'Error notification sent');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error({ workflowId, error: errMsg }, 'Failed to send error notification');
+    }
   }
 
   // Execute workflow hooks
