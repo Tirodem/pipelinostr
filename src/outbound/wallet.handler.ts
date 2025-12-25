@@ -160,8 +160,9 @@ export class WalletHandler implements Handler {
    * Derive addresses from xpub and get their balances
    */
   private async getAddresses(config: WalletActionConfig): Promise<HandlerResult> {
-    const startIndex = config.start_index ?? 0;
-    const count = config.count ?? 1;
+    // Parse as integers (template values come as strings)
+    const startIndex = parseInt(String(config.start_index ?? 0), 10) || 0;
+    const count = parseInt(String(config.count ?? 1), 10) || 1;
 
     if (!this.xpub) {
       return { success: false, error: 'No xpub configured' };
@@ -205,8 +206,9 @@ export class WalletHandler implements Handler {
    * Generate a payment bill with QR code
    */
   private async generateBill(config: WalletActionConfig): Promise<HandlerResult> {
-    const addressIndex = config.address_index ?? 0;
-    const amount = config.amount ?? 0;
+    // Parse as integers/floats (template values come as strings)
+    const addressIndex = parseInt(String(config.address_index ?? 0), 10) || 0;
+    const amount = parseFloat(String(config.amount ?? 0)) || 0;
     const currency = config.currency ?? 'SAT';
 
     if (!this.xpub) {
@@ -379,7 +381,8 @@ export class WalletHandler implements Handler {
   private async convertCurrency(config: WalletActionConfig): Promise<HandlerResult> {
     const fromCurrency = config.from_currency?.toUpperCase() ?? 'EUR';
     const toCurrency = config.to_currency?.toUpperCase() ?? 'SAT';
-    const value = config.value ?? 0;
+    // Parse as float (template values come as strings)
+    const value = parseFloat(String(config.value ?? 0)) || 0;
 
     try {
       if (fromCurrency === toCurrency) {
