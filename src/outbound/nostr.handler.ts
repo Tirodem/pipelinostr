@@ -64,7 +64,18 @@ export class NostrHandler implements Handler {
     // Default to DM if 'to' field is present
     if ((config as NostrDmConfig).to) {
       // Extract trigger's dm_format for reply matching
-      const triggerDmFormat = (context.trigger as Record<string, unknown>)?.dm_format as DmFormat | undefined;
+      const trigger = context.trigger as Record<string, unknown> | undefined;
+      const triggerDmFormat = trigger?.dm_format as DmFormat | undefined;
+
+      logger.info(
+        {
+          hasTrigger: !!trigger,
+          triggerKeys: trigger ? Object.keys(trigger) : [],
+          triggerDmFormat,
+        },
+        'Extracting trigger dm_format'
+      );
+
       return this.sendDm(config as NostrDmConfig, triggerDmFormat);
     }
 
