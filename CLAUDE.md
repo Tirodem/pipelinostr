@@ -401,6 +401,11 @@ pipelinostr-status.yml     /pipelinostr status → system info
   ./scripts/pipelinostr.sh handler enable <ids>    # OBLIGATOIRE après refresh
   ```
   **NE JAMAIS OUBLIER** les commandes `enable` après `refresh` !
+
+  **ATTENTION CLI** : Les IDs multiples sont séparés par des **VIRGULES**, pas des espaces !
+  - ✅ `./scripts/pipelinostr.sh workflow refresh wallet-address,wallet-bill,wallet-check`
+  - ❌ `./scripts/pipelinostr.sh workflow refresh wallet-address wallet-bill wallet-check`
+  - Alternative avec wildcard : `./scripts/pipelinostr.sh workflow refresh "wallet-*"`
 - **VÉRIFICATION** : Ne jamais demander "as-tu fait X ?". Toujours donner une commande de vérification :
   ```bash
   # Vérifier schéma DB
