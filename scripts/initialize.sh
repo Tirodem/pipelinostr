@@ -233,6 +233,92 @@ run_npm_build() {
 }
 
 # =============================================================================
+# Dépendances optionnelles : Audio/TTS
+# =============================================================================
+
+install_audio_tools() {
+    echo ""
+    echo -e "${CYAN}[Optionnel] Dépendances Audio/TTS${NC}"
+    echo -e "  Requis pour : morse-audio, tts handlers"
+    echo -e "  Packages : ffmpeg, espeak-ng"
+    echo ""
+    read -p "  Installer les outils Audio/TTS ? (y/N) " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}  ⏭ Audio/TTS ignoré${NC}"
+        return 0
+    fi
+
+    case "$PLATFORM" in
+        termux)
+            pkg install -y ffmpeg espeak
+            ;;
+        debian)
+            sudo apt-get install -y ffmpeg espeak-ng
+            ;;
+        redhat)
+            sudo yum install -y ffmpeg espeak-ng
+            ;;
+        alpine)
+            apk add --no-cache ffmpeg espeak-ng
+            ;;
+        macos)
+            brew install ffmpeg espeak
+            ;;
+        *)
+            echo -e "${YELLOW}  ⚠ Installation manuelle requise${NC}"
+            return 0
+            ;;
+    esac
+
+    echo -e "${GREEN}  ✓ Audio/TTS installé${NC}"
+}
+
+# =============================================================================
+# Dépendances optionnelles : GPIO (Raspberry Pi)
+# =============================================================================
+
+install_gpio_tools() {
+    # GPIO uniquement pertinent sur Linux avec GPIO physique
+    if [[ "$PLATFORM" != "debian" && "$PLATFORM" != "alpine" ]]; then
+        return 0
+    fi
+
+    # Vérifier si on est sur un Raspberry Pi
+    if [ ! -f /proc/device-tree/model ] || ! grep -qi "raspberry" /proc/device-tree/model 2>/dev/null; then
+        return 0
+    fi
+
+    echo ""
+    echo -e "${CYAN}[Optionnel] Dépendances GPIO (Raspberry Pi détecté)${NC}"
+    echo -e "  Requis pour : gpio handler, i2c (LCD), servo"
+    echo -e "  Packages : pigpio, i2c-tools"
+    echo ""
+    read -p "  Installer les outils GPIO ? (y/N) " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}  ⏭ GPIO ignoré${NC}"
+        return 0
+    fi
+
+    sudo apt-get install -y pigpio i2c-tools
+
+    # Activer pigpiod au démarrage
+    sudo systemctl enable pigpiod
+    sudo systemctl start pigpiod
+
+    # Activer I2C
+    if command -v raspi-config &> /dev/null; then
+        sudo raspi-config nonint do_i2c 0
+        echo -e "${GREEN}  ✓ I2C activé${NC}"
+    fi
+
+    echo -e "${GREEN}  ✓ GPIO installé (pigpiod démarré)${NC}"
+}
+
+# =============================================================================
 # Résumé
 # =============================================================================
 
@@ -267,4 +353,9 @@ create_directories
 copy_config_files
 run_npm_install
 run_npm_build
+
+# Dépendances optionnelles (prompts interactifs)
+install_audio_tools
+install_gpio_tools
+
 print_summary

@@ -6,6 +6,23 @@ cd "$(dirname "$0")/.." || exit 1
 
 DB_PATH="./data/pipelinostr.db"
 
+# Find sqlite3 binary (needed for Termux where PATH may differ in subshells)
+SQLITE3=$(command -v sqlite3)
+if [ -z "$SQLITE3" ]; then
+    # Fallback paths
+    for path in /data/data/com.termux/files/usr/bin/sqlite3 /usr/bin/sqlite3 /usr/local/bin/sqlite3; do
+        if [ -x "$path" ]; then
+            SQLITE3="$path"
+            break
+        fi
+    done
+fi
+
+if [ -z "$SQLITE3" ]; then
+    echo "Error: sqlite3 not found. Install it with: pkg install sqlite (Termux) or apt install sqlite3"
+    exit 1
+fi
+
 if [ ! -f "$DB_PATH" ]; then
     echo "Error: Database not found at $DB_PATH"
     exit 1
@@ -16,11 +33,11 @@ echo ""
 
 watch -n 2 "
 echo '=== Queue Statistics ==='
-sqlite3 -header -column $DB_PATH \"SELECT status, COUNT(*) as count FROM event_queue GROUP BY status;\"
+$SQLITE3 -header -column $DB_PATH \"SELECT status, COUNT(*) as count FROM event_queue GROUP BY status;\"
 
 echo ''
 echo '=== Recent Events (last 20) ==='
-sqlite3 -header -column $DB_PATH \"
+$SQLITE3 -header -column $DB_PATH \"
 SELECT
     id,
     event_type,
