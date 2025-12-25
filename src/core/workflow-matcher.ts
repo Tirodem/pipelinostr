@@ -90,6 +90,11 @@ export class WorkflowMatcher {
       dmFormat = 'nip17';
     }
 
+    logger.debug(
+      { eventId: event.id, encryptionType: event.encryptionType, dmFormat },
+      'DM format detected from event'
+    );
+
     const triggerContext: TriggerContext = {
       from: event.pubkeyNpub,
       pubkey: event.pubkey,

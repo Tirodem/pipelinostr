@@ -78,16 +78,32 @@ export class NostrHandler implements Handler {
 
     // Priority: action-level override > trigger format (if match enabled) > handler default
     let dmFormat: DmFormat;
+    let formatSource: string;
     if (config.dm_format) {
       // Explicit action override
       dmFormat = config.dm_format;
+      formatSource = 'action';
     } else if (this.dmReplyMatchFormat && triggerDmFormat) {
       // Reply in same format as received
       dmFormat = triggerDmFormat;
+      formatSource = 'trigger';
     } else {
       // Use handler default
       dmFormat = this.defaultDmFormat;
+      formatSource = 'default';
     }
+
+    logger.debug(
+      {
+        configDmFormat: config.dm_format,
+        triggerDmFormat,
+        dmReplyMatchFormat: this.dmReplyMatchFormat,
+        defaultDmFormat: this.defaultDmFormat,
+        resolvedFormat: dmFormat,
+        formatSource,
+      },
+      'DM format resolution'
+    );
 
     if (dmFormat === 'nip17') {
       return this.sendDmNip17(config);
