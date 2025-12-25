@@ -322,30 +322,51 @@ export class SystemHandler implements Handler {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
-    // Get CPU info with fallback for Android/Termux where os.cpus() may be empty
-    let cpuModel = cpus[0]?.model ?? 'Unknown';
+    // Get CPU info with fallback for Android/Termux
+    let cpuModel = cpus[0]?.model?.trim() || 'Unknown';
     let cpuCores = cpus.length;
 
-    if (cpuCores === 0) {
-      // Fallback: try reading /proc/cpuinfo (Linux/Android)
+    // Try /proc/cpuinfo if cores=0 or model is unknown/empty
+    if (cpuCores === 0 || cpuModel === 'Unknown' || cpuModel === '') {
       try {
         const cpuinfo = readFileSync('/proc/cpuinfo', 'utf-8');
 
-        // Count processors
-        const processorMatches = cpuinfo.match(/^processor\s*:/gm);
-        if (processorMatches) {
-          cpuCores = processorMatches.length;
+        // Count processors if needed
+        if (cpuCores === 0) {
+          const processorMatches = cpuinfo.match(/^processor\s*:/gm);
+          if (processorMatches) {
+            cpuCores = processorMatches.length;
+          }
         }
 
-        // Get model name (try different fields used by different architectures)
-        const modelMatch = cpuinfo.match(/^(?:model name|Hardware|Processor)\s*:\s*(.+)$/m);
-        if (modelMatch && modelMatch[1]) {
-          cpuModel = modelMatch[1].trim();
+        // Get model name (try multiple fields for different architectures)
+        if (cpuModel === 'Unknown' || cpuModel === '') {
+          // Try Hardware first (common on Android)
+          const hardwareMatch = cpuinfo.match(/^Hardware\s*:\s*(.+)$/m);
+          if (hardwareMatch && hardwareMatch[1]) {
+            cpuModel = hardwareMatch[1].trim();
+          } else {
+            // Try model name (x86/x64)
+            const modelMatch = cpuinfo.match(/^model name\s*:\s*(.+)$/m);
+            if (modelMatch && modelMatch[1]) {
+              cpuModel = modelMatch[1].trim();
+            } else {
+              // Try CPU implementer + part (ARM)
+              const implMatch = cpuinfo.match(/^CPU implementer\s*:\s*(.+)$/m);
+              const partMatch = cpuinfo.match(/^CPU part\s*:\s*(.+)$/m);
+              if (implMatch?.[1] && partMatch?.[1]) {
+                cpuModel = `ARM ${implMatch[1].trim()}/${partMatch[1].trim()}`;
+              }
+            }
+          }
         }
       } catch {
         // /proc/cpuinfo not available
       }
     }
+
+    // Get load average (1min, 5min, 15min)
+    const loadAvg = os.loadavg();
 
     // Get process memory usage (PipeliNostr specific)
     const processMemory = process.memoryUsage();
@@ -449,8 +470,9 @@ export class SystemHandler implements Handler {
       '',
       `📊 Resources:`,
       `  CPU: ${status.resources.cpu.cores} cores (${status.resources.cpu.model.substring(0, 30)})`,
+      `  Load: ${status.resources.cpu.load_avg.map(l => l.toFixed(2)).join(' / ')} (1/5/15 min)`,
       `  RAM: ${status.resources.memory.used_mb}MB / ${status.resources.memory.total_mb}MB (${status.resources.memory.usage_percent}%)`,
-      `  PipeliNostr: ${status.resources.process_memory.rss_mb}MB (heap: ${status.resources.process_memory.heap_used_mb}/${status.resources.process_memory.heap_total_mb}MB)`,
+      `  PipeliNostr RAM: ${status.resources.process_memory.rss_mb}MB (heap: ${status.resources.process_memory.heap_used_mb}/${status.resources.process_memory.heap_total_mb}MB)`,
       ...(status.resources.disk
         ? [
             `  Disk: ${status.resources.disk.used_gb}GB / ${status.resources.disk.total_gb}GB (${status.resources.disk.usage_percent}%)`,

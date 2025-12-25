@@ -93,10 +93,10 @@ retry:
     multiplier: 2
     max_delay_ms: 60000
 
-# Queue d'evenements (optionnel)
+# Queue d'evenements
 # Permet de mettre en file d'attente les evenements pour fiabilite et replay
 queue:
-  enabled: false                # true = active la queue, false = traitement direct
+  enabled: true                 # true = active la queue (recommande), false = traitement direct
   poll_interval_ms: 1000        # Intervalle de polling (ms)
   concurrency: 1                # Evenements traites en parallele
   stuck_timeout_minutes: 10     # Reset des evenements bloques
