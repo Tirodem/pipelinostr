@@ -153,6 +153,10 @@ export interface TriggerContext {
   timestamp: number;
   relayUrl: string;
 
+  // DM format used by the sender (for reply in same format)
+  // Set for kind 4 (nip04) and kind 14/1059 (nip17)
+  dm_format?: 'nip04' | 'nip17' | undefined;
+
   // Zap-specific context (only for kind 9735)
   zap?: ZapContext | undefined;
 

@@ -55,7 +55,13 @@
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(git diff:*)",
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(while read f)",
+      "Bash(do grep -m1 \"^title:\" \"$f\")",
+      "Bash(basename:*)",
+      "Bash(for:*)",
+      "Bash(powershell:*)",
+      "Bash(type:*)"
     ],
     "deny": [],
     "ask": []

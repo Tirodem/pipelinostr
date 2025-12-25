@@ -9,7 +9,12 @@ nostr:
   # Format DM par defaut: "nip04" (legacy) ou "nip17" (nouveau standard)
   # NIP-04: kind 4, supporte par tous les clients
   # NIP-17: kind 14 wrapped dans kind 1059 (Gift Wrap), meilleure confidentialite
+  # Utilise pour les triggers non-DM (zaps, API, etc.)
   dm_format: "nip04"
+  # Si true, repond aux DMs dans le meme format que le message recu
+  # Ex: si on recoit un DM NIP-17, on repond en NIP-17
+  # Utile pour compatibilite avec clients comme Primal (NIP-04) et Amethyst (NIP-17)
+  dm_reply_match_format: true
   # Surveiller les zaps pour d'autres npubs (en plus de la npub du bot)
   # zapRecipients:
   #   - "npub1..."

@@ -10,6 +10,7 @@ export interface PipelinostrConfig {
     private_key_file?: string;
     zapRecipients?: string[];
     dm_format?: 'nip04' | 'nip17';  // Default DM format: 'nip04' (legacy) or 'nip17' (modern)
+    dm_reply_match_format?: boolean;  // If true, reply to DMs in the same format as received (default: true)
   };
   whitelist: {
     enabled: boolean;
@@ -123,6 +124,7 @@ const configSchema = {
         private_key_file: { type: 'string' },
         zapRecipients: { type: 'array', items: { type: 'string' } },
         dm_format: { type: 'string', enum: ['nip04', 'nip17'] },
+        dm_reply_match_format: { type: 'boolean' },
       },
       additionalProperties: false,
     },

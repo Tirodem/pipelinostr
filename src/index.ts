@@ -135,6 +135,7 @@ async function initializeHandlers(
     privateKey,
     relayManager: state.relayManager,
     dm_format: state.config.nostr.dm_format ?? 'nip04',  // 'nip04' (default) or 'nip17'
+    dm_reply_match_format: state.config.nostr.dm_reply_match_format ?? true,  // Reply in same format as received
   };
 
   state.handlers.nostrDm = new NostrDmHandler(nostrOptions);

@@ -81,6 +81,15 @@ export class WorkflowMatcher {
       }
     }
 
+    // Determine DM format based on encryption type
+    // nip04 = kind 4, nip44 = kind 14 (from unwrapped 1059)
+    let dmFormat: 'nip04' | 'nip17' | undefined;
+    if (event.encryptionType === 'nip04') {
+      dmFormat = 'nip04';
+    } else if (event.encryptionType === 'nip44') {
+      dmFormat = 'nip17';
+    }
+
     const triggerContext: TriggerContext = {
       from: event.pubkeyNpub,
       pubkey: event.pubkey,
@@ -88,6 +97,7 @@ export class WorkflowMatcher {
       kind: event.kind,
       timestamp: event.created_at,
       relayUrl: event.relayUrl,
+      dm_format: dmFormat,
       zap: zapContext,
       event: {
         id: event.id,

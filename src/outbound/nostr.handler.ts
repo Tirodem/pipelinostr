@@ -23,6 +23,7 @@ export interface NostrHandlerOptions {
   privateKey: string;
   relayManager: RelayManager;
   dm_format?: DmFormat; // Default format for DMs: 'nip04' or 'nip17'
+  dm_reply_match_format?: boolean; // If true, reply in the same format as received (default: true)
 }
 
 export class NostrHandler implements Handler {
@@ -32,21 +33,27 @@ export class NostrHandler implements Handler {
   private crypto: CryptoHelper;
   private relayManager: RelayManager;
   private defaultDmFormat: DmFormat;
+  private dmReplyMatchFormat: boolean;
 
   constructor(options: NostrHandlerOptions) {
     this.crypto = new CryptoHelper(options.privateKey);
     this.relayManager = options.relayManager;
     this.defaultDmFormat = options.dm_format ?? 'nip04'; // Default to NIP-04 for backwards compatibility
+    this.dmReplyMatchFormat = options.dm_reply_match_format ?? true; // Default to matching format
   }
 
   async initialize(): Promise<void> {
     logger.info(
-      { pubkey: this.crypto.getPublicKeyNpub(), dm_format: this.defaultDmFormat },
+      {
+        pubkey: this.crypto.getPublicKeyNpub(),
+        dm_format: this.defaultDmFormat,
+        dm_reply_match_format: this.dmReplyMatchFormat,
+      },
       'Nostr handler initialized'
     );
   }
 
-  async execute(config: HandlerConfig, _context: Record<string, unknown>): Promise<HandlerResult> {
+  async execute(config: HandlerConfig, context: Record<string, unknown>): Promise<HandlerResult> {
     // Determine action type from config
     const actionType = (config as Record<string, unknown>)['_action_type'] as string | undefined;
 
@@ -56,19 +63,31 @@ export class NostrHandler implements Handler {
 
     // Default to DM if 'to' field is present
     if ((config as NostrDmConfig).to) {
-      return this.sendDm(config as NostrDmConfig);
+      // Extract trigger's dm_format for reply matching
+      const triggerDmFormat = (context.trigger as Record<string, unknown>)?.dm_format as DmFormat | undefined;
+      return this.sendDm(config as NostrDmConfig, triggerDmFormat);
     }
 
     return { success: false, error: 'Invalid Nostr action config' };
   }
 
-  async sendDm(config: NostrDmConfig): Promise<HandlerResult> {
+  async sendDm(config: NostrDmConfig, triggerDmFormat?: DmFormat): Promise<HandlerResult> {
     if (!config.to || !config.content) {
       return { success: false, error: 'Missing required fields: to, content' };
     }
 
-    // Use action-level override or handler default
-    const dmFormat = config.dm_format ?? this.defaultDmFormat;
+    // Priority: action-level override > trigger format (if match enabled) > handler default
+    let dmFormat: DmFormat;
+    if (config.dm_format) {
+      // Explicit action override
+      dmFormat = config.dm_format;
+    } else if (this.dmReplyMatchFormat && triggerDmFormat) {
+      // Reply in same format as received
+      dmFormat = triggerDmFormat;
+    } else {
+      // Use handler default
+      dmFormat = this.defaultDmFormat;
+    }
 
     if (dmFormat === 'nip17') {
       return this.sendDmNip17(config);
