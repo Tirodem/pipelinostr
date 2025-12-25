@@ -445,8 +445,17 @@ export class WalletHandler implements Handler {
    */
   private deriveAddress(index: number): string | null {
     try {
-      // Dynamically import bip32 (ESM compatible)
+      // Debug: log xpub prefix
+      logger.debug({ xpubPrefix: this.xpub?.substring(0, 10), index }, 'Deriving address');
+
+      if (!this.xpub) {
+        logger.error('No xpub configured');
+        return null;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { BIP32Factory } = require('bip32');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ecc = require('tiny-secp256k1');
       const bip32 = BIP32Factory(ecc);
 
@@ -462,9 +471,12 @@ export class WalletHandler implements Handler {
         network: this.network,
       });
 
+      logger.debug({ index, address }, 'Address derived successfully');
       return address ?? null;
     } catch (error) {
-      logger.error({ error, index }, 'Failed to derive address');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error({ errorMessage, errorStack, index, xpubPrefix: this.xpub?.substring(0, 10) }, 'Failed to derive address');
       return null;
     }
   }
