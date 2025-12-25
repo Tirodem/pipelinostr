@@ -1,14 +1,17 @@
 ---
 title: "Bitcoin Wallet Commands (/wallet)"
 priority: "High"
-status: "TO-DO"
+status: "DONE"
 created: "2025-12-25"
+completed: "2025-12-25"
 ---
 
 ### Bitcoin Wallet Commands (/wallet)
 
 **Priority:** High
-**Status:** TO-DO
+**Status:** DONE (2025-12-25)
+
+**Note:** Le monitoring automatique apres /wallet bill n'est pas implemente. Utiliser /wallet check pour verifier manuellement.
 
 #### Description
 

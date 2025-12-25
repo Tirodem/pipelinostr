@@ -1,0 +1,31 @@
+# Workflow: /wallet check <txid|address>
+# Verifie le statut d'une transaction ou les transactions d'une adresse
+#
+# Usage: /wallet check abc123...   (txid)
+#        /wallet check bc1q...     (address)
+
+id: wallet-check
+name: Bitcoin Wallet - Check Transaction
+enabled: false
+
+trigger:
+  type: nostr_event
+  kinds: [4, 1059]
+  # /wallet check <txid or address>
+  content_match: "^/wallet check ([a-zA-Z0-9]+)$"
+  # from_whitelist:
+  #   - "npub1..."
+
+actions:
+  - id: check_tx
+    type: wallet
+    params:
+      action: check_transaction
+      # Si commence par bc1, c'est une adresse, sinon c'est un txid
+      address: "{{ match.1 | starts_with 'bc1' | ternary match.1 '' }}"
+      txid: "{{ match.1 | starts_with 'bc1' | ternary '' match.1 }}"
+
+  - type: nostr_dm
+    to: "{{ trigger.pubkeyNpub }}"
+    message: |
+      {{ actions.check_tx.response.formatted }}

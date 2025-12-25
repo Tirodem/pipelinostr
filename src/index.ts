@@ -56,6 +56,7 @@ import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.hand
 import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
 import { SystemHandler } from './outbound/system.handler.js';
 import { WorkflowDbHandler } from './outbound/workflow-db.handler.js';
+import { WalletHandler, type WalletHandlerConfig } from './outbound/wallet.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
 interface AppState {
@@ -116,6 +117,7 @@ interface AppState {
     workflowActivator?: WorkflowActivatorHandler;
     system?: SystemHandler;
     workflowDb?: WorkflowDbHandler;
+    wallet?: WalletHandler;
   };
 }
 
@@ -1276,6 +1278,37 @@ async function initializeHandlers(
   await state.handlers.workflowDb.initialize();
   state.workflowEngine.registerHandler('workflow_db', state.handlers.workflowDb);
   logger.info('Workflow DB handler enabled');
+
+  // Wallet Handler (optional, needs xpub config)
+  interface WalletConfigFile {
+    wallet?: {
+      enabled?: boolean;
+      xpub?: string;
+      mempool_api?: string;
+      rate_limit_seconds?: number;
+      confirmations_notify?: number;
+      network?: 'mainnet' | 'testnet';
+    };
+  }
+  try {
+    const walletConfig = await loadHandlerConfig<WalletConfigFile>('wallet');
+    if (walletConfig?.wallet?.enabled && walletConfig.wallet.xpub) {
+      const walletOptions: WalletHandlerConfig = {
+        xpub: walletConfig.wallet.xpub,
+      };
+      if (walletConfig.wallet.mempool_api) walletOptions.mempool_api = walletConfig.wallet.mempool_api;
+      if (walletConfig.wallet.rate_limit_seconds !== undefined) walletOptions.rate_limit_seconds = walletConfig.wallet.rate_limit_seconds;
+      if (walletConfig.wallet.confirmations_notify !== undefined) walletOptions.confirmations_notify = walletConfig.wallet.confirmations_notify;
+      if (walletConfig.wallet.network) walletOptions.network = walletConfig.wallet.network;
+
+      state.handlers.wallet = new WalletHandler(walletOptions);
+      await state.handlers.wallet.initialize();
+      state.workflowEngine.registerHandler('wallet', state.handlers.wallet);
+      logger.info('Wallet handler enabled');
+    }
+  } catch {
+    logger.debug('Wallet handler not configured, skipping');
+  }
 }
 
 // Helper to convert inbound events to ProcessedEvent-like format for workflow engine

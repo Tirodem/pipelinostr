@@ -1,0 +1,31 @@
+# Workflow: /wallet bill x amount currency
+# Genere une facture Bitcoin avec QR code
+#
+# Usage: /wallet bill 5 50.00 EUR
+#        Genere une facture de 50 EUR sur l'adresse #5
+
+id: wallet-bill
+name: Bitcoin Wallet - Generate Bill
+enabled: false
+
+trigger:
+  type: nostr_event
+  kinds: [4, 1059]
+  # /wallet bill <index> <amount> <currency>
+  content_match: "^/wallet bill (\\d+)\\s+([\\d.]+)\\s+(EUR|USD|CHF|SAT|BTC)$"
+  # from_whitelist:
+  #   - "npub1..."
+
+actions:
+  - id: create_bill
+    type: wallet
+    params:
+      action: generate_bill
+      address_index: "{{ match.1 | to_number }}"
+      amount: "{{ match.2 | to_number }}"
+      currency: "{{ match.3 }}"
+
+  - type: nostr_dm
+    to: "{{ trigger.pubkeyNpub }}"
+    message: |
+      {{ actions.create_bill.response.formatted }}

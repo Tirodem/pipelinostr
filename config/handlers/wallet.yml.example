@@ -1,0 +1,71 @@
+# Configuration Bitcoin Wallet Handler (watch-only via xpub)
+wallet:
+  enabled: true
+
+  # Extended public key (xpub/ypub/zpub)
+  # BIP84 (Native SegWit - bc1q...) is recommended
+  # Get from your wallet: Settings > Show xpub
+  xpub: ${BITCOIN_XPUB}
+
+  # mempool.space API endpoint
+  # Default: https://mempool.space/api
+  # For testnet: https://mempool.space/testnet/api
+  mempool_api: "https://mempool.space/api"
+
+  # Rate limiting for mempool.space API calls (seconds)
+  # Default: 10
+  rate_limit_seconds: 10
+
+  # Number of confirmations to notify
+  # Default: 3
+  confirmations_notify: 3
+
+  # Network (mainnet or testnet)
+  # Default: mainnet
+  network: mainnet
+
+# IMPORTANT:
+# - This is a WATCH-ONLY wallet, it cannot sign transactions
+# - xpub should be stored in .env file for security
+# - Addresses are derived using BIP84 (Native SegWit)
+
+# Exemple d'utilisation dans un workflow:
+#
+# /wallet address 0 5 - Show addresses 0 to 4 with balances
+#
+# actions:
+#   - type: wallet
+#     params:
+#       action: get_addresses
+#       start_index: 0
+#       count: 5
+#
+# /wallet bill 5 50.00 EUR - Generate payment request
+#
+# actions:
+#   - type: wallet
+#     params:
+#       action: generate_bill
+#       address_index: 5
+#       amount: 50.00
+#       currency: EUR  # EUR, USD, CHF, SAT, BTC
+#
+# Check transaction status:
+#
+# actions:
+#   - type: wallet
+#     params:
+#       action: check_transaction
+#       txid: "abc123..."
+#       # OR
+#       address: "bc1q..."
+#
+# Currency conversion:
+#
+# actions:
+#   - type: wallet
+#     params:
+#       action: convert_currency
+#       value: 100
+#       from_currency: EUR
+#       to_currency: SAT
