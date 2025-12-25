@@ -1,8 +1,8 @@
 # PipeliNostr - Contexte Claude Code
 
 > **Objectif :** Fichier lu automatiquement par Claude Code pour restaurer le contexte entre sessions.
-> **Dernière mise à jour :** 2025-12-20
-> **Dernier commit :** ed494a8 - refactor: split BACKLOG.md into active and archived sections
+> **Dernière mise à jour :** 2025-12-25
+> **Dernier commit :** 82dd891 - feat: add NIP-17 DM support (Gift Wrap) with NIP-04 backwards compatibility
 
 ## Projet en bref
 
@@ -36,6 +36,9 @@
 5. **GPIO Bookworm** : Utiliser `pigpio` (pas `onoff`) pour Raspberry Pi OS Bookworm
 6. **Templates** : Handlebars avec filtres custom (`trim`, `sats_to_btc`, `date`, etc.)
 7. **Variables** : Définies par workflow, accessibles via `{{ variables.xxx }}` et `{{ parent.variables.xxx }}`
+8. **Config schema** : TOUJOURS mettre à jour les DEUX endroits dans `src/config/schema.ts` :
+   - L'interface TypeScript (`PipelinostrConfig`)
+   - Le schéma JSON Ajv (`configSchema`) - sinon erreur "must NOT have additional properties"
 
 ## Logique des Hooks (IMPORTANT)
 
@@ -124,6 +127,14 @@ Quand l'utilisateur dit "continue" ou demande de reprendre :
 3. **Demander** ce que l'utilisateur veut faire si pas clair
 
 ## Historique des décisions récentes
+
+### 2025-12-25
+- **Migration NIP-17 DMs** : support complet réception et émission
+  - Réception : unwrap Gift Wrap (kind 1059 → Seal → Rumor kind 14)
+  - Émission : configurable via `nostr.dm_format` ('nip04' ou 'nip17')
+  - Nettoyage automatique préfixe Amethyst `[//]: # (nip18)`
+- Config `nostr.dm_format` ajouté à `config.yml` et schéma
+- Testé avec Amethyst : `/dpo` fonctionne
 
 ### 2025-12-20
 - Ajout handler `system` pour `/pipelinostr status` via DM

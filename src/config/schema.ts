@@ -122,6 +122,7 @@ const configSchema = {
         private_key: { type: 'string' },
         private_key_file: { type: 'string' },
         zapRecipients: { type: 'array', items: { type: 'string' } },
+        dm_format: { type: 'string', enum: ['nip04', 'nip17'] },
       },
       additionalProperties: false,
     },
