@@ -10,13 +10,18 @@
 
 import * as bitcoin from 'bitcoinjs-lib';
 import * as QRCode from 'qrcode';
+import { BIP32Factory } from 'bip32';
+import * as ecc from 'tiny-secp256k1';
 import { logger } from '../persistence/logger.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
-// BIP32 interface for xpub derivation
-interface BIP32Interface {
-  derive(index: number): BIP32Interface;
-  publicKey: Buffer;
+// Initialize BIP32 with secp256k1
+const bip32 = BIP32Factory(ecc);
+
+// BIP32 interface for xpub derivation (using Uint8Array to match library type)
+interface BIP32Node {
+  derive(index: number): BIP32Node;
+  publicKey: Uint8Array;
 }
 
 export interface WalletHandlerConfig {
@@ -453,21 +458,16 @@ export class WalletHandler implements Handler {
         return null;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { BIP32Factory } = require('bip32');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ecc = require('tiny-secp256k1');
-      const bip32 = BIP32Factory(ecc);
-
-      // Parse xpub
-      const node = bip32.fromBase58(this.xpub, this.network) as BIP32Interface;
+      // Parse xpub using module-level bip32 instance
+      const node = bip32.fromBase58(this.xpub, this.network) as BIP32Node;
 
       // Derive: m/0/index (external chain)
       const child = node.derive(0).derive(index);
 
       // Create P2WPKH address (Native SegWit - bc1q...)
+      // Convert Uint8Array to Buffer for bitcoinjs-lib compatibility
       const { address } = bitcoin.payments.p2wpkh({
-        pubkey: child.publicKey,
+        pubkey: Buffer.from(child.publicKey),
         network: this.network,
       });
 
