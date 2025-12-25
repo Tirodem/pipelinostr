@@ -1,14 +1,15 @@
 ---
 title: "NIP-17 DM Migration (from NIP-04)"
 priority: "High"
-status: "Proposed"
+status: "DONE"
 created: "2025-12-20"
+completed: "2025-12-25"
 ---
 
 ### NIP-17 DM Migration (from NIP-04)
 
 **Priority:** High
-**Status:** Proposed
+**Status:** DONE (2025-12-25)
 
 #### Description
 

@@ -1,9 +1,22 @@
 import { nip04, nip19, nip44, getPublicKey } from 'nostr-tools';
+import * as nip59 from 'nostr-tools/nip59';
+import type { NostrEvent } from 'nostr-tools/pure';
 import { logger } from '../persistence/logger.js';
+
+// Amethyst adds this prefix to NIP-17 messages for NIP-18 compatibility
+const AMETHYST_NIP18_PREFIX = /^\[\/\/\]: # \(nip18\)\s*/;
 
 export interface DecryptedContent {
   content: string;
   encryptionType: 'nip04' | 'nip44' | 'none';
+}
+
+export interface UnwrappedGiftWrap {
+  content: string;
+  senderPubkey: string;  // Real sender (from the rumor)
+  kind: number;          // Inner event kind (14 for DM)
+  tags: string[][];
+  created_at: number;
 }
 
 export class CryptoHelper {
@@ -84,15 +97,52 @@ export class CryptoHelper {
     }
   }
 
+  // Unwrap a NIP-59 Gift Wrap event (kind 1059) to get the inner rumor
+  unwrapGiftWrap(event: NostrEvent): UnwrappedGiftWrap {
+    try {
+      // Use nostr-tools nip59 to unwrap: Gift Wrap → Seal → Rumor
+      const rumor = nip59.unwrapEvent(event, this.privateKey);
+
+      // Clean Amethyst NIP-18 prefix if present
+      const cleanContent = cleanAmethystPrefix(rumor.content);
+
+      logger.debug(
+        {
+          wrapId: event.id,
+          rumorKind: rumor.kind,
+          senderPubkey: rumor.pubkey.slice(0, 16) + '...',
+          hasAmethystPrefix: rumor.content !== cleanContent,
+        },
+        'Gift wrap unwrapped successfully'
+      );
+
+      return {
+        content: cleanContent,
+        senderPubkey: rumor.pubkey,
+        kind: rumor.kind,
+        tags: rumor.tags,
+        created_at: rumor.created_at,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, eventId: event.id }, 'Gift wrap unwrap failed');
+      throw new Error(`Gift wrap unwrap failed: ${errorMessage}`);
+    }
+  }
+
   // Auto-detect and decrypt based on event kind
+  // Note: For kind 1059 (Gift Wrap), use unwrapGiftWrap() instead for full NIP-17 support
   async decryptEvent(kind: number, content: string, senderPubkey: string): Promise<DecryptedContent> {
     // Kind 4: NIP-04 encrypted DM
     if (kind === 4) {
       const decrypted = await this.decryptNip04(content, senderPubkey);
-      return { content: decrypted, encryptionType: 'nip04' };
+      // Clean Amethyst prefix (some clients add it even for NIP-04)
+      const cleanContent = cleanAmethystPrefix(decrypted);
+      return { content: cleanContent, encryptionType: 'nip04' };
     }
 
-    // Kind 1059: NIP-44 Gift Wrap (the inner rumor needs to be decrypted)
+    // Kind 1059: NIP-44 Gift Wrap - this is a legacy path
+    // For proper NIP-17 unwrapping, use unwrapGiftWrap() method instead
     // Kind 1060: Sealed event
     if (kind === 1059 || kind === 1060) {
       const decrypted = this.decryptNip44(content, senderPubkey);
@@ -102,7 +152,8 @@ export class CryptoHelper {
     // Kind 14: NIP-17 private DM (uses NIP-44)
     if (kind === 14) {
       const decrypted = this.decryptNip44(content, senderPubkey);
-      return { content: decrypted, encryptionType: 'nip44' };
+      const cleanContent = cleanAmethystPrefix(decrypted);
+      return { content: cleanContent, encryptionType: 'nip44' };
     }
 
     // Unencrypted content
@@ -159,4 +210,10 @@ function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// Clean Amethyst NIP-18 prefix from message content
+// Amethyst adds "[//]: # (nip18)\n" prefix to NIP-17 messages
+export function cleanAmethystPrefix(content: string): string {
+  return content.replace(AMETHYST_NIP18_PREFIX, '');
 }

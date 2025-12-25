@@ -1,12 +1,16 @@
 import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools/pure';
+import * as nip17 from 'nostr-tools/nip17';
 import { logger } from '../persistence/logger.js';
 import { CryptoHelper, npubToHex } from '../utils/crypto.js';
 import type { RelayManager } from '../relay/manager.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
+export type DmFormat = 'nip04' | 'nip17';
+
 export interface NostrDmConfig extends HandlerConfig {
   to: string; // npub or hex
   content: string;
+  dm_format?: DmFormat; // Override handler default for this action
 }
 
 export interface NostrNoteConfig extends HandlerConfig {
@@ -18,6 +22,7 @@ export interface NostrNoteConfig extends HandlerConfig {
 export interface NostrHandlerOptions {
   privateKey: string;
   relayManager: RelayManager;
+  dm_format?: DmFormat; // Default format for DMs: 'nip04' or 'nip17'
 }
 
 export class NostrHandler implements Handler {
@@ -26,14 +31,19 @@ export class NostrHandler implements Handler {
 
   private crypto: CryptoHelper;
   private relayManager: RelayManager;
+  private defaultDmFormat: DmFormat;
 
   constructor(options: NostrHandlerOptions) {
     this.crypto = new CryptoHelper(options.privateKey);
     this.relayManager = options.relayManager;
+    this.defaultDmFormat = options.dm_format ?? 'nip04'; // Default to NIP-04 for backwards compatibility
   }
 
   async initialize(): Promise<void> {
-    logger.info({ pubkey: this.crypto.getPublicKeyNpub() }, 'Nostr handler initialized');
+    logger.info(
+      { pubkey: this.crypto.getPublicKeyNpub(), dm_format: this.defaultDmFormat },
+      'Nostr handler initialized'
+    );
   }
 
   async execute(config: HandlerConfig, _context: Record<string, unknown>): Promise<HandlerResult> {
@@ -57,6 +67,16 @@ export class NostrHandler implements Handler {
       return { success: false, error: 'Missing required fields: to, content' };
     }
 
+    // Use action-level override or handler default
+    const dmFormat = config.dm_format ?? this.defaultDmFormat;
+
+    if (dmFormat === 'nip17') {
+      return this.sendDmNip17(config);
+    }
+    return this.sendDmNip04(config);
+  }
+
+  private async sendDmNip04(config: NostrDmConfig): Promise<HandlerResult> {
     try {
       // Convert npub to hex if needed
       const recipientPubkey = npubToHex(config.to);
@@ -83,21 +103,63 @@ export class NostrHandler implements Handler {
       }
 
       logger.info(
-        { eventId: signedEvent.id, to: config.to, relays: result.successes.length },
-        'DM sent successfully'
+        { eventId: signedEvent.id, to: config.to, format: 'nip04', relays: result.successes.length },
+        'DM sent successfully (NIP-04)'
       );
 
       return {
         success: true,
         data: {
           event_id: signedEvent.id,
+          format: 'nip04',
           relays_success: result.successes,
           relays_failed: result.failures,
         },
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error({ error: errorMessage, to: config.to }, 'Failed to send DM');
+      logger.error({ error: errorMessage, to: config.to, format: 'nip04' }, 'Failed to send DM');
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  private async sendDmNip17(config: NostrDmConfig): Promise<HandlerResult> {
+    try {
+      // Convert npub to hex if needed
+      const recipientPubkey = npubToHex(config.to);
+
+      // Create NIP-17 wrapped event using nostr-tools
+      // nip17.wrapEvent handles: Rumor (kind 14) → Seal (kind 13) → Gift Wrap (kind 1059)
+      const wrappedEvent = nip17.wrapEvent(
+        this.crypto.getPrivateKeyBytes(),
+        { publicKey: recipientPubkey },
+        config.content
+      );
+
+      // Publish the Gift Wrap
+      const result = await this.relayManager.publish(wrappedEvent);
+
+      if (result.successes.length === 0) {
+        return { success: false, error: 'Failed to publish to any relay' };
+      }
+
+      logger.info(
+        { eventId: wrappedEvent.id, to: config.to, format: 'nip17', relays: result.successes.length },
+        'DM sent successfully (NIP-17)'
+      );
+
+      return {
+        success: true,
+        data: {
+          event_id: wrappedEvent.id,
+          format: 'nip17',
+          relays_success: result.successes,
+          relays_failed: result.failures,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, to: config.to, format: 'nip17' }, 'Failed to send DM');
       return { success: false, error: errorMessage };
     }
   }

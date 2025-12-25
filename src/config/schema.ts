@@ -9,6 +9,7 @@ export interface PipelinostrConfig {
     private_key?: string;
     private_key_file?: string;
     zapRecipients?: string[];
+    dm_format?: 'nip04' | 'nip17';  // Default DM format: 'nip04' (legacy) or 'nip17' (modern)
   };
   whitelist: {
     enabled: boolean;

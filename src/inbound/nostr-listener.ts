@@ -2,7 +2,7 @@ import { type Event as NostrEvent } from 'nostr-tools/pure';
 import { type Filter } from 'nostr-tools/filter';
 import { logger } from '../persistence/logger.js';
 import { RelayManager } from '../relay/manager.js';
-import { CryptoHelper, npubToHex, hexToNpub } from '../utils/crypto.js';
+import { CryptoHelper, npubToHex, hexToNpub, cleanAmethystPrefix } from '../utils/crypto.js';
 import { getDatabase } from '../persistence/database.js';
 
 // Kinds that contain encrypted content
@@ -243,22 +243,47 @@ export class NostrListener {
 
   private async processEvent(event: NostrEvent, relayUrl: string): Promise<ProcessedEvent> {
     const isEncrypted = ENCRYPTED_KINDS.includes(event.kind);
-    const isFromWhitelist = this.isWhitelisted(event.pubkey);
 
     let decryptedContent: string | undefined;
     let encryptionType: 'nip04' | 'nip44' | 'none' = 'none';
 
+    // For Gift Wrap (kind 1059), the real sender is inside the rumor
+    let realSenderPubkey = event.pubkey;
+    let innerKind = event.kind;
+
     // Try to decrypt if encrypted
     if (isEncrypted) {
       try {
-        const result = await this.crypto.decryptEvent(event.kind, event.content, event.pubkey);
-        decryptedContent = result.content;
-        encryptionType = result.encryptionType;
+        // Special handling for NIP-17 Gift Wrap (kind 1059)
+        if (event.kind === 1059) {
+          const unwrapped = this.crypto.unwrapGiftWrap(event);
+          decryptedContent = unwrapped.content;
+          realSenderPubkey = unwrapped.senderPubkey;
+          innerKind = unwrapped.kind;
+          encryptionType = 'nip44';
 
-        logger.info(
-          { eventId: event.id, kind: event.kind, encryptionType, content: decryptedContent },
-          'Event received and decrypted'
-        );
+          logger.info(
+            {
+              eventId: event.id,
+              wrapKind: event.kind,
+              innerKind: unwrapped.kind,
+              encryptionType,
+              from: hexToNpub(realSenderPubkey).slice(0, 20) + '...',
+              content: decryptedContent,
+            },
+            'NIP-17 Gift Wrap received and unwrapped'
+          );
+        } else {
+          // NIP-04 or other encrypted kinds
+          const result = await this.crypto.decryptEvent(event.kind, event.content, event.pubkey);
+          decryptedContent = result.content;
+          encryptionType = result.encryptionType;
+
+          logger.info(
+            { eventId: event.id, kind: event.kind, encryptionType, content: decryptedContent },
+            'Event received and decrypted'
+          );
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.warn(
@@ -269,11 +294,14 @@ export class NostrListener {
       }
     }
 
+    // Check whitelist with the real sender (important for Gift Wrap)
+    const isFromWhitelist = this.isWhitelisted(realSenderPubkey);
+
     const processed: ProcessedEvent = {
       id: event.id,
-      pubkey: event.pubkey,
-      pubkeyNpub: hexToNpub(event.pubkey),
-      kind: event.kind,
+      pubkey: realSenderPubkey,  // Use real sender for Gift Wrap
+      pubkeyNpub: hexToNpub(realSenderPubkey),
+      kind: innerKind,  // Use inner kind for Gift Wrap (14 instead of 1059)
       created_at: event.created_at,
       tags: event.tags,
       sig: event.sig,
@@ -288,7 +316,7 @@ export class NostrListener {
     logger.debug(
       {
         eventId: event.id,
-        kind: event.kind,
+        kind: processed.kind,
         from: processed.pubkeyNpub.slice(0, 20) + '...',
         isEncrypted,
         isFromWhitelist,

@@ -6,6 +6,10 @@ pipelinostr:
 # Identite Nostr du bot
 nostr:
   private_key: ${NOSTR_PRIVATE_KEY}
+  # Format DM par defaut: "nip04" (legacy) ou "nip17" (nouveau standard)
+  # NIP-04: kind 4, supporte par tous les clients
+  # NIP-17: kind 14 wrapped dans kind 1059 (Gift Wrap), meilleure confidentialite
+  dm_format: "nip04"
   # Surveiller les zaps pour d'autres npubs (en plus de la npub du bot)
   # zapRecipients:
   #   - "npub1..."
