@@ -4,8 +4,10 @@
 #
 # Usage: ./scripts/initialize.sh
 #
-# Copie les fichiers de configuration depuis les exemples
-# et crée les dossiers nécessaires.
+# - Installe Node.js/npm si manquant
+# - Copie les fichiers de configuration depuis les exemples
+# - Crée les dossiers nécessaires
+# - Lance npm install et npm run build
 #
 
 set -e
@@ -23,82 +25,214 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
-echo -e "${CYAN}PipeliNostr - Initialisation${NC}"
+echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║           PipeliNostr - Initialisation                    ║${NC}"
+echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
+
+# =============================================================================
+# Détection de la plateforme
+# =============================================================================
+
+detect_platform() {
+    if [ -d "/data/data/com.termux" ]; then
+        echo "termux"
+    elif [ -f /etc/debian_version ]; then
+        echo "debian"
+    elif [ -f /etc/redhat-release ]; then
+        echo "redhat"
+    elif [ -f /etc/alpine-release ]; then
+        echo "alpine"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    else
+        echo "unknown"
+    fi
+}
+
+PLATFORM=$(detect_platform)
+echo -e "${CYAN}Plateforme détectée : ${PLATFORM}${NC}"
+echo ""
+
+# =============================================================================
+# Installation de Node.js/npm
+# =============================================================================
+
+install_nodejs() {
+    echo -e "${CYAN}[1/5] Vérification de Node.js...${NC}"
+
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        NODE_VERSION=$(node -v)
+        NPM_VERSION=$(npm -v)
+        echo -e "${GREEN}  ✓ Node.js ${NODE_VERSION} déjà installé${NC}"
+        echo -e "${GREEN}  ✓ npm ${NPM_VERSION} déjà installé${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}  ⚠ Node.js/npm non trouvé, installation...${NC}"
+
+    case "$PLATFORM" in
+        termux)
+            pkg update -y
+            pkg install -y nodejs-lts git
+            ;;
+        debian)
+            # Utilise NodeSource pour avoir une version récente
+            if ! command -v curl &> /dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y curl
+            fi
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs git
+            ;;
+        redhat)
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+            sudo yum install -y nodejs git
+            ;;
+        alpine)
+            apk add --no-cache nodejs npm git
+            ;;
+        macos)
+            if command -v brew &> /dev/null; then
+                brew install node git
+            else
+                echo -e "${RED}  ✗ Homebrew requis. Installez-le : https://brew.sh${NC}"
+                exit 1
+            fi
+            ;;
+        *)
+            echo -e "${RED}  ✗ Plateforme non supportée pour l'installation automatique${NC}"
+            echo -e "${YELLOW}  Installez Node.js 20+ manuellement : https://nodejs.org${NC}"
+            exit 1
+            ;;
+    esac
+
+    # Vérification
+    if command -v node &> /dev/null; then
+        echo -e "${GREEN}  ✓ Node.js $(node -v) installé${NC}"
+        echo -e "${GREEN}  ✓ npm $(npm -v) installé${NC}"
+    else
+        echo -e "${RED}  ✗ Échec de l'installation de Node.js${NC}"
+        exit 1
+    fi
+}
 
 # =============================================================================
 # Créer les dossiers
 # =============================================================================
 
-echo -e "${CYAN}[1/3] Création des dossiers...${NC}"
+create_directories() {
+    echo ""
+    echo -e "${CYAN}[2/5] Création des dossiers...${NC}"
 
-mkdir -p data
-mkdir -p config/workflows
-mkdir -p config/handlers
-mkdir -p logs
+    mkdir -p data
+    mkdir -p config/workflows
+    mkdir -p config/handlers
+    mkdir -p logs
 
-echo -e "${GREEN}  ✓ data/${NC}"
-echo -e "${GREEN}  ✓ config/workflows/${NC}"
-echo -e "${GREEN}  ✓ config/handlers/${NC}"
-echo -e "${GREEN}  ✓ logs/${NC}"
+    echo -e "${GREEN}  ✓ data/${NC}"
+    echo -e "${GREEN}  ✓ config/workflows/${NC}"
+    echo -e "${GREEN}  ✓ config/handlers/${NC}"
+    echo -e "${GREEN}  ✓ logs/${NC}"
+}
 
 # =============================================================================
-# Copier .env
+# Copier les fichiers de config
 # =============================================================================
 
-echo ""
-echo -e "${CYAN}[2/3] Configuration .env...${NC}"
+copy_config_files() {
+    echo ""
+    echo -e "${CYAN}[3/5] Configuration...${NC}"
 
-if [ -f ".env" ]; then
-    echo -e "${YELLOW}  ⚠ .env existe déjà, conservation${NC}"
-else
-    if [ -f ".env.example" ]; then
-        cp .env.example .env
-        echo -e "${GREEN}  ✓ .env créé depuis .env.example${NC}"
+    # .env
+    if [ -f ".env" ]; then
+        echo -e "${YELLOW}  ⚠ .env existe déjà, conservation${NC}"
     else
-        echo -e "${RED}  ✗ .env.example introuvable${NC}"
+        if [ -f ".env.example" ]; then
+            cp .env.example .env
+            echo -e "${GREEN}  ✓ .env créé depuis .env.example${NC}"
+        else
+            echo -e "${RED}  ✗ .env.example introuvable${NC}"
+        fi
     fi
-fi
 
-# =============================================================================
-# Copier config.yml
-# =============================================================================
-
-echo ""
-echo -e "${CYAN}[3/3] Configuration config.yml...${NC}"
-
-if [ -f "config/config.yml" ]; then
-    echo -e "${YELLOW}  ⚠ config/config.yml existe déjà, conservation${NC}"
-else
-    if [ -f "config/config.yml.example" ]; then
-        cp config/config.yml.example config/config.yml
-        echo -e "${GREEN}  ✓ config/config.yml créé depuis config.yml.example${NC}"
+    # config.yml
+    if [ -f "config/config.yml" ]; then
+        echo -e "${YELLOW}  ⚠ config/config.yml existe déjà, conservation${NC}"
     else
-        echo -e "${RED}  ✗ config/config.yml.example introuvable${NC}"
+        if [ -f "config/config.yml.example" ]; then
+            cp config/config.yml.example config/config.yml
+            echo -e "${GREEN}  ✓ config/config.yml créé${NC}"
+        else
+            echo -e "${RED}  ✗ config/config.yml.example introuvable${NC}"
+        fi
     fi
-fi
+}
+
+# =============================================================================
+# npm install
+# =============================================================================
+
+run_npm_install() {
+    echo ""
+    echo -e "${CYAN}[4/5] Installation des dépendances npm...${NC}"
+
+    if npm install --silent 2>&1 | tail -3; then
+        echo -e "${GREEN}  ✓ Dépendances installées${NC}"
+    else
+        echo -e "${RED}  ✗ npm install a échoué${NC}"
+        exit 1
+    fi
+}
+
+# =============================================================================
+# npm run build
+# =============================================================================
+
+run_npm_build() {
+    echo ""
+    echo -e "${CYAN}[5/5] Compilation TypeScript...${NC}"
+
+    if npm run build 2>&1 | tail -3; then
+        echo -e "${GREEN}  ✓ Projet compilé${NC}"
+    else
+        echo -e "${RED}  ✗ Build a échoué${NC}"
+        exit 1
+    fi
+}
 
 # =============================================================================
 # Résumé
 # =============================================================================
 
-echo ""
-echo -e "${GREEN}Initialisation terminée !${NC}"
-echo ""
-echo -e "${CYAN}Prochaines étapes :${NC}"
-echo ""
-echo "  1. Éditer la configuration :"
-echo -e "     ${YELLOW}nano config/config.yml${NC}"
-echo ""
-echo "  2. Configurer les secrets dans .env :"
-echo -e "     ${YELLOW}nano .env${NC}"
-echo ""
-echo "  3. Installer les dépendances :"
-echo -e "     ${YELLOW}npm install${NC}"
-echo ""
-echo "  4. Compiler :"
-echo -e "     ${YELLOW}npm run build${NC}"
-echo ""
-echo "  5. Démarrer :"
-echo -e "     ${YELLOW}npm start${NC}"
-echo ""
+print_summary() {
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║           Initialisation terminée !                       ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}Prochaines étapes :${NC}"
+    echo ""
+    echo "  1. Configurer ta clé privée Nostr :"
+    echo -e "     ${YELLOW}nano .env${NC}"
+    echo "     → NOSTR_PRIVATE_KEY=nsec1..."
+    echo ""
+    echo "  2. Ajouter ton npub à la whitelist :"
+    echo -e "     ${YELLOW}nano config/config.yml${NC}"
+    echo "     → whitelist.npubs: [\"npub1...\"]"
+    echo ""
+    echo "  3. Démarrer PipeliNostr :"
+    echo -e "     ${YELLOW}npm start${NC}"
+    echo ""
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+install_nodejs
+create_directories
+copy_config_files
+run_npm_install
+run_npm_build
+print_summary
