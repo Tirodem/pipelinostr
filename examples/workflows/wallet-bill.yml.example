@@ -10,22 +10,22 @@ enabled: false
 
 trigger:
   type: nostr_event
-  kinds: [4, 1059]
-  # /wallet bill <index> <amount> <currency>
-  content_match: "^/wallet bill (\\d+)\\s+([\\d.]+)\\s+(EUR|USD|CHF|SAT|BTC)$"
-  # from_whitelist:
-  #   - "npub1..."
+  filters:
+    kinds: [4, 1059]
+    content_pattern: "^/wallet bill (\\d+)\\s+([\\d.]+)\\s+(EUR|USD|CHF|SAT|BTC)$"
+    from_whitelist: true
 
 actions:
   - id: create_bill
     type: wallet
-    params:
+    config:
       action: generate_bill
-      address_index: "{{ match.1 | to_number }}"
-      amount: "{{ match.2 | to_number }}"
+      address_index: "{{ match.1 }}"
+      amount: "{{ match.2 }}"
       currency: "{{ match.3 }}"
 
-  - type: nostr_dm
-    to: "{{ trigger.pubkeyNpub }}"
-    message: |
-      {{ actions.create_bill.response.formatted }}
+  - id: reply
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: "{{ actions.create_bill.response.formatted }}"

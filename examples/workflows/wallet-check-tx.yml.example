@@ -1,0 +1,28 @@
+# Workflow: /wallet tx <txid>
+# Verifie le statut d'une transaction Bitcoin
+#
+# Usage: /wallet tx abc123def456...
+
+id: wallet-check-tx
+name: Bitcoin Wallet - Check Transaction
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    content_pattern: "^/wallet tx ([a-fA-F0-9]{64})$"
+    from_whitelist: true
+
+actions:
+  - id: check_tx
+    type: wallet
+    config:
+      action: check_transaction
+      txid: "{{ match.1 }}"
+
+  - id: reply
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: "{{ actions.check_tx.response.formatted }}"

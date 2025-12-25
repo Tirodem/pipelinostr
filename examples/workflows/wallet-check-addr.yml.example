@@ -1,0 +1,28 @@
+# Workflow: /wallet addr <address>
+# Verifie les transactions recentes d'une adresse Bitcoin
+#
+# Usage: /wallet addr bc1q...
+
+id: wallet-check-addr
+name: Bitcoin Wallet - Check Address
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]
+    content_pattern: "^/wallet addr (bc1[a-zA-HJ-NP-Z0-9]{25,62})$"
+    from_whitelist: true
+
+actions:
+  - id: check_addr
+    type: wallet
+    config:
+      action: check_transaction
+      address: "{{ match.1 }}"
+
+  - id: reply
+    type: nostr_dm
+    config:
+      to: "{{ trigger.from }}"
+      content: "{{ actions.check_addr.response.formatted }}"
