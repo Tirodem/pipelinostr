@@ -282,8 +282,11 @@ export class NostrDmHandler implements Handler {
     await this.nostrHandler.initialize();
   }
 
-  async execute(config: HandlerConfig, _context: Record<string, unknown>): Promise<HandlerResult> {
-    return this.nostrHandler.sendDm(config as NostrDmConfig);
+  async execute(config: HandlerConfig, context: Record<string, unknown>): Promise<HandlerResult> {
+    // Extract trigger's dm_format for reply matching
+    const trigger = context.trigger as Record<string, unknown> | undefined;
+    const triggerDmFormat = trigger?.dm_format as DmFormat | undefined;
+    return this.nostrHandler.sendDm(config as NostrDmConfig, triggerDmFormat);
   }
 
   async shutdown(): Promise<void> {
