@@ -56,17 +56,35 @@ nostr:
   # ou "both" pour envoyer aux deux formats ?
 ```
 
-#### Migration progressive
+#### Implémentation finale (2025-12-25)
 
-1. **Phase 1** : Ajouter réception NIP-17 (double-écoute)
-2. **Phase 2** : Ajouter émission NIP-17 (configurable)
-3. **Phase 3** : Deprecate NIP-04 émission (warning logs)
-4. **Phase 4** : Retirer NIP-04 (breaking change, major version)
+##### Réception
+- Kind 4 (NIP-04) : déchiffrement NIP-04
+- Kind 1059 (Gift Wrap) : unwrap complet via `nip59.unwrapEvent()`
+- Extraction du vrai sender depuis le rumor (pas le wrapper)
+- Nettoyage du préfixe Amethyst `[//]: # (nip18)\n`
 
-#### Dépendances
+##### Émission
+- `nip17.wrapEvent()` pour NIP-17
+- Format configurable via `nostr.dm_format`
 
-- Librairie `nostr-tools` >= 2.x pour NIP-17/NIP-44
-- Vérifier support NIP-44 (encryption)
+##### Réponse dynamique
+- `dm_reply_match_format: true` : répond dans le même format que reçu
+- Détection du préfixe NIP-18 d'Amethyst → réponse en NIP-17
+
+##### Comportement final
+| Message reçu | encryptionType | hasNip18Prefix | Réponse |
+|--------------|----------------|----------------|---------|
+| Primal NIP-04 | nip04 | false | NIP-04 |
+| Amethyst NIP-04 + préfixe | nip04 | true | NIP-17 |
+| Amethyst NIP-17 (Gift Wrap) | nip44 | - | NIP-17 |
+
+##### Fichiers modifiés
+- `src/utils/crypto.ts` : `unwrapGiftWrap()`, `cleanAmethystPrefix()`, `hasNip18Prefix`
+- `src/inbound/nostr-listener.ts` : gestion kind 1059, extraction sender
+- `src/outbound/nostr.handler.ts` : `sendDmNip17()`, format matching
+- `src/core/workflow-matcher.ts` : détection `dm_format` depuis event
+- `src/config/schema.ts` : options `dm_format`, `dm_reply_match_format`
 
 #### Références
 
