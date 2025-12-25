@@ -134,6 +134,10 @@ create_directories() {
     echo -e "${GREEN}  ✓ config/workflows/${NC}"
     echo -e "${GREEN}  ✓ config/handlers/${NC}"
     echo -e "${GREEN}  ✓ logs/${NC}"
+
+    # Make all scripts executable
+    chmod +x scripts/*.sh 2>/dev/null || true
+    echo -e "${GREEN}  ✓ scripts/*.sh rendus exécutables${NC}"
 }
 
 # =============================================================================
