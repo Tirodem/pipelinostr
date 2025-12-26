@@ -20,8 +20,8 @@ actions:
     type: wallet
     config:
       action: get_addresses
-      start_index: "{{ match.1 }}"
-      count: "{{ match.2 }}"
+      start_index: "{{ match.$1 }}"
+      count: "{{ match.$2 }}"
 
   - id: reply
     type: nostr_dm

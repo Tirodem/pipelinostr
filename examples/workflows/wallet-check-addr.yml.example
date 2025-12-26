@@ -19,7 +19,7 @@ actions:
     type: wallet
     config:
       action: check_transaction
-      address: "{{ match.1 }}"
+      address: "{{ match.$1 }}"
 
   - id: reply
     type: nostr_dm

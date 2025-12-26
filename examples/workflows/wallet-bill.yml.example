@@ -20,9 +20,9 @@ actions:
     type: wallet
     config:
       action: generate_bill
-      address_index: "{{ match.1 }}"
-      amount: "{{ match.2 }}"
-      currency: "{{ match.3 }}"
+      address_index: "{{ match.$1 }}"
+      amount: "{{ match.$2 }}"
+      currency: "{{ match.$3 }}"
 
   - id: reply
     type: nostr_dm

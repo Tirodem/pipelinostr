@@ -19,7 +19,7 @@ actions:
     type: wallet
     config:
       action: check_transaction
-      txid: "{{ match.1 }}"
+      txid: "{{ match.$1 }}"
 
   - id: reply
     type: nostr_dm
