@@ -6,11 +6,14 @@ import type { WorkflowDefinition, WorkflowFilter, MatchResult, TriggerContext, Z
 
 export class WorkflowMatcher {
   private whitelistHex: Set<string>;
+  private whitelistDisabled: boolean;
 
   constructor(whitelistNpubs: string[] = []) {
+    // Check for wildcard "*" which disables whitelisting
+    this.whitelistDisabled = whitelistNpubs.includes('*');
     this.whitelistHex = new Set(
       whitelistNpubs
-        .filter((npub) => npub && npub.length > 0)
+        .filter((npub) => npub && npub.length > 0 && npub !== '*')
         .map((npub) => {
           try {
             return npubToHex(npub);
@@ -23,9 +26,11 @@ export class WorkflowMatcher {
   }
 
   updateWhitelist(npubs: string[]): void {
+    // Check for wildcard "*" which disables whitelisting
+    this.whitelistDisabled = npubs.includes('*');
     this.whitelistHex = new Set(
       npubs
-        .filter((npub) => npub && npub.length > 0)
+        .filter((npub) => npub && npub.length > 0 && npub !== '*')
         .map((npub) => {
           try {
             return npubToHex(npub);
@@ -231,27 +236,30 @@ export class WorkflowMatcher {
       }
     }
 
-    // Check whitelist
+    // Check whitelist (skipped if whitelist contains "*")
     if (filters.from_whitelist === true) {
-      if (!this.whitelistHex.has(event.pubkey)) {
+      if (!this.whitelistDisabled && !this.whitelistHex.has(event.pubkey)) {
         return { matched: false, groups: {} };
       }
     }
 
-    // Check specific npubs
+    // Check specific npubs (skipped if from_npubs contains "*")
     if (filters.from_npubs && filters.from_npubs.length > 0) {
-      const allowedHex = new Set(
-        filters.from_npubs.map((npub) => {
-          try {
-            return npubToHex(npub);
-          } catch {
-            return null;
-          }
-        }).filter((hex): hex is string => hex !== null)
-      );
+      // Wildcard "*" allows all npubs
+      if (!filters.from_npubs.includes('*')) {
+        const allowedHex = new Set(
+          filters.from_npubs.map((npub) => {
+            try {
+              return npubToHex(npub);
+            } catch {
+              return null;
+            }
+          }).filter((hex): hex is string => hex !== null)
+        );
 
-      if (!allowedHex.has(event.pubkey)) {
-        return { matched: false, groups: {} };
+        if (!allowedHex.has(event.pubkey)) {
+          return { matched: false, groups: {} };
+        }
       }
     }
 
