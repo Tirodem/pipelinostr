@@ -716,11 +716,44 @@ export class WalletHandler implements Handler {
     const existingState = db.getState('wallet-monitor', 'address_monitor', `monitor:${address}`);
     if (existingState && existingState.value_type === 'json' && existingState.value_json) {
       const state = existingState.value_json as unknown as MonitorState;
-      if (state.state !== 'completed' && state.state !== 'cancelled') {
-        return {
-          success: false,
-          error: `Already monitoring address ${address} (state: ${state.state})`,
-        };
+      // Terminal states allow restart
+      const terminalStates = ['completed', 'cancelled', 'timeout'];
+
+      if (!terminalStates.includes(state.state)) {
+        // Check if state is orphaned (no recent activity)
+        // If last_check_at is older than 2x the poll interval, consider it stale
+        const lastCheck = new Date(state.last_check_at).getTime();
+        const now = Date.now();
+        const maxAge = state.state === 'waiting'
+          ? state.poll_interval_waiting_ms * 3  // 3x poll interval for waiting (45s default)
+          : state.poll_interval_mempool_ms * 2; // 2x poll interval for mempool/confirming
+
+        if (now - lastCheck > maxAge) {
+          // State is stale - clear it and allow restart
+          logger.info(
+            { address, staleState: state.state, lastCheck: state.last_check_at, maxAgeMs: maxAge },
+            '[Wallet] Found stale monitoring state, clearing and restarting'
+          );
+          // Fall through to create new state
+        } else {
+          // Still active - return success (idempotent)
+          logger.info(
+            { address, existingState: state.state, targetPubkey: state.target_pubkey },
+            '[Wallet] Address already being monitored, returning existing state'
+          );
+          return {
+            success: true,
+            data: {
+              address,
+              target_pubkey: state.target_pubkey,
+              target_confirmations: state.target_confirmations,
+              poll_interval_waiting_ms: state.poll_interval_waiting_ms,
+              poll_interval_mempool_ms: state.poll_interval_mempool_ms,
+              state: state.state,
+              already_monitoring: true,
+            },
+          };
+        }
       }
     }
 
