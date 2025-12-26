@@ -103,7 +103,11 @@ interface NostrBuildResponse {
   data?: Array<{ url?: string }>;
 }
 
-// Rate limiting cache
+// Global rate limiting for mempool.space API
+let lastMempoolApiCall = 0;
+const MEMPOOL_API_DELAY_MS = 15000; // 15 seconds between calls
+
+// Per-key rate limiting cache (for transaction checks)
 const rateLimitCache: Map<string, number> = new Map();
 
 export class WalletHandler implements Handler {
@@ -494,11 +498,15 @@ export class WalletHandler implements Handler {
    * Get address balance from mempool.space
    */
   private async getAddressBalance(address: string): Promise<{ balance_sats: number; tx_count: number }> {
-    // Check rate limit per address (not global)
-    if (!this.checkRateLimit(`balance:${address}`)) {
-      logger.warn({ address }, 'Rate limited for this address, returning zero balance');
-      return { balance_sats: 0, tx_count: 0 };
+    // Wait for global rate limit (15s between calls)
+    const now = Date.now();
+    const timeSinceLastCall = now - lastMempoolApiCall;
+    if (timeSinceLastCall < MEMPOOL_API_DELAY_MS) {
+      const waitTime = MEMPOOL_API_DELAY_MS - timeSinceLastCall;
+      logger.info({ address, waitTime }, 'Waiting for mempool.space rate limit');
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
+    lastMempoolApiCall = Date.now();
 
     const url = `${this.mempoolApi}/address/${address}`;
     logger.info({ url }, 'Fetching address balance from mempool.space');
