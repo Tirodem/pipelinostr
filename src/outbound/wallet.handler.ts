@@ -181,7 +181,7 @@ export class WalletHandler implements Handler {
     const startIndex = parseInt(String(rawStartIndex ?? 0), 10) || 0;
     const count = parseInt(String(rawCount ?? 1), 10) || 1;
 
-    logger.info({ rawStartIndex, rawCount, startIndex, count }, 'getAddresses params');
+    logger.debug({ rawStartIndex, rawCount, startIndex, count }, 'getAddresses params');
 
     if (!this.xpub) {
       return { success: false, error: 'No xpub configured' };
@@ -212,7 +212,7 @@ export class WalletHandler implements Handler {
       `Address #${a.index}: ${a.address}\n  Balance: ${a.balance_btc.toFixed(8)} BTC (${a.balance_sats.toLocaleString()} sats)\n  Transactions: ${a.tx_count}`
     ).join('\n\n');
 
-    logger.info({ addressCount: addresses.length, formattedLength: formatted.length }, 'getAddresses result');
+    logger.debug({ addressCount: addresses.length }, 'getAddresses result');
 
     return {
       success: true,
@@ -514,17 +514,17 @@ export class WalletHandler implements Handler {
     const timeSinceLastCall = now - lastMempoolApiCall;
     if (timeSinceLastCall < MEMPOOL_API_DELAY_MS) {
       const waitTime = MEMPOOL_API_DELAY_MS - timeSinceLastCall;
-      logger.info({ address, waitTime }, 'Waiting for mempool.space rate limit');
+      logger.debug({ address, waitTime }, 'Waiting for mempool.space rate limit');
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     lastMempoolApiCall = Date.now();
 
     const url = `${this.mempoolApi}/address/${address}`;
-    logger.info({ url }, 'Fetching address balance from mempool.space');
+    logger.debug({ url }, 'Fetching address balance from mempool.space');
 
     try {
       const response = await fetch(url);
-      logger.info({ address, status: response.status, statusText: response.statusText }, 'Mempool API response');
+      logger.debug({ address, status: response.status }, 'Mempool API response');
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -533,8 +533,6 @@ export class WalletHandler implements Handler {
       }
 
       const data = await response.json() as MempoolAddressInfo;
-      logger.info({ address, data }, 'Mempool API data received');
-
       const funded = data.chain_stats?.funded_txo_sum ?? 0;
       const spent = data.chain_stats?.spent_txo_sum ?? 0;
       const mempoolFunded = data.mempool_stats?.funded_txo_sum ?? 0;
@@ -542,7 +540,7 @@ export class WalletHandler implements Handler {
       const balance = funded - spent + mempoolFunded - mempoolSpent;
       const txCount = (data.chain_stats?.tx_count ?? 0) + (data.mempool_stats?.tx_count ?? 0);
 
-      logger.info({ address, funded, spent, mempoolFunded, mempoolSpent, balance, txCount }, 'Balance calculated');
+      logger.debug({ address, balance, txCount }, 'Balance calculated');
 
       return { balance_sats: balance, tx_count: txCount };
     } catch (error) {
@@ -624,7 +622,7 @@ export class WalletHandler implements Handler {
 
       // Build public URL
       const publicUrl = `${this.ftpConfig.public_url}${filename}`;
-      logger.info({ remotePath, publicUrl }, 'QR code uploaded to FTP');
+      logger.debug({ remotePath, publicUrl }, 'QR code uploaded to FTP');
 
       return publicUrl;
     } catch (error) {

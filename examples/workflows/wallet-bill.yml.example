@@ -28,4 +28,12 @@ actions:
     type: nostr_dm
     config:
       to: "{{ trigger.from }}"
-      content: "{{ actions.create_bill.response.formatted }}"
+      content: |
+        💰 Demande de paiement
+
+        Adresse: {{ actions.create_bill.response.address }}
+        Montant: {{ actions.create_bill.response.amount_sats }} sats ({{ actions.create_bill.response.amount_btc }} BTC)
+
+        [Ouvrir le wallet]({{ actions.create_bill.response.bip21_uri }})
+
+        {{ actions.create_bill.response.qr_url }}

@@ -25,4 +25,5 @@ actions:
     type: nostr_dm
     config:
       to: "{{ trigger.from }}"
+      # Note: Le handler retourne formatted car les conditionnels Handlebars ne sont pas supportes
       content: "{{ actions.check_tx.response.formatted }}"
