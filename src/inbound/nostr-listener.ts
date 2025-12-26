@@ -64,6 +64,7 @@ export class NostrListener {
   private relayManager: RelayManager;
   private crypto: CryptoHelper;
   private whitelistHex: Set<string>;
+  private whitelistDisabled: boolean;
   private eventCallbacks: EventCallback[] = [];
   private processedEventIds: Set<string> = new Set();
   private maxProcessedCache = 10000;
@@ -77,10 +78,13 @@ export class NostrListener {
     // Set start timestamp to ignore historical events (unless processHistorical is true)
     this.startTimestamp = config.since ?? Math.floor(Date.now() / 1000);
 
+    // Check for wildcard "*" which disables whitelisting
+    this.whitelistDisabled = config.whitelist.npubs.includes('*');
+
     // Convert whitelist npubs to hex for faster lookup
     this.whitelistHex = new Set(
       config.whitelist.npubs
-        .filter((npub) => npub && npub.length > 0)
+        .filter((npub) => npub && npub.length > 0 && npub !== '*')
         .map((npub) => {
           try {
             return npubToHex(npub);
@@ -222,6 +226,13 @@ export class NostrListener {
       return;
     }
 
+    // Early whitelist check for non-Gift Wrap events (kind !== 1059)
+    // For Gift Wrap, we need to unwrap first to know the real sender
+    if (event.kind !== 1059 && !this.isWhitelisted(event.pubkey)) {
+      // Silently ignore events from non-whitelisted pubkeys
+      return;
+    }
+
     // Add to cache and cleanup if needed
     this.processedEventIds.add(event.id);
     if (this.processedEventIds.size > this.maxProcessedCache) {
@@ -232,6 +243,11 @@ export class NostrListener {
 
     try {
       const processed = await this.processEvent(event, relayUrl);
+
+      // Check if event was rejected (null = not whitelisted after unwrap)
+      if (processed === null) {
+        return;
+      }
 
       // Log to database
       this.logEventToDatabase(processed);
@@ -244,7 +260,7 @@ export class NostrListener {
     }
   }
 
-  private async processEvent(event: NostrEvent, relayUrl: string): Promise<ProcessedEvent> {
+  private async processEvent(event: NostrEvent, relayUrl: string): Promise<ProcessedEvent | null> {
     const isEncrypted = ENCRYPTED_KINDS.includes(event.kind);
 
     let decryptedContent: string | undefined;
@@ -265,6 +281,12 @@ export class NostrListener {
           realSenderPubkey = unwrapped.senderPubkey;
           innerKind = unwrapped.kind;
           encryptionType = 'nip44';
+
+          // Check whitelist after unwrap (real sender now known)
+          if (!this.isWhitelisted(realSenderPubkey)) {
+            // Silently ignore Gift Wrap from non-whitelisted senders
+            return null;
+          }
 
           logger.info(
             {
@@ -334,8 +356,8 @@ export class NostrListener {
   }
 
   private isWhitelisted(pubkeyHex: string): boolean {
-    if (!this.config.whitelist.enabled) {
-      return true; // Whitelist disabled = everyone is allowed
+    if (!this.config.whitelist.enabled || this.whitelistDisabled) {
+      return true; // Whitelist disabled or "*" = everyone is allowed
     }
     return this.whitelistHex.has(pubkeyHex);
   }
