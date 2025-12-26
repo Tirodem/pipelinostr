@@ -131,6 +131,7 @@ export class WorkflowMatcher {
           const addressTag = event.tags.find(t => t[0] === 'address');
           const targetPubkeyTag = event.tags.find(t => t[0] === 'target_pubkey');
           const pollTypeTag = event.tags.find(t => t[0] === 'poll_type');
+          const dmFormatTag = event.tags.find(t => t[0] === 'dm_format');
 
           const internalContext = {
             ...triggerContext,
@@ -139,6 +140,8 @@ export class WorkflowMatcher {
             poll_type: pollTypeTag?.[1] ?? '',
             address: addressTag?.[1] ?? '',
             target_pubkey: targetPubkeyTag?.[1] ?? triggerContext.from,
+            // Propagate dm_format for notification handling
+            dm_format: dmFormatTag?.[1] as 'nip04' | 'nip17' | undefined,
           };
 
           const matchData = {

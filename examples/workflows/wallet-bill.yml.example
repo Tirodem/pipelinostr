@@ -32,13 +32,13 @@ actions:
       currency: "{{ match.$3 }}"
 
   # Start monitoring the address automatically
+  # dm_format is automatically propagated through the queue system
   - id: start_monitor
     type: wallet
     config:
       action: start_monitor
       address: "{{ actions.create_bill.response.address }}"
       target_pubkey: "{{ trigger.from }}"
-      dm_format: "{{ trigger.dm_format }}"
       confirmations_notify: "{{ variables.confirmations_notify }}"
       poll_interval_waiting_ms: "{{ variables.poll_interval_waiting_ms }}"
       poll_interval_mempool_ms: "{{ variables.poll_interval_mempool_ms }}"

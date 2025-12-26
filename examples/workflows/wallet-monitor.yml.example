@@ -22,13 +22,13 @@ variables:
   max_waiting_polls: 10               # Max polls en attente de tx (10 x 15s = 150s avant timeout)
 
 actions:
+  # dm_format is automatically propagated through the queue system
   - id: start_monitor
     type: wallet
     config:
       action: start_monitor
       address: "{{ match.$1 }}"
       target_pubkey: "{{ trigger.from }}"
-      dm_format: "{{ trigger.dm_format }}"
       confirmations_notify: "{{ variables.confirmations_notify }}"
       poll_interval_waiting_ms: "{{ variables.poll_interval_waiting_ms }}"
       poll_interval_mempool_ms: "{{ variables.poll_interval_mempool_ms }}"

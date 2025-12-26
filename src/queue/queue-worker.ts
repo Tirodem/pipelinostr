@@ -65,6 +65,7 @@ export interface QueuedEventData {
     pollType: string;           // e.g., 'address_monitor'
     address?: string;           // Bitcoin address to monitor
     target_pubkey?: string;     // Who to notify
+    dm_format?: 'nip04' | 'nip17';  // DM format for notifications (propagated from trigger)
     data?: Record<string, unknown>;  // Additional context data
     created_at: number;         // Timestamp when poll was scheduled
   };
@@ -375,6 +376,7 @@ export class QueueWorker {
         ['poll_type', poll.pollType],
         ...(poll.address ? [['address', poll.address]] : []),
         ...(poll.target_pubkey ? [['target_pubkey', poll.target_pubkey]] : []),
+        ...(poll.dm_format ? [['dm_format', poll.dm_format]] : []),
       ],
       sig: '',
       rawContent: content,
@@ -475,6 +477,7 @@ export function enqueuePollEvent(
   options: {
     address?: string;
     target_pubkey?: string;
+    dm_format?: 'nip04' | 'nip17';
     data?: Record<string, unknown>;
     delay_ms?: number;
     priority?: number;
@@ -489,6 +492,7 @@ export function enqueuePollEvent(
     pollType: string;
     address?: string;
     target_pubkey?: string;
+    dm_format?: 'nip04' | 'nip17';
     data?: Record<string, unknown>;
     created_at: number;
   } = {
@@ -497,6 +501,7 @@ export function enqueuePollEvent(
   };
   if (options.address) pollEvent.address = options.address;
   if (options.target_pubkey) pollEvent.target_pubkey = options.target_pubkey;
+  if (options.dm_format) pollEvent.dm_format = options.dm_format;
   if (options.data) pollEvent.data = options.data;
 
   const eventData: QueuedEventData = { pollEvent };

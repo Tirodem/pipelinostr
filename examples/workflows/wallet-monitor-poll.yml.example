@@ -21,13 +21,13 @@ actions:
       address: "{{ trigger.address }}"
 
   # Send notification if there's a state change
+  # dm_format is automatically propagated from trigger context
   - id: notify
     type: nostr_dm
     when: "actions.poll.response.notification_message"
     config:
       to: "{{ actions.poll.response.target_pubkey }}"
       content: "{{ actions.poll.response.notification_message }}"
-      dm_format: "{{ actions.poll.response.dm_format }}"
 
   # Schedule next poll if monitoring should continue
   - id: reschedule

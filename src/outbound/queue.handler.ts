@@ -25,6 +25,7 @@ export interface QueueActionConfig extends HandlerConfig {
   poll_type: string;                      // Type of poll (e.g., 'address_monitor')
   address?: string;                       // Bitcoin address (for wallet monitoring)
   target_pubkey?: string;                 // Who to notify
+  dm_format?: 'nip04' | 'nip17';          // DM format to use for notifications (propagated from trigger)
   data?: Record<string, unknown>;         // Additional context data
   delay_ms?: number;                      // Delay before processing (default: 0)
   priority?: number;                      // Higher = more urgent (default: 0)
@@ -89,10 +90,15 @@ export class QueueHandler implements Handler {
       ? parseInt(params.delay_ms, 10)
       : params.delay_ms;
 
+    // Extract dm_format: explicit param > trigger.dm_format > undefined
+    const trigger = context.trigger as Record<string, unknown> | undefined;
+    const dmFormat = params.dm_format || (trigger?.dm_format as 'nip04' | 'nip17' | undefined);
+
     // Build options object, only including defined properties
     const options: {
       address?: string;
       target_pubkey?: string;
+      dm_format?: 'nip04' | 'nip17';
       data?: Record<string, unknown>;
       delay_ms?: number;
       priority?: number;
@@ -102,6 +108,7 @@ export class QueueHandler implements Handler {
     };
     if (params.address) options.address = params.address;
     if (params.target_pubkey) options.target_pubkey = params.target_pubkey;
+    if (dmFormat) options.dm_format = dmFormat;
     if (params.data) options.data = params.data;
     if (params.priority !== undefined) options.priority = params.priority;
     if (params.max_retries !== undefined) options.maxRetries = params.max_retries;
