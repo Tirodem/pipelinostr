@@ -280,8 +280,8 @@ export class WalletHandler implements Handler {
 
     // Format response
     const formatted = amountSats > 0
-      ? `💰 Payment Request\n\nAddress: ${address}\nAmount: ${amountSats.toLocaleString()} sats (${amountBtc.toFixed(8)} BTC)${conversionInfo}\n\n${imageUrl}`
-      : `📍 Bitcoin Address #${addressIndex}\n\nAddress: ${address}\n\n${imageUrl}`;
+      ? `💰 Payment Request\n\nAddress: ${address}\nAmount: ${amountSats.toLocaleString()} sats (${amountBtc.toFixed(8)} BTC)${conversionInfo}\n\nOpen wallet: ${bip21Uri}\n\n${imageUrl}`
+      : `📍 Bitcoin Address #${addressIndex}\n\nAddress: ${address}\n\nOpen wallet: ${bip21Uri}\n\n${imageUrl}`;
 
     return {
       success: true,
