@@ -641,7 +641,7 @@ export class PipelinostrDatabase {
     const row = this.queryOne<Record<string, unknown>>(`
       SELECT * FROM event_queue
       WHERE status = 'pending'
-        AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))
+        AND (next_retry_at IS NULL OR datetime(next_retry_at) <= datetime('now'))
       ORDER BY priority DESC, created_at ASC
       LIMIT 1
     `);
