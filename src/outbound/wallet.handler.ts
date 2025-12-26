@@ -845,7 +845,7 @@ export class WalletHandler implements Handler {
       monitorState.waiting_poll_count = (monitorState.waiting_poll_count || 0) + 1;
 
       // Check for timeout (max polls reached without detecting a transaction)
-      if (monitorState.waiting_poll_count > monitorState.max_waiting_polls) {
+      if (monitorState.waiting_poll_count >= monitorState.max_waiting_polls) {
         monitorState.state = 'timeout';
         monitorState.last_check_at = new Date().toISOString();
 
