@@ -128,9 +128,17 @@ export class WorkflowMatcher {
 
           // Build extended context for internal triggers
           const rawTag = event.tags.find(t => t[0] === 'raw');
+          const addressTag = event.tags.find(t => t[0] === 'address');
+          const targetPubkeyTag = event.tags.find(t => t[0] === 'target_pubkey');
+          const pollTypeTag = event.tags.find(t => t[0] === 'poll_type');
+
           const internalContext = {
             ...triggerContext,
             raw_morse: rawTag?.[1] ?? '',
+            // For internal_poll events
+            poll_type: pollTypeTag?.[1] ?? '',
+            address: addressTag?.[1] ?? '',
+            target_pubkey: targetPubkeyTag?.[1] ?? triggerContext.from,
           };
 
           const matchData = {
