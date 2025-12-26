@@ -494,9 +494,9 @@ export class WalletHandler implements Handler {
    * Get address balance from mempool.space
    */
   private async getAddressBalance(address: string): Promise<{ balance_sats: number; tx_count: number }> {
-    // Check rate limit
-    if (!this.checkRateLimit('balance')) {
-      logger.warn({ address }, 'Rate limited, returning zero balance');
+    // Check rate limit per address (not global)
+    if (!this.checkRateLimit(`balance:${address}`)) {
+      logger.warn({ address }, 'Rate limited for this address, returning zero balance');
       return { balance_sats: 0, tx_count: 0 };
     }
 
