@@ -12,7 +12,7 @@ export type QueuedEventStatus =
   | 'no_match'           // No workflow matched this event
   | 'skipped_disabled';  // Matched workflow(s) but all were disabled
 
-export type QueuedEventType = 'nostr_dm' | 'nostr_event' | 'api_webhook' | 'hook' | 'manual';
+export type QueuedEventType = 'nostr_dm' | 'nostr_event' | 'api_webhook' | 'hook' | 'manual' | 'internal_poll';
 
 export interface QueuedEvent {
   id: number;

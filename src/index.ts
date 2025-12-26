@@ -56,6 +56,7 @@ import { ClaudeHandler, type ClaudeHandlerOptions } from './outbound/claude.hand
 import { WorkflowActivatorHandler } from './outbound/workflow-activator.handler.js';
 import { SystemHandler } from './outbound/system.handler.js';
 import { WorkflowDbHandler } from './outbound/workflow-db.handler.js';
+import { QueueHandler } from './outbound/queue.handler.js';
 import { WalletHandler, type WalletHandlerConfig } from './outbound/wallet.handler.js';
 import type { PipelinostrConfig } from './config/schema.js';
 
@@ -117,6 +118,7 @@ interface AppState {
     workflowActivator?: WorkflowActivatorHandler;
     system?: SystemHandler;
     workflowDb?: WorkflowDbHandler;
+    queue?: QueueHandler;
     wallet?: WalletHandler;
   };
 }
@@ -1278,6 +1280,12 @@ async function initializeHandlers(
   await state.handlers.workflowDb.initialize();
   state.workflowEngine.registerHandler('workflow_db', state.handlers.workflowDb);
   logger.info('Workflow DB handler enabled');
+
+  // Queue Handler (always available, allows scheduling internal poll events)
+  state.handlers.queue = new QueueHandler({ enabled: true });
+  await state.handlers.queue.initialize();
+  state.workflowEngine.registerHandler('queue', state.handlers.queue);
+  logger.info('Queue handler enabled');
 
   // Wallet Handler (optional, needs xpub config)
   interface WalletConfigFile {

@@ -60,6 +60,14 @@ export interface QueuedEventData {
     originalEventId?: string | undefined;
     data: unknown;
   };
+  // For internal_poll type (scheduled background jobs)
+  pollEvent?: {
+    pollType: string;           // e.g., 'address_monitor'
+    address?: string;           // Bitcoin address to monitor
+    target_pubkey?: string;     // Who to notify
+    data?: Record<string, unknown>;  // Additional context data
+    created_at: number;         // Timestamp when poll was scheduled
+  };
 }
 
 export class QueueWorker {
@@ -216,6 +224,14 @@ export class QueueWorker {
           }
           break;
 
+        case 'internal_poll':
+          if (eventData.pollEvent) {
+            processedEvent = this.convertPollToProcessedEvent(eventData.pollEvent);
+          } else {
+            throw new Error('Missing pollEvent data');
+          }
+          break;
+
         default:
           throw new Error(`Unknown event type: ${queuedEvent.event_type}`);
       }
@@ -339,6 +355,37 @@ export class QueueWorker {
     };
   }
 
+  private convertPollToProcessedEvent(poll: NonNullable<QueuedEventData['pollEvent']>): ProcessedEvent {
+    // Build content from poll data for workflow matching
+    const content = JSON.stringify({
+      poll_type: poll.pollType,
+      address: poll.address,
+      target_pubkey: poll.target_pubkey,
+      ...poll.data,
+    });
+
+    return {
+      id: `poll-${poll.pollType}-${poll.address ?? 'unknown'}-${poll.created_at}`,
+      pubkey: 'internal_poll',
+      pubkeyNpub: 'internal_poll',
+      kind: 20001, // Custom kind for internal polls
+      created_at: Math.floor(poll.created_at / 1000),
+      tags: [
+        ['source', 'internal_poll'],
+        ['poll_type', poll.pollType],
+        ...(poll.address ? [['address', poll.address]] : []),
+        ...(poll.target_pubkey ? [['target_pubkey', poll.target_pubkey]] : []),
+      ],
+      sig: '',
+      rawContent: content,
+      decryptedContent: content,
+      encryptionType: 'none',
+      isEncrypted: false,
+      isFromWhitelist: true,
+      relayUrl: 'internal',
+    };
+  }
+
   private runCleanup(): void {
     try {
       const db = getDatabase();
@@ -420,5 +467,49 @@ export function enqueueManualEvent(
     priority: options?.priority ?? 0,
     max_retries: options?.maxRetries ?? 3,
   });
+}
+
+// Helper function to enqueue an internal poll event (for scheduled background jobs)
+export function enqueuePollEvent(
+  pollType: string,
+  options: {
+    address?: string;
+    target_pubkey?: string;
+    data?: Record<string, unknown>;
+    delay_ms?: number;
+    priority?: number;
+    maxRetries?: number;
+  } = {}
+): number {
+  const db = getDatabase();
+  const now = Date.now();
+
+  // Build pollEvent object, only including defined properties
+  const pollEvent: {
+    pollType: string;
+    address?: string;
+    target_pubkey?: string;
+    data?: Record<string, unknown>;
+    created_at: number;
+  } = {
+    pollType,
+    created_at: now,
+  };
+  if (options.address) pollEvent.address = options.address;
+  if (options.target_pubkey) pollEvent.target_pubkey = options.target_pubkey;
+  if (options.data) pollEvent.data = options.data;
+
+  const eventData: QueuedEventData = { pollEvent };
+
+  const eventId = `poll-${pollType}-${options.address ?? 'unknown'}-${now}`;
+
+  // Build enqueue options, only including defined delay_ms
+  const enqueueOptions: { priority: number; max_retries: number; delay_ms?: number } = {
+    priority: options.priority ?? 0,
+    max_retries: options.maxRetries ?? 3,
+  };
+  if (options.delay_ms !== undefined) enqueueOptions.delay_ms = options.delay_ms;
+
+  return db.enqueueEvent('internal_poll', eventData, eventId, enqueueOptions);
 }
 

@@ -1,8 +1,9 @@
 # Workflow: /wallet bill x amount currency
-# Genere une facture Bitcoin avec QR code
+# Genere une facture Bitcoin avec QR code et demarre le monitoring automatique
 #
 # Usage: /wallet bill 5 50.00 EUR
 #        Genere une facture de 50 EUR sur l'adresse #5
+#        Demarre automatiquement le monitoring de l'adresse
 
 id: wallet-bill
 name: Bitcoin Wallet - Generate Bill
@@ -15,6 +16,12 @@ trigger:
     content_pattern: "^/wallet bill (\\d+)\\s+([\\d.]+)\\s+(EUR|USD|CHF|SAT|BTC)$"
     from_whitelist: true
 
+variables:
+  confirmations_notify: 3
+  poll_interval_waiting_ms: 15000     # 15s - Intervalle pour detecter une tx dans le mempool
+  poll_interval_mempool_ms: 600000    # 10min - Intervalle pour suivre les confirmations
+  max_waiting_polls: 10               # Max polls en attente de tx (10 x 15s = 150s avant timeout)
+
 actions:
   - id: create_bill
     type: wallet
@@ -24,12 +31,34 @@ actions:
       amount: "{{ match.$2 }}"
       currency: "{{ match.$3 }}"
 
+  # Start monitoring the address automatically
+  - id: start_monitor
+    type: wallet
+    config:
+      action: start_monitor
+      address: "{{ actions.create_bill.response.address }}"
+      target_pubkey: "{{ trigger.from }}"
+      confirmations_notify: "{{ variables.confirmations_notify }}"
+      poll_interval_waiting_ms: "{{ variables.poll_interval_waiting_ms }}"
+      poll_interval_mempool_ms: "{{ variables.poll_interval_mempool_ms }}"
+      max_waiting_polls: "{{ variables.max_waiting_polls }}"
+
+  # Schedule the first poll
+  - id: schedule_poll
+    type: queue
+    config:
+      action: enqueue
+      poll_type: address_monitor
+      address: "{{ actions.create_bill.response.address }}"
+      target_pubkey: "{{ trigger.from }}"
+      delay_ms: "{{ variables.poll_interval_waiting_ms }}"
+
   - id: reply
     type: nostr_dm
     config:
       to: "{{ trigger.from }}"
       content: |
-        💰 Demande de paiement
+        Demande de paiement
 
         Adresse: {{ actions.create_bill.response.address }}
         Montant: {{ actions.create_bill.response.amount_sats }} sats ({{ actions.create_bill.response.amount_btc }} BTC)
@@ -37,3 +66,5 @@ actions:
         [Ouvrir le wallet]({{ actions.create_bill.response.bip21_uri }})
 
         {{ actions.create_bill.response.qr_url }}
+
+        Monitoring active - vous recevrez des notifications jusqu'a {{ variables.confirmations_notify }} confirmations.

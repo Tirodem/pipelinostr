@@ -6,6 +6,10 @@
  * - generate_bill: Create QR code for payment request
  * - check_transaction: Check transaction status and confirmations
  * - convert_currency: Convert between fiat and BTC/SAT
+ * - start_monitor: Start monitoring an address for incoming transactions
+ * - poll_monitor: Poll a monitored address (called by queue worker)
+ * - cancel_monitor: Cancel address monitoring
+ * - get_monitor_status: Get current monitoring status
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
@@ -15,6 +19,7 @@ import * as ecc from 'tiny-secp256k1';
 import { Client as FtpClient } from 'basic-ftp';
 import { Readable } from 'stream';
 import { logger } from '../persistence/logger.js';
+import { getDatabase } from '../persistence/database.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
 // Initialize BIP32 with secp256k1
@@ -45,7 +50,8 @@ export interface WalletHandlerConfig {
 }
 
 export interface WalletActionConfig extends HandlerConfig {
-  action: 'get_addresses' | 'generate_bill' | 'check_transaction' | 'convert_currency';
+  action: 'get_addresses' | 'generate_bill' | 'check_transaction' | 'convert_currency'
+    | 'start_monitor' | 'poll_monitor' | 'cancel_monitor' | 'get_monitor_status';
   // For get_addresses
   start_index?: number;
   count?: number;
@@ -60,6 +66,30 @@ export interface WalletActionConfig extends HandlerConfig {
   from_currency?: string;
   to_currency?: string;
   value?: number;
+  // For start_monitor/poll_monitor/cancel_monitor/get_monitor_status
+  target_pubkey?: string;             // Who to notify
+  confirmations_notify?: number;      // Number of confirmations before completing (default: 3)
+  poll_interval_waiting_ms?: number;  // Poll interval before mempool detection (default: 15000)
+  poll_interval_mempool_ms?: number;  // Poll interval after mempool detection (default: 600000)
+  max_waiting_polls?: number;         // Max polls before timeout in waiting state (default: 10)
+}
+
+// Monitor state persisted in workflow_state table
+export interface MonitorState {
+  address: string;
+  target_pubkey: string;
+  state: 'waiting' | 'mempool' | 'confirming' | 'completed' | 'cancelled' | 'timeout';
+  confirmations: number;
+  target_confirmations: number;
+  txid: string | null;
+  amount_sats: number;
+  poll_interval_waiting_ms: number;
+  poll_interval_mempool_ms: number;
+  max_waiting_polls: number;         // Max polls before giving up (before mempool detection)
+  waiting_poll_count: number;        // Current poll count in waiting state
+  created_at: string;
+  last_check_at: string;
+  last_notified_confirmations: number;
 }
 
 interface AddressInfo {
@@ -161,6 +191,14 @@ export class WalletHandler implements Handler {
           return await this.checkTransaction(walletConfig);
         case 'convert_currency':
           return await this.convertCurrency(walletConfig);
+        case 'start_monitor':
+          return await this.startMonitor(walletConfig);
+        case 'poll_monitor':
+          return await this.pollMonitor(walletConfig);
+        case 'cancel_monitor':
+          return await this.cancelMonitor(walletConfig);
+        case 'get_monitor_status':
+          return await this.getMonitorStatus(walletConfig);
         default:
           return { success: false, error: `Unknown action: ${action}` };
       }
@@ -647,6 +685,422 @@ export class WalletHandler implements Handler {
 
     rateLimitCache.set(key, now);
     return true;
+  }
+
+  // ==========================================================================
+  // MONITORING ACTIONS
+  // ==========================================================================
+
+  /**
+   * Start monitoring an address for incoming transactions
+   */
+  private async startMonitor(config: WalletActionConfig): Promise<HandlerResult> {
+    const address = config.address;
+    const targetPubkey = config.target_pubkey;
+
+    if (!address) {
+      return { success: false, error: 'address is required' };
+    }
+    if (!targetPubkey) {
+      return { success: false, error: 'target_pubkey is required' };
+    }
+
+    // Parse config with defaults
+    const targetConfirmations = parseInt(String(config.confirmations_notify ?? this.confirmationsNotify), 10) || 3;
+    const pollIntervalWaiting = parseInt(String(config.poll_interval_waiting_ms ?? 15000), 10) || 15000;
+    const pollIntervalMempool = parseInt(String(config.poll_interval_mempool_ms ?? 600000), 10) || 600000;
+    const maxWaitingPolls = parseInt(String(config.max_waiting_polls ?? 10), 10) || 10;
+
+    // Check if already monitoring this address
+    const db = getDatabase();
+    const existingState = db.getState('wallet-monitor', 'address_monitor', `monitor:${address}`);
+    if (existingState && existingState.value_type === 'json' && existingState.value_json) {
+      const state = existingState.value_json as unknown as MonitorState;
+      if (state.state !== 'completed' && state.state !== 'cancelled') {
+        return {
+          success: false,
+          error: `Already monitoring address ${address} (state: ${state.state})`,
+        };
+      }
+    }
+
+    // Create monitor state
+    const monitorState: MonitorState = {
+      address,
+      target_pubkey: targetPubkey,
+      state: 'waiting',
+      confirmations: 0,
+      target_confirmations: targetConfirmations,
+      txid: null,
+      amount_sats: 0,
+      poll_interval_waiting_ms: pollIntervalWaiting,
+      poll_interval_mempool_ms: pollIntervalMempool,
+      max_waiting_polls: maxWaitingPolls,
+      waiting_poll_count: 0,
+      created_at: new Date().toISOString(),
+      last_check_at: new Date().toISOString(),
+      last_notified_confirmations: 0,
+    };
+
+    // Save state to workflow_state table
+    db.setState({
+      workflow_id: 'wallet-monitor',
+      namespace: 'address_monitor',
+      state_key: `monitor:${address}`,
+      value_type: 'json',
+      value_json: monitorState as unknown as Record<string, unknown>,
+    });
+
+    logger.info(
+      { address, targetPubkey, targetConfirmations },
+      '[Wallet] Address monitoring started'
+    );
+
+    return {
+      success: true,
+      data: {
+        address,
+        target_pubkey: targetPubkey,
+        target_confirmations: targetConfirmations,
+        poll_interval_waiting_ms: pollIntervalWaiting,
+        poll_interval_mempool_ms: pollIntervalMempool,
+        state: 'waiting',
+        message: `Monitoring started for ${address}`,
+      },
+    };
+  }
+
+  /**
+   * Poll a monitored address for transaction updates
+   */
+  private async pollMonitor(config: WalletActionConfig): Promise<HandlerResult> {
+    const address = config.address;
+
+    if (!address) {
+      return { success: false, error: 'address is required' };
+    }
+
+    // Get current monitor state
+    const db = getDatabase();
+    const stateRecord = db.getState('wallet-monitor', 'address_monitor', `monitor:${address}`);
+
+    if (!stateRecord || stateRecord.value_type !== 'json' || !stateRecord.value_json) {
+      return { success: false, error: `No active monitor for address ${address}` };
+    }
+
+    const monitorState = stateRecord.value_json as unknown as MonitorState;
+
+    // Check if already completed, cancelled, or timed out
+    if (monitorState.state === 'completed' || monitorState.state === 'cancelled' || monitorState.state === 'timeout') {
+      return {
+        success: true,
+        data: {
+          ...monitorState,
+          should_continue: false,
+          notification_type: null,
+          notification_message: null,
+        },
+      };
+    }
+
+    // Increment waiting poll count if in waiting state
+    if (monitorState.state === 'waiting') {
+      monitorState.waiting_poll_count = (monitorState.waiting_poll_count || 0) + 1;
+
+      // Check for timeout (max polls reached without detecting a transaction)
+      if (monitorState.waiting_poll_count > monitorState.max_waiting_polls) {
+        monitorState.state = 'timeout';
+        monitorState.last_check_at = new Date().toISOString();
+
+        const elapsedSeconds = monitorState.waiting_poll_count * (monitorState.poll_interval_waiting_ms / 1000);
+
+        db.setState({
+          workflow_id: 'wallet-monitor',
+          namespace: 'address_monitor',
+          state_key: `monitor:${address}`,
+          value_type: 'json',
+          value_json: monitorState as unknown as Record<string, unknown>,
+        });
+
+        logger.info({ address, pollCount: monitorState.waiting_poll_count }, '[Wallet] Monitor timeout - no transaction detected');
+
+        return {
+          success: true,
+          data: {
+            ...monitorState,
+            should_continue: false,
+            notification_type: 'timeout',
+            notification_message: `Aucune transaction detectee pour cette adresse depuis ${Math.round(elapsedSeconds)} secondes. Monitoring arrete.\n\nAdresse: ${address}`,
+          },
+        };
+      }
+    }
+
+    // Poll mempool.space API for address transactions
+    const previousState = monitorState.state;
+    const previousConfirmations = monitorState.confirmations;
+    let notificationType: string | null = null;
+    let notificationMessage: string | null = null;
+
+    try {
+      // Get transactions for address
+      const response = await fetch(`${this.mempoolApi}/address/${address}/txs`);
+      if (!response.ok) {
+        logger.warn({ address, status: response.status }, '[Wallet] Failed to fetch transactions');
+        // Don't fail, just continue polling
+        monitorState.last_check_at = new Date().toISOString();
+        db.setState({
+          workflow_id: 'wallet-monitor',
+          namespace: 'address_monitor',
+          state_key: `monitor:${address}`,
+          value_type: 'json',
+          value_json: monitorState as unknown as Record<string, unknown>,
+        });
+        return {
+          success: true,
+          data: {
+            ...monitorState,
+            should_continue: true,
+            next_poll_delay_ms: monitorState.poll_interval_waiting_ms,
+            notification_type: null,
+            notification_message: null,
+          },
+        };
+      }
+
+      const txs = await response.json() as MempoolTx[];
+
+      // Find incoming transaction (most recent unspent to this address)
+      // We look for any transaction that has this address in outputs
+      let incomingTx: MempoolTx | null = null;
+
+      for (const tx of txs) {
+        // If we already have a txid, look for that specific one
+        if (monitorState.txid && tx.txid === monitorState.txid) {
+          incomingTx = tx;
+          break;
+        }
+        // Otherwise, take the first (most recent) transaction
+        if (!monitorState.txid) {
+          incomingTx = tx;
+          break;
+        }
+      }
+
+      if (incomingTx) {
+        // Transaction found
+        const isConfirmed = incomingTx.status?.confirmed ?? false;
+        const blockHeight = incomingTx.status?.block_height ?? null;
+
+        // Get current block height for confirmations
+        let confirmations = 0;
+        if (blockHeight) {
+          const tipResponse = await fetch(`${this.mempoolApi}/blocks/tip/height`);
+          if (tipResponse.ok) {
+            const tipHeight = await tipResponse.json() as number;
+            confirmations = tipHeight - blockHeight + 1;
+          }
+        }
+
+        // Calculate amount (sum of outputs to this address)
+        const amountSats = incomingTx.vout?.reduce((sum, out) => sum + out.value, 0) ?? 0;
+
+        // Update state based on confirmation status
+        monitorState.txid = incomingTx.txid;
+        monitorState.amount_sats = amountSats;
+        monitorState.confirmations = confirmations;
+
+        if (!isConfirmed && monitorState.state === 'waiting') {
+          // Transaction detected in mempool
+          monitorState.state = 'mempool';
+          notificationType = 'mempool';
+          notificationMessage = `📡 Transaction detected in mempool!\nTxID: ${incomingTx.txid}\nAmount: ${amountSats.toLocaleString()} sats`;
+        } else if (isConfirmed) {
+          // Transaction confirmed
+          if (confirmations >= monitorState.target_confirmations) {
+            // Target reached
+            monitorState.state = 'completed';
+            notificationType = 'completed';
+            notificationMessage = `✅ ${confirmations} confirmations - Payment confirmed!\nTxID: ${incomingTx.txid}\nAmount: ${amountSats.toLocaleString()} sats`;
+          } else if (confirmations > monitorState.last_notified_confirmations) {
+            // New confirmation(s)
+            monitorState.state = 'confirming';
+            notificationType = 'confirmation';
+            notificationMessage = `⛏️ ${confirmations} confirmation${confirmations > 1 ? 's' : ''} (block #${blockHeight})\nTxID: ${incomingTx.txid}`;
+            monitorState.last_notified_confirmations = confirmations;
+          }
+        }
+      }
+
+      // Update last check time
+      monitorState.last_check_at = new Date().toISOString();
+
+      // Save updated state
+      db.setState({
+        workflow_id: 'wallet-monitor',
+        namespace: 'address_monitor',
+        state_key: `monitor:${address}`,
+        value_type: 'json',
+        value_json: monitorState as unknown as Record<string, unknown>,
+      });
+
+      // Determine if we should continue polling
+      // Note: 'cancelled' and 'timeout' checks are for type safety, already checked at function entry
+      const currentState = monitorState.state as MonitorState['state'];
+      const shouldContinue = currentState !== 'completed' && currentState !== 'cancelled' && currentState !== 'timeout';
+
+      // Determine next poll delay
+      const nextPollDelay = monitorState.state === 'waiting'
+        ? monitorState.poll_interval_waiting_ms
+        : monitorState.poll_interval_mempool_ms;
+
+      logger.debug(
+        {
+          address,
+          previousState,
+          newState: monitorState.state,
+          confirmations: monitorState.confirmations,
+          shouldContinue,
+          notificationType,
+        },
+        '[Wallet] Poll monitor result'
+      );
+
+      return {
+        success: true,
+        data: {
+          ...monitorState,
+          previous_state: previousState,
+          previous_confirmations: previousConfirmations,
+          should_continue: shouldContinue,
+          next_poll_delay_ms: nextPollDelay,
+          notification_type: notificationType,
+          notification_message: notificationMessage,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ address, error: errorMessage }, '[Wallet] Poll monitor failed');
+
+      // Update last check time even on error
+      monitorState.last_check_at = new Date().toISOString();
+      db.setState({
+        workflow_id: 'wallet-monitor',
+        namespace: 'address_monitor',
+        state_key: `monitor:${address}`,
+        value_type: 'json',
+        value_json: monitorState as unknown as Record<string, unknown>,
+      });
+
+      // Continue polling despite error
+      return {
+        success: true,
+        data: {
+          ...monitorState,
+          should_continue: true,
+          next_poll_delay_ms: monitorState.poll_interval_waiting_ms,
+          notification_type: null,
+          notification_message: null,
+          error: errorMessage,
+        },
+      };
+    }
+  }
+
+  /**
+   * Cancel monitoring an address
+   */
+  private async cancelMonitor(config: WalletActionConfig): Promise<HandlerResult> {
+    const address = config.address;
+
+    if (!address) {
+      return { success: false, error: 'address is required' };
+    }
+
+    const db = getDatabase();
+    const stateRecord = db.getState('wallet-monitor', 'address_monitor', `monitor:${address}`);
+
+    if (!stateRecord || stateRecord.value_type !== 'json' || !stateRecord.value_json) {
+      return {
+        success: true,
+        data: {
+          address,
+          cancelled: false,
+          message: `No active monitor found for ${address}`,
+        },
+      };
+    }
+
+    const monitorState = stateRecord.value_json as unknown as MonitorState;
+
+    if (monitorState.state === 'completed' || monitorState.state === 'cancelled') {
+      return {
+        success: true,
+        data: {
+          address,
+          cancelled: false,
+          message: `Monitor already ${monitorState.state} for ${address}`,
+        },
+      };
+    }
+
+    // Update state to cancelled
+    monitorState.state = 'cancelled';
+    monitorState.last_check_at = new Date().toISOString();
+
+    db.setState({
+      workflow_id: 'wallet-monitor',
+      namespace: 'address_monitor',
+      state_key: `monitor:${address}`,
+      value_type: 'json',
+      value_json: monitorState as unknown as Record<string, unknown>,
+    });
+
+    logger.info({ address }, '[Wallet] Address monitoring cancelled');
+
+    return {
+      success: true,
+      data: {
+        address,
+        cancelled: true,
+        message: `Monitoring cancelled for ${address}`,
+      },
+    };
+  }
+
+  /**
+   * Get current monitoring status for an address
+   */
+  private async getMonitorStatus(config: WalletActionConfig): Promise<HandlerResult> {
+    const address = config.address;
+
+    if (!address) {
+      return { success: false, error: 'address is required' };
+    }
+
+    const db = getDatabase();
+    const stateRecord = db.getState('wallet-monitor', 'address_monitor', `monitor:${address}`);
+
+    if (!stateRecord || stateRecord.value_type !== 'json' || !stateRecord.value_json) {
+      return {
+        success: true,
+        data: {
+          address,
+          found: false,
+          message: `No monitor found for ${address}`,
+        },
+      };
+    }
+
+    const monitorState = stateRecord.value_json as unknown as MonitorState;
+
+    return {
+      success: true,
+      data: {
+        ...monitorState,
+        found: true,
+      },
+    };
   }
 
   async shutdown(): Promise<void> {

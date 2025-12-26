@@ -1,0 +1,44 @@
+# Workflow: Wallet Monitor Poll (Internal)
+# Poll a monitored address for transaction updates
+# Triggered by internal_poll events from the queue
+#
+# This workflow auto-reschedules itself until the target confirmations are reached
+
+id: wallet-monitor-poll
+name: Bitcoin Wallet - Monitor Poll
+enabled: false
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [20001]          # Custom kind for internal polls
+    pubkey: internal_poll   # Source identifier for poll events
+    # Match address_monitor poll type via content (JSON with poll_type field)
+    content_pattern: '"poll_type":\\s*"address_monitor"'
+
+actions:
+  # Poll the address for updates
+  - id: poll
+    type: wallet
+    config:
+      action: poll_monitor
+      address: "{{ trigger.tags.address }}"
+
+  # Send notification if there's a state change
+  - id: notify
+    type: nostr_dm
+    when: "actions.poll.response.notification_message"
+    config:
+      to: "{{ actions.poll.response.target_pubkey }}"
+      content: "{{ actions.poll.response.notification_message }}"
+
+  # Schedule next poll if monitoring should continue
+  - id: reschedule
+    type: queue
+    when: "actions.poll.response.should_continue"
+    config:
+      action: enqueue
+      poll_type: address_monitor
+      address: "{{ trigger.tags.address }}"
+      target_pubkey: "{{ actions.poll.response.target_pubkey }}"
+      delay_ms: "{{ actions.poll.response.next_poll_delay_ms }}"
