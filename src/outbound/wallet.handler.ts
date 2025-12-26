@@ -72,12 +72,14 @@ export interface WalletActionConfig extends HandlerConfig {
   poll_interval_waiting_ms?: number;  // Poll interval before mempool detection (default: 15000)
   poll_interval_mempool_ms?: number;  // Poll interval after mempool detection (default: 600000)
   max_waiting_polls?: number;         // Max polls before timeout in waiting state (default: 10)
+  dm_format?: 'nip04' | 'nip17';      // DM format for notifications (inherited from trigger)
 }
 
 // Monitor state persisted in workflow_state table
 export interface MonitorState {
   address: string;
   target_pubkey: string;
+  dm_format: 'nip04' | 'nip17';      // Original DM format to use for notifications
   state: 'waiting' | 'mempool' | 'confirming' | 'completed' | 'cancelled' | 'timeout';
   confirmations: number;
   target_confirmations: number;
@@ -710,6 +712,7 @@ export class WalletHandler implements Handler {
     const pollIntervalWaiting = parseInt(String(config.poll_interval_waiting_ms ?? 15000), 10) || 15000;
     const pollIntervalMempool = parseInt(String(config.poll_interval_mempool_ms ?? 600000), 10) || 600000;
     const maxWaitingPolls = parseInt(String(config.max_waiting_polls ?? 10), 10) || 10;
+    const dmFormat = (config.dm_format === 'nip04' || config.dm_format === 'nip17') ? config.dm_format : 'nip04';
 
     // Check if already monitoring this address
     const db = getDatabase();
@@ -761,6 +764,7 @@ export class WalletHandler implements Handler {
     const monitorState: MonitorState = {
       address,
       target_pubkey: targetPubkey,
+      dm_format: dmFormat,
       state: 'waiting',
       confirmations: 0,
       target_confirmations: targetConfirmations,
