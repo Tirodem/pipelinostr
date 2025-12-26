@@ -24,6 +24,17 @@ wallet:
   # Default: mainnet
   network: mainnet
 
+  # FTP configuration for QR code uploads (required for /wallet bill)
+  # Uses the same credentials as the FTP handler
+  ftp:
+    host: "ftp.example.com"
+    port: 21
+    user: "username"
+    password: ${FTP_PASSWORD}
+    secure: false
+    remote_path: "/public_html/qr/"      # Path on FTP server
+    public_url: "https://example.com/qr/" # Public URL to access uploaded files
+
 # IMPORTANT:
 # - This is a WATCH-ONLY wallet, it cannot sign transactions
 # - xpub should be stored in .env file for security

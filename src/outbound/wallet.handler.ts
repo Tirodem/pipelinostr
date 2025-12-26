@@ -12,6 +12,8 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as QRCode from 'qrcode';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
+import { Client as FtpClient } from 'basic-ftp';
+import { Readable } from 'stream';
 import { logger } from '../persistence/logger.js';
 import type { Handler, HandlerResult, HandlerConfig } from './handler.interface.js';
 
@@ -30,6 +32,16 @@ export interface WalletHandlerConfig {
   rate_limit_seconds?: number;
   confirmations_notify?: number;
   network?: 'mainnet' | 'testnet';
+  // FTP config for QR code uploads
+  ftp?: {
+    host: string;
+    port?: number;
+    user: string;
+    password: string;
+    secure?: boolean;
+    remote_path: string;    // e.g., "/public_html/qr/"
+    public_url: string;     // e.g., "https://example.com/qr/"
+  };
 }
 
 export interface WalletActionConfig extends HandlerConfig {
@@ -99,9 +111,6 @@ interface CoinbasePrice {
   };
 }
 
-interface NostrBuildResponse {
-  data?: Array<{ url?: string }>;
-}
 
 // Global rate limiting for mempool.space API
 let lastMempoolApiCall = 0;
@@ -119,6 +128,7 @@ export class WalletHandler implements Handler {
   private rateLimitSeconds: number;
   private confirmationsNotify: number;
   private network: bitcoin.Network;
+  private ftpConfig: WalletHandlerConfig['ftp'];
 
   constructor(config: WalletHandlerConfig) {
     this.xpub = config.xpub;
@@ -126,6 +136,7 @@ export class WalletHandler implements Handler {
     this.rateLimitSeconds = config.rate_limit_seconds ?? 10;
     this.confirmationsNotify = config.confirmations_notify ?? 3;
     this.network = config.network === 'testnet' ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
+    this.ftpConfig = config.ftp;
   }
 
   async initialize(): Promise<void> {
@@ -261,10 +272,10 @@ export class WalletHandler implements Handler {
       color: { dark: '#000000', light: '#ffffff' },
     });
 
-    // Upload to nostr.build
-    const imageUrl = await this.uploadToNostrBuild(qrBuffer);
+    // Upload to FTP
+    const imageUrl = await this.uploadQrToFtp(qrBuffer);
     if (!imageUrl) {
-      return { success: false, error: 'Failed to upload QR code to nostr.build' };
+      return { success: false, error: 'Failed to upload QR code to FTP' };
     }
 
     // Format response
@@ -576,30 +587,52 @@ export class WalletHandler implements Handler {
   }
 
   /**
-   * Upload image to nostr.build
+   * Upload image to FTP and return public URL
    */
-  private async uploadToNostrBuild(imageBuffer: Buffer): Promise<string | null> {
-    try {
-      // Use native FormData with Blob
-      const blob = new Blob([imageBuffer], { type: 'image/png' });
-      const formData = new FormData();
-      formData.append('file', blob, 'qrcode.png');
+  private async uploadQrToFtp(imageBuffer: Buffer): Promise<string | null> {
+    if (!this.ftpConfig) {
+      logger.error('No FTP config for wallet handler');
+      return null;
+    }
 
-      const response = await fetch('https://nostr.build/api/v2/upload/files', {
-        method: 'POST',
-        body: formData,
+    const client = new FtpClient();
+    client.ftp.verbose = false;
+
+    try {
+      // Connect to FTP
+      await client.access({
+        host: this.ftpConfig.host,
+        port: this.ftpConfig.port ?? 21,
+        user: this.ftpConfig.user,
+        password: this.ftpConfig.password,
+        secure: this.ftpConfig.secure ?? false,
       });
 
-      if (!response.ok) {
-        logger.error({ status: response.status }, 'nostr.build upload failed');
-        return null;
+      // Generate unique filename
+      const filename = `qr-${Date.now()}.png`;
+      const remotePath = `${this.ftpConfig.remote_path}${filename}`;
+
+      // Ensure directory exists
+      const remoteDir = this.ftpConfig.remote_path;
+      if (remoteDir) {
+        await client.ensureDir(remoteDir);
       }
 
-      const result = await response.json() as NostrBuildResponse;
-      return result.data?.[0]?.url ?? null;
+      // Upload
+      const stream = Readable.from(imageBuffer);
+      await client.uploadFrom(stream, remotePath);
+
+      // Build public URL
+      const publicUrl = `${this.ftpConfig.public_url}${filename}`;
+      logger.info({ remotePath, publicUrl }, 'QR code uploaded to FTP');
+
+      return publicUrl;
     } catch (error) {
-      logger.error({ error }, 'Failed to upload to nostr.build');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ errorMessage }, 'Failed to upload QR to FTP');
       return null;
+    } finally {
+      client.close();
     }
   }
 

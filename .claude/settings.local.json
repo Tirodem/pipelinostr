@@ -62,7 +62,8 @@
       "Bash(for:*)",
       "Bash(powershell:*)",
       "Bash(type:*)",
-      "Bash(npm info:*)"
+      "Bash(npm info:*)",
+      "WebFetch(domain:nostr.build)"
     ],
     "deny": [],
     "ask": []
