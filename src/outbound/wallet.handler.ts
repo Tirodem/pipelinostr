@@ -496,29 +496,39 @@ export class WalletHandler implements Handler {
   private async getAddressBalance(address: string): Promise<{ balance_sats: number; tx_count: number }> {
     // Check rate limit
     if (!this.checkRateLimit('balance')) {
-      logger.warn('Rate limited, returning cached or zero balance');
+      logger.warn({ address }, 'Rate limited, returning zero balance');
       return { balance_sats: 0, tx_count: 0 };
     }
 
+    const url = `${this.mempoolApi}/address/${address}`;
+    logger.info({ url }, 'Fetching address balance from mempool.space');
+
     try {
-      const response = await fetch(`${this.mempoolApi}/address/${address}`);
+      const response = await fetch(url);
+      logger.info({ address, status: response.status, statusText: response.statusText }, 'Mempool API response');
+
       if (!response.ok) {
-        logger.warn({ address, status: response.status }, 'Failed to get address info');
+        const errorBody = await response.text();
+        logger.warn({ address, status: response.status, errorBody }, 'Mempool API error');
         return { balance_sats: 0, tx_count: 0 };
       }
 
       const data = await response.json() as MempoolAddressInfo;
+      logger.info({ address, data }, 'Mempool API data received');
+
       const funded = data.chain_stats?.funded_txo_sum ?? 0;
       const spent = data.chain_stats?.spent_txo_sum ?? 0;
       const mempoolFunded = data.mempool_stats?.funded_txo_sum ?? 0;
       const mempoolSpent = data.mempool_stats?.spent_txo_sum ?? 0;
+      const balance = funded - spent + mempoolFunded - mempoolSpent;
+      const txCount = (data.chain_stats?.tx_count ?? 0) + (data.mempool_stats?.tx_count ?? 0);
 
-      return {
-        balance_sats: funded - spent + mempoolFunded - mempoolSpent,
-        tx_count: (data.chain_stats?.tx_count ?? 0) + (data.mempool_stats?.tx_count ?? 0),
-      };
+      logger.info({ address, funded, spent, mempoolFunded, mempoolSpent, balance, txCount }, 'Balance calculated');
+
+      return { balance_sats: balance, tx_count: txCount };
     } catch (error) {
-      logger.error({ error, address }, 'Error fetching address balance');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ errorMessage, address, url }, 'Error fetching address balance');
       return { balance_sats: 0, tx_count: 0 };
     }
   }
