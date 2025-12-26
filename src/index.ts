@@ -1288,6 +1288,15 @@ async function initializeHandlers(
       rate_limit_seconds?: number;
       confirmations_notify?: number;
       network?: 'mainnet' | 'testnet';
+      ftp?: {
+        host: string;
+        port?: number;
+        user: string;
+        password: string;
+        secure?: boolean;
+        remote_path: string;
+        public_url: string;
+      };
     };
   }
   try {
@@ -1300,6 +1309,7 @@ async function initializeHandlers(
       if (walletConfig.wallet.rate_limit_seconds !== undefined) walletOptions.rate_limit_seconds = walletConfig.wallet.rate_limit_seconds;
       if (walletConfig.wallet.confirmations_notify !== undefined) walletOptions.confirmations_notify = walletConfig.wallet.confirmations_notify;
       if (walletConfig.wallet.network) walletOptions.network = walletConfig.wallet.network;
+      if (walletConfig.wallet.ftp) walletOptions.ftp = walletConfig.wallet.ftp;
 
       state.handlers.wallet = new WalletHandler(walletOptions);
       await state.handlers.wallet.initialize();
