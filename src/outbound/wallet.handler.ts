@@ -161,8 +161,12 @@ export class WalletHandler implements Handler {
    */
   private async getAddresses(config: WalletActionConfig): Promise<HandlerResult> {
     // Parse as integers (template values come as strings)
-    const startIndex = parseInt(String(config.start_index ?? 0), 10) || 0;
-    const count = parseInt(String(config.count ?? 1), 10) || 1;
+    const rawStartIndex = config.start_index;
+    const rawCount = config.count;
+    const startIndex = parseInt(String(rawStartIndex ?? 0), 10) || 0;
+    const count = parseInt(String(rawCount ?? 1), 10) || 1;
+
+    logger.debug({ rawStartIndex, rawCount, startIndex, count }, 'getAddresses params');
 
     if (!this.xpub) {
       return { success: false, error: 'No xpub configured' };
@@ -192,6 +196,8 @@ export class WalletHandler implements Handler {
     const formatted = addresses.map(a =>
       `Address #${a.index}: ${a.address}\n  Balance: ${a.balance_btc.toFixed(8)} BTC (${a.balance_sats.toLocaleString()} sats)\n  Transactions: ${a.tx_count}`
     ).join('\n\n');
+
+    logger.debug({ addressCount: addresses.length, formattedLength: formatted.length }, 'getAddresses result');
 
     return {
       success: true,
