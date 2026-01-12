@@ -42,6 +42,7 @@ usage() {
     echo "  relay add <wss://...>                 Add a relay"
     echo "  relay remove <wss://...>              Remove a relay"
     echo "  relay blacklist [+|-]<wss://...>      Add (+) or remove (-) from blacklist"
+    echo "  relay clean                           Remove relays not in config.yml"
     echo ""
     echo "  status                                Show service status"
     echo "  restart                               Restart PipeliNostr"
@@ -69,6 +70,7 @@ usage() {
     echo "  $0 relay add wss://relay.example.com"
     echo "  $0 relay blacklist +wss://spam.relay.com"
     echo "  $0 relay blacklist -wss://spam.relay.com"
+    echo "  $0 relay clean"
     echo "  $0 logs 100"
 }
 
@@ -1158,6 +1160,79 @@ relay_blacklist() {
     echo "  $0 restart"
 }
 
+# Clean relays not in config.yml (sync DB with config)
+relay_clean() {
+    local config_file="$PROJECT_DIR/config/config.yml"
+
+    if [ ! -f "$DB_PATH" ]; then
+        echo -e "${RED}Database not found: $DB_PATH${NC}"
+        echo "Is PipeliNostr running?"
+        exit 1
+    fi
+
+    if [ ! -f "$config_file" ]; then
+        echo -e "${RED}Config file not found: $config_file${NC}"
+        exit 1
+    fi
+
+    echo -e "${BLUE}Syncing relays with config.yml...${NC}"
+    echo ""
+
+    # Extract primary relays from config.yml
+    # Look for lines with wss:// or ws:// under relays.primary section
+    local config_relays=$(grep -E '^\s*-\s*"?wss?://' "$config_file" | sed 's/^\s*-\s*"\?\([^"]*\)"\?/\1/' | tr -d ' ')
+
+    if [ -z "$config_relays" ]; then
+        echo -e "${YELLOW}Warning: No relays found in config.yml${NC}"
+        echo "Expected format:"
+        echo "  relays:"
+        echo "    primary:"
+        echo "      - \"wss://relay.example.com\""
+        exit 1
+    fi
+
+    # Get all relay URLs from database
+    local db_relays=$(sqlite3 "$DB_PATH" "SELECT url FROM relay_state;" 2>/dev/null)
+
+    local removed=0
+    local kept=0
+
+    # For each relay in DB, check if it's in config
+    while IFS= read -r db_url; do
+        [ -z "$db_url" ] && continue
+
+        local in_config=0
+        while IFS= read -r config_url; do
+            [ -z "$config_url" ] && continue
+            if [ "$db_url" = "$config_url" ]; then
+                in_config=1
+                break
+            fi
+        done <<< "$config_relays"
+
+        if [ $in_config -eq 0 ]; then
+            # Relay not in config, remove it
+            sqlite3 "$DB_PATH" "DELETE FROM relay_state WHERE url='$db_url';" 2>/dev/null
+            echo -e "${RED}✗${NC} Removed: $db_url"
+            removed=$((removed + 1))
+        else
+            kept=$((kept + 1))
+        fi
+    done <<< "$db_relays"
+
+    echo ""
+    echo -e "Kept: ${GREEN}$kept${NC} | Removed: ${RED}$removed${NC}"
+
+    if [ $removed -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Note: Restart PipeliNostr to apply changes${NC}"
+        echo "  $0 restart"
+    else
+        echo ""
+        echo -e "${GREEN}Database already in sync with config.yml${NC}"
+    fi
+}
+
 # Main
 case "${1:-}" in
     workflow)
@@ -1234,9 +1309,12 @@ case "${1:-}" in
             blacklist)
                 relay_blacklist "$3"
                 ;;
+            clean)
+                relay_clean
+                ;;
             *)
                 echo -e "${RED}Unknown relay command: ${2:-}${NC}"
-                echo "Use: $0 relay [list|add|remove|blacklist]"
+                echo "Use: $0 relay [list|add|remove|blacklist|clean]"
                 exit 1
                 ;;
         esac

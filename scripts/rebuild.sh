@@ -81,6 +81,14 @@ fi
 echo -e "${GREEN}Build successful${NC}"
 echo ""
 
+echo "=== Syncing relays with config ==="
+if [ -f "data/pipelinostr.db" ]; then
+    ./scripts/pipelinostr.sh relay clean
+else
+    echo -e "${YELLOW}Database not found, skipping relay sync${NC}"
+fi
+echo ""
+
 echo "=== Restarting PipeliNostr ==="
 ./scripts/restart.sh
 

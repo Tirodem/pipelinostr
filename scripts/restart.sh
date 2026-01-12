@@ -3,10 +3,21 @@
 
 cd "$(dirname "$0")/.." || exit 1
 
+# Colors
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 echo "Stopping PipeliNostr..."
 pkill -9 -f "node dist/index.js" 2>/dev/null || true
 
 sleep 1
+
+# Sync relays with config before starting
+if [ -f "data/pipelinostr.db" ]; then
+    echo "Syncing relays with config..."
+    ./scripts/pipelinostr.sh relay clean 2>/dev/null || true
+    echo ""
+fi
 
 echo "Starting PipeliNostr..."
 mkdir -p logs
