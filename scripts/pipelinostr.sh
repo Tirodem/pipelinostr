@@ -568,30 +568,65 @@ is_handler_enabled() {
     grep -E "^\s*enabled:\s*true" "$file" >/dev/null 2>&1
 }
 
+# Check if handler has missing environment variables
+check_handler_env_vars() {
+    local file="$1"
+    local env_file="$PROJECT_DIR/.env"
+    local missing=""
+
+    # Extract ${VAR_NAME} patterns from the file
+    local vars=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "$file" 2>/dev/null | sort -u)
+
+    for var in $vars; do
+        # Extract variable name (remove ${ and })
+        local var_name=$(echo "$var" | sed 's/\${\([^}]*\)}/\1/')
+
+        # Check if defined in .env file
+        if [ -f "$env_file" ]; then
+            if ! grep -qE "^${var_name}=" "$env_file" 2>/dev/null; then
+                missing="${missing}${var_name} "
+            fi
+        else
+            missing="${missing}${var_name} "
+        fi
+    done
+
+    echo "$missing"
+}
+
 # List handlers
 handler_list() {
     local filter="${1:-all}"
 
     echo -e "${BLUE}Handlers in $HANDLERS_DIR${NC}"
     echo ""
-    printf "%-25s %s\n" "NAME" "STATUS"
-    printf "%-25s %s\n" "-------------------------" "--------"
+    printf "%-25s %-20s %s\n" "NAME" "STATUS" "ISSUE"
+    printf "%-25s %-20s %s\n" "-------------------------" "--------------------" "-----"
 
     for file in "$HANDLERS_DIR"/*.yml "$HANDLERS_DIR"/*.yaml; do
         [ -f "$file" ] || continue
 
         local name=$(get_handler_name "$file")
         local status
+        local issue=""
 
         if is_handler_enabled "$file"; then
-            status="${GREEN}enabled${NC}"
-            [ "$filter" = "disabled" ] && continue
+            # Check for missing env vars
+            local missing_vars=$(check_handler_env_vars "$file")
+            if [ -n "$missing_vars" ]; then
+                status="${YELLOW}misconfigured${NC}"
+                issue="missing: $missing_vars"
+                [ "$filter" = "disabled" ] && continue
+            else
+                status="${GREEN}enabled${NC}"
+                [ "$filter" = "disabled" ] && continue
+            fi
         else
             status="${RED}disabled${NC}"
             [ "$filter" = "enabled" ] && continue
         fi
 
-        printf "%-25s %b\n" "$name" "$status"
+        printf "%-25s %b %s\n" "$name" "$status" "$issue"
     done
 }
 
