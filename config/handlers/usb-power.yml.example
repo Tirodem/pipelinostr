@@ -1,0 +1,88 @@
+# Configuration USB Power Handler
+# Contrôle de l'alimentation des ports USB via uhubctl
+# Requiert: sudo apt install uhubctl
+
+usb_power:
+  enabled: true
+
+  # Hub par défaut (utiliser 'sudo uhubctl' pour lister les hubs disponibles)
+  # "1-1" = Hub USB 2.0 externe (4 ports avec PPPS)
+  # "2" = Hub USB 3.0 intégré (4 ports)
+  default_hub: "1-1"
+
+  # Mapping optionnel des ports avec des noms symboliques
+  # ports:
+  #   dispenser:
+  #     hub: "1"
+  #     port: 3
+  #   led_strip:
+  #     hub: "1-1"
+  #     port: 2
+
+# Exemples d'utilisation dans un workflow:
+#
+# actions:
+#   # Allumer un port USB
+#   - type: usb_power
+#     params:
+#       port: 3
+#       action: on
+#
+#   # Éteindre un port USB
+#   - type: usb_power
+#     params:
+#       port: 3
+#       action: off
+#
+#   # Toggle (inverser l'état)
+#   - type: usb_power
+#     params:
+#       port: 3
+#       action: toggle
+#
+#   # Cycle (éteindre, attendre, rallumer)
+#   - type: usb_power
+#     params:
+#       port: 3
+#       action: cycle
+#       delay: 2000  # ms entre off et on
+#
+#   # Lire l'état d'un port
+#   - type: usb_power
+#     params:
+#       port: 3
+#       action: status
+#
+#   # Utiliser un port nommé (si configuré dans ports:)
+#   - type: usb_power
+#     params:
+#       port: "dispenser"
+#       action: on
+#
+#   # Spécifier un hub différent du default
+#   - type: usb_power
+#     params:
+#       hub: "1-1"
+#       port: 2
+#       action: on
+
+# Actions disponibles:
+# - on: Allume l'alimentation du port
+# - off: Éteint l'alimentation du port
+# - toggle: Inverse l'état actuel
+# - cycle: Éteint, attend delay ms, rallume
+# - status: Retourne l'état actuel (on/off)
+
+# Note: uhubctl nécessite les droits root (sudo)
+# Pour éviter de taper le mot de passe:
+#   sudo visudo
+#   Ajouter: pipelinostr ALL=(ALL) NOPASSWD: /usr/sbin/uhubctl
+
+# Identifier les hubs disponibles:
+#   sudo uhubctl
+#
+# Exemple de sortie:
+#   Current status for hub 1 [1d6b:0002 Linux xHCI Host Controller, USB 2.00]
+#     Port 1: 0507 power highspeed enable connect
+#     Port 2: 0100 power
+#     Port 3: 0100 power

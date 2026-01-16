@@ -44,6 +44,7 @@ import { GpioHandler } from './outbound/gpio.handler.js';
 import { MqttHandler } from './outbound/mqtt.handler.js';
 import { BleHandler } from './outbound/ble.handler.js';
 import { UsbHidHandler } from './outbound/usb-hid.handler.js';
+import { UsbPowerHandler } from './outbound/usb-power.handler.js';
 import { I2cHandler } from './outbound/i2c.handler.js';
 import { TraccarSmsHandler, type TraccarSmsHandlerOptions } from './outbound/traccar-sms.handler.js';
 import { CalendarHandler, type CalendarHandlerOptions } from './outbound/calendar.handler.js';
@@ -106,6 +107,7 @@ interface AppState {
     mqtt?: MqttHandler;
     ble?: BleHandler;
     usbHid?: UsbHidHandler;
+    usbPower?: UsbPowerHandler;
     i2c?: I2cHandler;
     traccarSms?: TraccarSmsHandler;
     calendar?: CalendarHandler;
@@ -1072,6 +1074,30 @@ async function initializeHandlers(
     logger.debug('I2C handler not configured, skipping');
   }
 
+  // USB Power Handler (optional, needs config)
+  try {
+    interface UsbPowerConfigFile {
+      usb_power?: {
+        enabled?: boolean;
+        default_hub?: string;
+        ports?: Record<string, { hub: string; port: number }>;
+      };
+    }
+    const usbPowerConfig = await loadHandlerConfig<UsbPowerConfigFile>('usb-power');
+    if (usbPowerConfig?.usb_power?.enabled !== false) {
+      state.handlers.usbPower = new UsbPowerHandler({
+        enabled: true,
+        default_hub: usbPowerConfig?.usb_power?.default_hub,
+        ports: usbPowerConfig?.usb_power?.ports,
+      });
+      await state.handlers.usbPower.initialize();
+      state.workflowEngine.registerHandler('usb_power', state.handlers.usbPower);
+      logger.info('USB Power handler enabled');
+    }
+  } catch (error) {
+    logger.debug('USB Power handler not configured, skipping');
+  }
+
   // Traccar SMS Handler (optional, needs config)
   try {
     interface TraccarSmsConfigFile {
@@ -1915,6 +1941,9 @@ async function shutdown(): Promise<void> {
     }
     if (appState.handlers.usbHid) {
       await appState.handlers.usbHid.shutdown();
+    }
+    if (appState.handlers.usbPower) {
+      await appState.handlers.usbPower.shutdown();
     }
     if (appState.handlers.i2c) {
       await appState.handlers.i2c.shutdown();

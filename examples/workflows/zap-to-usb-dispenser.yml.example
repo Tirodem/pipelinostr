@@ -1,0 +1,60 @@
+# Workflow: Zap to USB Dispenser
+# Déclenche un distributeur via USB power cycling sur réception d'un zap
+# Utilise uhubctl pour couper/rétablir l'alimentation d'un port USB
+#
+# Prérequis:
+#   - sudo apt install uhubctl
+#   - Hub USB avec PPPS (per-port power switching)
+#   - Distributeur alimenté via USB
+#
+# Configuration sudoers (éviter mot de passe):
+#   sudo visudo
+#   pipelinostr ALL=(ALL) NOPASSWD: /usr/sbin/uhubctl
+
+id: zap-to-usb-dispenser
+name: Zap to USB Dispenser
+enabled: true
+description: Déclenche le distributeur USB quand un zap >= seuil est reçu
+
+# Variables configurables
+variables:
+  min_sats: 21
+  hub: "1-1"           # Hub USB (voir 'sudo uhubctl')
+  port: 1              # Port du distributeur
+  cycle_delay: 2000    # Délai en ms entre off et on
+
+trigger:
+  type: zap
+  filters:
+    min_amount_sats: "{{ variables.min_sats }}"
+
+actions:
+  # Notification de réception
+  - id: notify
+    type: nostr_dm
+    params:
+      recipient: "{{ trigger.sender_npub }}"
+      message: "Zap de {{ trigger.amount_sats }} sats reçu ! Distributeur en cours..."
+
+  # Cycle du port USB (off -> delay -> on)
+  - id: dispense
+    type: usb_power
+    params:
+      hub: "{{ variables.hub }}"
+      port: "{{ variables.port }}"
+      action: cycle
+      delay: "{{ variables.cycle_delay }}"
+
+  # Confirmation
+  - id: confirm
+    type: nostr_dm
+    params:
+      recipient: "{{ trigger.sender_npub }}"
+      message: "Distribution effectuée ! Merci pour votre zap."
+    on_fail:
+      workflow: zap-to-usb-dispenser-error
+
+# Hook en cas d'erreur globale
+hooks:
+  on_fail:
+    workflow: zap-to-usb-dispenser-error
