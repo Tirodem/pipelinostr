@@ -21,6 +21,12 @@ fi
 
 echo "Starting PipeliNostr..."
 mkdir -p logs
+
+# Read log level from config.yml
+LOG_LEVEL=$(grep -A1 "^logging:" config/config.yml | grep "level:" | sed 's/.*level:[[:space:]]*"\?\([^"]*\)"\?.*/\1/' | tr -d '[:space:]')
+LOG_LEVEL=${LOG_LEVEL:-info}
+export LOG_LEVEL
+
 setsid nohup npm start > logs/pipelinostr.log 2>&1 &
 
 sleep 2
