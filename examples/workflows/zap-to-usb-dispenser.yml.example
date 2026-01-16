@@ -26,6 +26,9 @@ variables:
 trigger:
   type: zap
   filters:
+    # Npubs autorisées à recevoir des zaps pour ce workflow
+    zap_recipients:
+      - "npub1..."     # Remplacer par ta npub
     min_amount_sats: "{{ variables.min_sats }}"
 
 actions:
@@ -51,10 +54,3 @@ actions:
     params:
       recipient: "{{ trigger.sender_npub }}"
       message: "Distribution effectuée ! Merci pour votre zap."
-    on_fail:
-      workflow: zap-to-usb-dispenser-error
-
-# Hook en cas d'erreur globale
-hooks:
-  on_fail:
-    workflow: zap-to-usb-dispenser-error
