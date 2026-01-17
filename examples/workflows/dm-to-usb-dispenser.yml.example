@@ -35,13 +35,13 @@ actions:
       to: "{{ trigger.from }}"
       content: "Commande Zapoï reçue ! Distributeur en cours..."
 
-  # Cycle du port USB (off -> delay -> on)
+  # Pulse du port USB (on -> delay -> off)
   - id: dispense
     type: usb_power
     config:
       hub: "{{ variables.hub }}"
       port: "{{ variables.port }}"
-      action: cycle
+      action: pulse
       delay: "{{ variables.cycle_delay }}"
 
   # Confirmation

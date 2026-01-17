@@ -18,9 +18,9 @@ interface UsbPowerHandlerConfig {
 
 export interface UsbPowerActionConfig extends HandlerConfig {
   port: number | string;  // Port number, named port, or "all"/-1 for all ports
-  action: 'on' | 'off' | 'toggle' | 'cycle' | 'status';
+  action: 'on' | 'off' | 'toggle' | 'cycle' | 'pulse' | 'status';
   hub?: string | undefined;  // Hub location (overrides default)
-  delay?: number | undefined;  // Delay in ms for cycle action (default: 2000)
+  delay?: number | undefined;  // Delay in ms for cycle/pulse actions (default: 2000)
 }
 
 export class UsbPowerHandler implements Handler {
@@ -99,6 +99,8 @@ export class UsbPowerHandler implements Handler {
           return this.togglePower(hub, port);
         case 'cycle':
           return this.cyclePower(hub, port, params.delay || 2000);
+        case 'pulse':
+          return this.pulsePower(hub, port, params.delay || 2000);
         case 'status':
           return this.getStatus(hub, port);
         default:
@@ -183,6 +185,37 @@ export class UsbPowerHandler implements Handler {
         action: 'cycle',
         delay: delayMs,
         state: 'on',
+      },
+    };
+  }
+
+  private async pulsePower(hub: string, port: number | 'all', delayMs: number): Promise<HandlerResult> {
+    const portLabel = port === 'all' ? 'all ports' : `port ${port}`;
+    console.log(`[USB Power] Pulsing hub ${hub} ${portLabel} (delay: ${delayMs}ms)`);
+
+    // Turn on
+    const onResult = await this.setPower(hub, port, 'on');
+    if (!onResult.success) {
+      return onResult;
+    }
+
+    // Wait
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    // Turn off
+    const offResult = await this.setPower(hub, port, 'off');
+    if (!offResult.success) {
+      return offResult;
+    }
+
+    return {
+      success: true,
+      data: {
+        hub,
+        port,
+        action: 'pulse',
+        delay: delayMs,
+        state: 'off',
       },
     };
   }
