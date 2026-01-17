@@ -23,8 +23,9 @@ variables:
   cycle_delay: 2000    # Délai en ms entre off et on
 
 trigger:
-  type: dm
+  type: nostr_event
   filters:
+    kinds: [4, 14]             # DMs (NIP-04 et NIP-17)
     content_pattern: "(?i)^zapoi\\s*!?$"
 
 actions:
