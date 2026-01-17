@@ -17,7 +17,7 @@ interface UsbPowerHandlerConfig {
 }
 
 export interface UsbPowerActionConfig extends HandlerConfig {
-  port: number | string;  // Port number or named port
+  port: number | string;  // Port number, named port, or "all"/-1 for all ports
   action: 'on' | 'off' | 'toggle' | 'cycle' | 'status';
   hub?: string | undefined;  // Hub location (overrides default)
   delay?: number | undefined;  // Delay in ms for cycle action (default: 2000)
@@ -46,7 +46,15 @@ export class UsbPowerHandler implements Handler {
     }
   }
 
-  private resolvePort(port: number | string): { hub: string; port: number } {
+  private resolvePort(port: number | string): { hub: string; port: number | 'all' } {
+    // Check for "all ports" mode: port = "all" or -1
+    if (port === 'all' || port === -1 || port === '-1') {
+      if (!this.config.default_hub) {
+        throw new Error(`No hub specified and no default_hub configured`);
+      }
+      return { hub: this.config.default_hub, port: 'all' };
+    }
+
     // If it's a named port, look it up
     if (typeof port === 'string' && this.config.ports && this.config.ports[port]) {
       return this.config.ports[port];
@@ -102,8 +110,10 @@ export class UsbPowerHandler implements Handler {
     }
   }
 
-  private async setPower(hub: string, port: number, action: 'on' | 'off'): Promise<HandlerResult> {
-    const cmd = `sudo uhubctl -l ${hub} -a ${action} -p ${port}`;
+  private async setPower(hub: string, port: number | 'all', action: 'on' | 'off'): Promise<HandlerResult> {
+    // If port is 'all', omit -p flag to affect all ports
+    const portFlag = port === 'all' ? '' : `-p ${port}`;
+    const cmd = `sudo uhubctl -l ${hub} -a ${action} ${portFlag}`.trim();
     console.log(`[USB Power] Executing: ${cmd}`);
 
     try {
@@ -114,7 +124,8 @@ export class UsbPowerHandler implements Handler {
         return { success: false, error: stderr };
       }
 
-      console.log(`[USB Power] Hub ${hub} port ${port} -> ${action}`);
+      const portLabel = port === 'all' ? 'all ports' : `port ${port}`;
+      console.log(`[USB Power] Hub ${hub} ${portLabel} -> ${action}`);
 
       return {
         success: true,
@@ -132,7 +143,7 @@ export class UsbPowerHandler implements Handler {
     }
   }
 
-  private async togglePower(hub: string, port: number): Promise<HandlerResult> {
+  private async togglePower(hub: string, port: number | 'all'): Promise<HandlerResult> {
     // First get current status
     const statusResult = await this.getStatus(hub, port);
     if (!statusResult.success) {
@@ -145,8 +156,9 @@ export class UsbPowerHandler implements Handler {
     return this.setPower(hub, port, newAction);
   }
 
-  private async cyclePower(hub: string, port: number, delayMs: number): Promise<HandlerResult> {
-    console.log(`[USB Power] Cycling hub ${hub} port ${port} (delay: ${delayMs}ms)`);
+  private async cyclePower(hub: string, port: number | 'all', delayMs: number): Promise<HandlerResult> {
+    const portLabel = port === 'all' ? 'all ports' : `port ${port}`;
+    console.log(`[USB Power] Cycling hub ${hub} ${portLabel} (delay: ${delayMs}ms)`);
 
     // Turn off
     const offResult = await this.setPower(hub, port, 'off');
@@ -175,19 +187,26 @@ export class UsbPowerHandler implements Handler {
     };
   }
 
-  private async getStatus(hub: string, port: number): Promise<HandlerResult> {
-    const cmd = `sudo uhubctl -l ${hub} -p ${port}`;
+  private async getStatus(hub: string, port: number | 'all'): Promise<HandlerResult> {
+    // If port is 'all', omit -p flag
+    const portFlag = port === 'all' ? '' : `-p ${port}`;
+    const cmd = `sudo uhubctl -l ${hub} ${portFlag}`.trim();
     console.log(`[USB Power] Executing: ${cmd}`);
 
     try {
       const { stdout } = await execAsync(cmd);
 
-      // Parse output to determine power state
-      // Example: "Port 3: 0100 power"
-      const portPattern = new RegExp(`Port ${port}:.*?(power|off)`, 'i');
-      const match = stdout.match(portPattern);
-
-      const state = match && match[1]?.toLowerCase() === 'power' ? 'on' : 'off';
+      let state: string;
+      if (port === 'all') {
+        // For all ports, check if any port has power
+        state = stdout.includes('power') ? 'on' : 'off';
+      } else {
+        // Parse output to determine power state
+        // Example: "Port 3: 0100 power"
+        const portPattern = new RegExp(`Port ${port}:.*?(power|off)`, 'i');
+        const match = stdout.match(portPattern);
+        state = match && match[1]?.toLowerCase() === 'power' ? 'on' : 'off';
+      }
 
       return {
         success: true,
