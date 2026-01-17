@@ -31,14 +31,14 @@ actions:
   # Notification de réception
   - id: notify
     type: nostr_dm
-    params:
-      recipient: "{{ trigger.sender_npub }}"
-      message: "Commande Zapoï reçue ! Distributeur en cours..."
+    config:
+      to: "{{ trigger.from }}"
+      content: "Commande Zapoï reçue ! Distributeur en cours..."
 
   # Cycle du port USB (off -> delay -> on)
   - id: dispense
     type: usb_power
-    params:
+    config:
       hub: "{{ variables.hub }}"
       port: "{{ variables.port }}"
       action: cycle
@@ -47,6 +47,6 @@ actions:
   # Confirmation
   - id: confirm
     type: nostr_dm
-    params:
-      recipient: "{{ trigger.sender_npub }}"
-      message: "Distribution effectuée ! Zapoï !"
+    config:
+      to: "{{ trigger.from }}"
+      content: "Distribution effectuée ! Zapoï !"

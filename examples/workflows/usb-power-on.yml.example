@@ -20,13 +20,13 @@ trigger:
 actions:
   - id: power_on
     type: usb_power
-    params:
+    config:
       hub: "{{ variables.hub }}"
       port: "all"
       action: on
 
   - id: confirm
     type: nostr_dm
-    params:
-      recipient: "{{ trigger.sender_npub }}"
-      message: "USB ports rallumés ! Stand up for your rights."
+    config:
+      to: "{{ trigger.from }}"
+      content: "USB ports rallumés ! Stand up for your rights."
