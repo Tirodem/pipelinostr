@@ -13,9 +13,8 @@ variables:
   hub: "1-1"           # Hub USB (voir 'sudo uhubctl')
 
 trigger:
-  type: nostr_event
+  type: dm
   filters:
-    kinds: [4, 14]             # DMs (NIP-04 et NIP-17)
     content_pattern: "(?i)^get up stand up$"
 
 actions:
