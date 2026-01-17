@@ -1,0 +1,32 @@
+# Workflow: USB Power On (Safety)
+# Réallume tous les ports USB sur commande DM
+# Utile pour récupérer l'accès au Raspberry Pi si les ports sont éteints
+#
+# Commande: envoyer "get up stand up" en DM au bot
+
+id: usb-power-on
+name: USB Power On
+enabled: true
+description: Réallume tous les ports USB sur commande "get up stand up"
+
+variables:
+  hub: "1-1"           # Hub USB (voir 'sudo uhubctl')
+
+trigger:
+  type: dm
+  filters:
+    content_pattern: "^get up stand up$"
+
+actions:
+  - id: power_on
+    type: usb_power
+    params:
+      hub: "{{ variables.hub }}"
+      port: "all"
+      action: on
+
+  - id: confirm
+    type: nostr_dm
+    params:
+      recipient: "{{ trigger.sender_npub }}"
+      message: "USB ports rallumés ! Stand up for your rights."
