@@ -25,7 +25,7 @@ variables:
 trigger:
   type: dm
   filters:
-    content_pattern: "^Zapoï\\s*!?$"
+    content_pattern: "(?i)^zapoi\\s*!?$"
 
 actions:
   # Notification de réception

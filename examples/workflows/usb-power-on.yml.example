@@ -15,7 +15,7 @@ variables:
 trigger:
   type: dm
   filters:
-    content_pattern: "^get up stand up$"
+    content_pattern: "(?i)^get up stand up$"
 
 actions:
   - id: power_on
