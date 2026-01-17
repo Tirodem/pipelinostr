@@ -27,7 +27,13 @@ export interface WorkflowFilter {
 }
 
 export interface WorkflowTrigger {
-  type: 'nostr_event' | 'http_webhook' | 'internal';
+  // Trigger types:
+  // - nostr_event: raw Nostr events with kinds filter
+  // - dm: alias for nostr_event with kinds [4, 14] (NIP-04 and NIP-17 DMs)
+  // - zap: alias for nostr_event with kinds [9735] (zap receipts)
+  // - http_webhook: HTTP webhook trigger
+  // - internal: internal system triggers (e.g., morse_listener)
+  type: 'nostr_event' | 'http_webhook' | 'internal' | 'dm' | 'zap';
 
   // For nostr_event
   filters?: WorkflowFilter;

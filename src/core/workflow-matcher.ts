@@ -42,6 +42,39 @@ export class WorkflowMatcher {
     );
   }
 
+  /**
+   * Normalize trigger type aliases to nostr_event with implicit kinds:
+   * - type: dm -> type: nostr_event, kinds: [4, 14] (NIP-04 and NIP-17)
+   * - type: zap -> type: nostr_event, kinds: [9735]
+   */
+  private normalizeTrigger(trigger: WorkflowDefinition['trigger']): WorkflowDefinition['trigger'] {
+    if (trigger.type === 'dm') {
+      return {
+        ...trigger,
+        type: 'nostr_event',
+        filters: {
+          ...trigger.filters,
+          // Merge implicit DM kinds with any explicit kinds (implicit takes precedence if not set)
+          kinds: trigger.filters?.kinds ?? [4, 14],
+        },
+      };
+    }
+
+    if (trigger.type === 'zap') {
+      return {
+        ...trigger,
+        type: 'nostr_event',
+        filters: {
+          ...trigger.filters,
+          // Merge implicit zap kind with any explicit kinds
+          kinds: trigger.filters?.kinds ?? [9735],
+        },
+      };
+    }
+
+    return trigger;
+  }
+
   // Result type for findMatchesWithDisabled
   public static readonly MATCH_RESULT = {
     ENABLED: 'enabled',
@@ -168,11 +201,13 @@ export class WorkflowMatcher {
         continue;
       }
 
-      if (workflow.trigger.type !== 'nostr_event') continue;
+      // Normalize trigger type aliases (dm, zap -> nostr_event with implicit kinds)
+      const normalizedTrigger = this.normalizeTrigger(workflow.trigger);
+      if (normalizedTrigger.type !== 'nostr_event') continue;
 
       // Skip expensive regex checks for disabled workflows (just basic filter matching for visibility)
       const skipExpensiveChecks = !workflow.enabled;
-      const matchResult = this.matchWorkflow(event, workflow, content, parsedZap, skipExpensiveChecks);
+      const matchResult = this.matchWorkflow(event, workflow, content, parsedZap, skipExpensiveChecks, normalizedTrigger);
 
       if (matchResult.matched) {
         const matchData = {
@@ -221,9 +256,12 @@ export class WorkflowMatcher {
     workflow: WorkflowDefinition,
     content: string,
     parsedZap: ParsedZap | null,
-    skipExpensiveChecks: boolean = false
+    skipExpensiveChecks: boolean = false,
+    normalizedTrigger?: WorkflowDefinition['trigger']
   ): MatchResult {
-    const filters = workflow.trigger.filters;
+    // Use normalized trigger if provided (for dm/zap aliases), otherwise use workflow trigger
+    const trigger = normalizedTrigger ?? workflow.trigger;
+    const filters = trigger.filters;
     if (!filters) {
       // No filters = match all
       return { matched: true, groups: {} };
