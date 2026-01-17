@@ -13,9 +13,10 @@ NC='\033[0m'
 echo "=== Pulling latest changes ==="
 
 # Check for local changes that might cause conflicts
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    echo -e "${YELLOW}Local changes detected. Stashing...${NC}"
-    git stash push -m "rebuild-script-autostash-$(date +%Y%m%d-%H%M%S)"
+# Exclude scripts/rebuild.sh to avoid self-modification during execution
+if ! git diff --quiet -- . ':!scripts/rebuild.sh' 2>/dev/null || ! git diff --cached --quiet -- . ':!scripts/rebuild.sh' 2>/dev/null; then
+    echo -e "${YELLOW}Local changes detected. Stashing (excluding rebuild.sh)...${NC}"
+    git stash push -m "rebuild-script-autostash-$(date +%Y%m%d-%H%M%S)" -- . ':!scripts/rebuild.sh'
     STASHED=1
 else
     STASHED=0
@@ -66,7 +67,7 @@ echo -e "${GREEN}Pull successful${NC}"
 echo ""
 
 echo "=== Installing dependencies ==="
-if ! npm install --silent; then
+if ! npm install; then
     echo -e "${RED}npm install failed${NC}"
     exit 1
 fi
@@ -74,7 +75,7 @@ echo -e "${GREEN}Dependencies up to date${NC}"
 echo ""
 
 echo "=== Building project ==="
-if ! npm run build; then
+if ! npm run build 2>&1; then
     echo -e "${RED}Build failed${NC}"
     exit 1
 fi
