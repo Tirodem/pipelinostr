@@ -211,8 +211,13 @@ export class NostrListener {
       ...(sinceTimestamp && { since: sinceTimestamp }),
     });
 
+    // Convert hex pubkeys to npub for readable logs
+    const zapNpubs = zapPubkeys.map(hex => {
+      try { return hexToNpub(hex); } catch { return hex; }
+    });
+
     logger.debug(
-      { zapPubkeysCount: zapPubkeys.length, since: sinceTimestamp },
+      { zapPubkeysCount: zapPubkeys.length, zapNpubs, since: sinceTimestamp },
       'Subscribed to zap receipts'
     );
 
