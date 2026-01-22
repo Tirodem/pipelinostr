@@ -143,13 +143,17 @@ export class NostrListener {
     const myPubkey = this.crypto.getPublicKey();
     const filters: Filter[] = [];
 
+    // Add 'since' to filter if not processing historical events
+    // This tells relays to only send events after this timestamp
+    const sinceTimestamp = this.config.processHistorical ? undefined : this.startTimestamp;
+
     if (this.config.listenToAll) {
       // Listen to all events (useful for monitoring)
       if (this.config.kinds && this.config.kinds.length > 0) {
-        filters.push({ kinds: this.config.kinds });
+        filters.push({ kinds: this.config.kinds, ...(sinceTimestamp && { since: sinceTimestamp }) });
       } else {
         // All events - be careful with this!
-        filters.push({});
+        filters.push({ ...(sinceTimestamp && { since: sinceTimestamp }) });
       }
     } else {
       // Default: Listen to events tagged to us (p tag) or authored by us
@@ -158,6 +162,7 @@ export class NostrListener {
       // Events where we are tagged
       const taggedFilter: Filter = {
         '#p': [myPubkey],
+        ...(sinceTimestamp && { since: sinceTimestamp }),
       };
       if (this.config.kinds && this.config.kinds.length > 0) {
         taggedFilter.kinds = this.config.kinds;
@@ -168,12 +173,14 @@ export class NostrListener {
       filters.push({
         kinds: [4],
         '#p': [myPubkey],
+        ...(sinceTimestamp && { since: sinceTimestamp }),
       });
 
       // Gift-wrapped events to us
       filters.push({
         kinds: [1059],
         '#p': [myPubkey],
+        ...(sinceTimestamp && { since: sinceTimestamp }),
       });
     }
 
@@ -201,10 +208,11 @@ export class NostrListener {
     filters.push({
       kinds: [9735],
       '#p': zapPubkeys,
+      ...(sinceTimestamp && { since: sinceTimestamp }),
     });
 
     logger.debug(
-      { zapPubkeysCount: zapPubkeys.length },
+      { zapPubkeysCount: zapPubkeys.length, since: sinceTimestamp },
       'Subscribed to zap receipts'
     );
 
