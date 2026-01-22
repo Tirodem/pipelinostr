@@ -1,6 +1,7 @@
 import { logger } from '../persistence/logger.js';
 import { npubToHex } from '../utils/crypto.js';
 import { parseZapReceipt, type ParsedZap } from '../utils/zap-parser.js';
+import { nip19 } from 'nostr-tools';
 import type { ProcessedEvent } from '../inbound/nostr-listener.js';
 import type { WorkflowDefinition, WorkflowFilter, MatchResult, TriggerContext, ZapContext } from './workflow.types.js';
 
@@ -331,6 +332,31 @@ export class WorkflowMatcher {
       // Check zap_min_amount filter
       if (filters.zap_min_amount !== undefined && filters.zap_min_amount > 0) {
         if (!parsedZap || parsedZap.amount < filters.zap_min_amount) {
+          return { matched: false, groups: {} };
+        }
+      }
+
+      // Check zap_event_id filter (only match zaps on a specific note)
+      if (filters.zap_event_id) {
+        if (!parsedZap || !parsedZap.zappedEventId) {
+          // Zap is not on an event (profile zap) or parsing failed
+          return { matched: false, groups: {} };
+        }
+        // Convert note1... to hex if needed
+        let filterEventId = filters.zap_event_id;
+        if (filterEventId.startsWith('note1')) {
+          try {
+            // note1 is bech32 encoded event id
+            const decoded = nip19.decode(filterEventId);
+            if (decoded.type === 'note') {
+              filterEventId = decoded.data;
+            }
+          } catch {
+            logger.warn({ zap_event_id: filters.zap_event_id }, 'Invalid note1 ID in zap_event_id filter');
+            return { matched: false, groups: {} };
+          }
+        }
+        if (parsedZap.zappedEventId !== filterEventId) {
           return { matched: false, groups: {} };
         }
       }

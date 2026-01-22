@@ -35,8 +35,10 @@ trigger:
     # Npubs autorisees a recevoir des zaps pour ce workflow
     zap_recipients:
       - "npub1..."     # Remplacer par ta npub
-    # Note: zap_min_amount ne supporte pas les variables, mettre la valeur directement
+    # Montant minimum en sats
     zap_min_amount: 21
+    # Optionnel: ne declencher que pour les zaps sur une note specifique
+    # zap_event_id: "note1..."  # ou ID hex
 
 actions:
   # Notification de reception

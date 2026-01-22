@@ -24,6 +24,10 @@ export interface WorkflowFilter {
 
   // Minimum zap amount in sats
   zap_min_amount?: number;
+
+  // Filter to only zaps on a specific event (note)
+  // Use note ID (note1...) or hex event ID
+  zap_event_id?: string;
 }
 
 export interface WorkflowTrigger {
