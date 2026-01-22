@@ -132,4 +132,9 @@ fi
 
 echo ""
 echo "=== Logs (Ctrl+C to exit) ==="
-tail -f logs/pipelinostr.log
+# Use journalctl if systemd service exists, otherwise tail log file
+if systemctl list-unit-files pipelinostr.service &>/dev/null && [ -f /etc/systemd/system/pipelinostr.service ]; then
+    journalctl -u pipelinostr -f
+else
+    tail -f logs/pipelinostr.log
+fi
