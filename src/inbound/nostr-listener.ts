@@ -186,9 +186,11 @@ export class NostrListener {
 
     // Zap receipts (kind 9735) - can listen to zaps for any npub
     const zapPubkeys: string[] = [];
+    const zapSources: Array<{ npub: string; source: string }> = [];
 
     // Always listen to zaps for our pubkey
     zapPubkeys.push(myPubkey);
+    zapSources.push({ npub: hexToNpub(myPubkey), source: 'self' });
 
     // Add configured zap recipients
     if (this.config.zapRecipients && this.config.zapRecipients.length > 0) {
@@ -197,6 +199,7 @@ export class NostrListener {
           const hex = npubToHex(npub);
           if (!zapPubkeys.includes(hex)) {
             zapPubkeys.push(hex);
+            zapSources.push({ npub, source: 'config.yml' });
           }
         } catch {
           logger.warn({ npub }, 'Invalid npub in zapRecipients');
@@ -211,13 +214,8 @@ export class NostrListener {
       ...(sinceTimestamp && { since: sinceTimestamp }),
     });
 
-    // Convert hex pubkeys to npub for readable logs
-    const zapNpubs = zapPubkeys.map(hex => {
-      try { return hexToNpub(hex); } catch { return hex; }
-    });
-
-    logger.debug(
-      { zapPubkeysCount: zapPubkeys.length, zapNpubs, since: sinceTimestamp },
+    logger.info(
+      { zapPubkeysCount: zapPubkeys.length, zapRecipients: zapSources },
       'Subscribed to zap receipts'
     );
 
