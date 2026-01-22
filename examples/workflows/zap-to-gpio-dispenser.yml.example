@@ -1,0 +1,64 @@
+# Workflow: Zap to GPIO Dispenser
+# Declenche un distributeur via GPIO sur reception d'un zap
+# Le GPIO 3.3V sert d'interrupteur (transistor) pour alimenter le moteur en 5V
+#
+# Cablage avec transistor NPN (ex: 2N2222, BC547):
+#
+#   GPIO (3.3V) ---- R 1kOhm ---- Base (B)
+#                                   |
+#   +5V ---- Moteur ---- Collecteur (C)
+#                                   |
+#   GND --------------------- Emetteur (E)
+#
+# Prerequis:
+#   - sudo apt install pigpio
+#   - sudo systemctl enable pigpiod
+#   - Handler GPIO active dans config/handlers/gpio.yml
+#
+# Pour un distributeur multi-bouteilles:
+#   - Creer un workflow par bouteille avec un pin et une npub differents
+#   - Chaque bouteille a sa propre npub dans zapRecipients (config.yml)
+
+id: zap-to-gpio-dispenser
+name: Zap to GPIO Dispenser
+enabled: false
+description: Declenche le distributeur GPIO quand un zap >= seuil est recu
+
+# Variables configurables
+variables:
+  min_sats: 21
+  gpio_pin: 17           # Pin GPIO (BCM numbering)
+  pulse_duration: 2000   # Duree du pulse en ms
+
+trigger:
+  type: zap
+  filters:
+    # Npubs autorisees a recevoir des zaps pour ce workflow
+    zap_recipients:
+      - "npub1..."     # Remplacer par ta npub
+    zap_min_amount: "{{ variables.min_sats }}"
+
+actions:
+  # Notification de reception
+  - id: notify
+    type: nostr_dm
+    config:
+      recipient: "{{ trigger.zap.sender }}"
+      content: |
+        Zap de {{ trigger.zap.amount }} sats recu ! Distributeur en cours...
+
+  # Pulse GPIO (HIGH -> delay -> LOW)
+  - id: dispense
+    type: gpio
+    config:
+      pin: "{{ variables.gpio_pin }}"
+      action: pulse
+      duration: "{{ variables.pulse_duration }}"
+
+  # Confirmation
+  - id: confirm
+    type: nostr_dm
+    config:
+      recipient: "{{ trigger.zap.sender }}"
+      content: |
+        Distribution effectuee ! Merci pour ton zap de {{ trigger.zap.amount }} sats.
