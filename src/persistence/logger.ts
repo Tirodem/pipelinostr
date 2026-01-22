@@ -12,4 +12,11 @@ export const logger = pino({
   },
 });
 
+/**
+ * Set the logger level dynamically (called after config is loaded)
+ */
+export function setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
+  logger.level = level;
+}
+
 export type Logger = typeof logger;

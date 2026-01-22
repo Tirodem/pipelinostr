@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import { networkInterfaces, hostname } from 'os';
 import { execSync } from 'child_process';
 import { loadConfig, loadHandlerConfig } from './config/loader.js';
-import { logger } from './persistence/logger.js';
+import { logger, setLogLevel } from './persistence/logger.js';
 import { initDatabase, getDatabase } from './persistence/database.js';
 import { RelayManager } from './relay/manager.js';
 import { RelayDiscovery } from './relay/discovery.js';
@@ -1752,6 +1752,10 @@ async function main(): Promise<void> {
   try {
     // Load configuration
     const config = await loadConfig();
+
+    // Apply log level from config
+    setLogLevel(config.logging.level);
+
     logger.info({ name: config.pipelinostr.name, version: config.pipelinostr.version }, 'Configuration loaded');
 
     // Validate private key
