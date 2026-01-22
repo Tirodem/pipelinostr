@@ -26,7 +26,6 @@ description: Declenche le distributeur GPIO quand un zap >= seuil est recu
 
 # Variables configurables
 variables:
-  min_sats: 21
   gpio_pin: 17           # Pin GPIO (BCM numbering)
   pulse_duration: 2000   # Duree du pulse en ms
 
@@ -36,14 +35,15 @@ trigger:
     # Npubs autorisees a recevoir des zaps pour ce workflow
     zap_recipients:
       - "npub1..."     # Remplacer par ta npub
-    zap_min_amount: "{{ variables.min_sats }}"
+    # Note: zap_min_amount ne supporte pas les variables, mettre la valeur directement
+    zap_min_amount: 21
 
 actions:
   # Notification de reception
   - id: notify
     type: nostr_dm
     config:
-      recipient: "{{ trigger.zap.sender }}"
+      to: "{{ trigger.zap.sender }}"
       content: |
         Zap de {{ trigger.zap.amount }} sats recu ! Distributeur en cours...
 
@@ -59,6 +59,6 @@ actions:
   - id: confirm
     type: nostr_dm
     config:
-      recipient: "{{ trigger.zap.sender }}"
+      to: "{{ trigger.zap.sender }}"
       content: |
         Distribution effectuee ! Merci pour ton zap de {{ trigger.zap.amount }} sats.
