@@ -239,7 +239,9 @@ export class NostrListener {
 
     // Early whitelist check for non-Gift Wrap events (kind !== 1059)
     // For Gift Wrap, we need to unwrap first to know the real sender
-    if (event.kind !== 1059 && !this.isWhitelisted(event.pubkey)) {
+    // For Zap receipts (kind 9735), event.pubkey is the LNURL provider (e.g. Wallet of Satoshi),
+    // not the zap sender - so skip whitelist check here, apply it later on the real sender
+    if (event.kind !== 1059 && event.kind !== 9735 && !this.isWhitelisted(event.pubkey)) {
       // Silently ignore events from non-whitelisted pubkeys
       return;
     }
