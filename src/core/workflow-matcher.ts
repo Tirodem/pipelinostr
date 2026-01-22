@@ -274,9 +274,15 @@ export class WorkflowMatcher {
       }
     }
 
+    // Determine the pubkey to check for whitelist/from_npubs filters
+    // For zaps (kind 9735), use the real sender from the zap request, not the LNURL provider
+    const senderPubkey = (event.kind === 9735 && parsedZap?.sender.pubkey)
+      ? parsedZap.sender.pubkey
+      : event.pubkey;
+
     // Check whitelist (skipped if whitelist contains "*")
     if (filters.from_whitelist === true) {
-      if (!this.whitelistDisabled && !this.whitelistHex.has(event.pubkey)) {
+      if (!this.whitelistDisabled && !this.whitelistHex.has(senderPubkey)) {
         return { matched: false, groups: {} };
       }
     }
@@ -295,7 +301,7 @@ export class WorkflowMatcher {
           }).filter((hex): hex is string => hex !== null)
         );
 
-        if (!allowedHex.has(event.pubkey)) {
+        if (!allowedHex.has(senderPubkey)) {
           return { matched: false, groups: {} };
         }
       }
