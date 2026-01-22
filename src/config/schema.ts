@@ -11,6 +11,7 @@ export interface PipelinostrConfig {
     zapRecipients?: string[];
     dm_format?: 'nip04' | 'nip17';  // Default DM format: 'nip04' (legacy) or 'nip17' (modern)
     dm_reply_match_format?: boolean;  // If true, reply to DMs in the same format as received (default: true)
+    admin_npub?: string;  // If set, sends a DM on startup with IP/hostname info
   };
   whitelist: {
     enabled: boolean;
@@ -131,6 +132,7 @@ const configSchema = {
         zapRecipients: { type: 'array', items: { type: 'string' } },
         dm_format: { type: 'string', enum: ['nip04', 'nip17'] },
         dm_reply_match_format: { type: 'boolean' },
+        admin_npub: { type: 'string' },
       },
       additionalProperties: false,
     },

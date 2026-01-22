@@ -2,6 +2,8 @@
 import WebSocket from 'ws';
 (globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
 
+import { networkInterfaces, hostname } from 'os';
+import { execSync } from 'child_process';
 import { loadConfig, loadHandlerConfig } from './config/loader.js';
 import { logger } from './persistence/logger.js';
 import { initDatabase, getDatabase } from './persistence/database.js';
@@ -1595,6 +1597,131 @@ async function initializeInboundHandlers(
   }
 }
 
+/**
+ * Get local IP addresses (non-internal IPv4)
+ */
+function getLocalIPs(): string[] {
+  const interfaces = networkInterfaces();
+  const ips: string[] = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] ?? []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips;
+}
+
+/**
+ * Get network connection name (WiFi SSID or Ethernet connection name)
+ * Returns: { type: 'wifi' | 'ethernet', name: string } or null
+ */
+function getNetworkInfo(): { type: 'wifi' | 'ethernet'; name: string } | null {
+  // Try WiFi first with iwgetid
+  try {
+    const ssid = execSync('iwgetid -r 2>/dev/null', { encoding: 'utf8', timeout: 2000 }).trim();
+    if (ssid) return { type: 'wifi', name: ssid };
+  } catch {
+    // iwgetid not available or no WiFi
+  }
+
+  // Try nmcli for both WiFi and Ethernet
+  try {
+    // Get active connections with their types
+    const output = execSync('nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null', { encoding: 'utf8', timeout: 2000 });
+    const lines = output.trim().split('\n').filter(line => line.length > 0);
+
+    for (const line of lines) {
+      const parts = line.split(':');
+      if (parts.length >= 3) {
+        const name = parts[0] ?? '';
+        const connType = parts[1] ?? '';
+        if (name && (connType === '802-11-wireless' || connType === 'wifi')) {
+          return { type: 'wifi', name };
+        }
+        if (name && (connType === '802-3-ethernet' || connType === 'ethernet')) {
+          return { type: 'ethernet', name };
+        }
+      }
+    }
+  } catch {
+    // nmcli not available
+  }
+
+  // Fallback: check if we have an active ethernet interface
+  const interfaces = networkInterfaces();
+  for (const [ifname, addrs] of Object.entries(interfaces)) {
+    if (addrs && addrs.some(a => a.family === 'IPv4' && !a.internal)) {
+      // Common ethernet interface name patterns
+      if (ifname.startsWith('eth') || ifname.startsWith('enp') || ifname.startsWith('eno')) {
+        return { type: 'ethernet', name: ifname };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get public IP address via external API
+ */
+async function getPublicIP(): Promise<string | null> {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
+    if (response.ok) {
+      const data = await response.json() as { ip: string };
+      return data.ip;
+    }
+  } catch {
+    // Ignore errors, public IP is optional
+  }
+  return null;
+}
+
+/**
+ * Send startup notification to admin via DM
+ */
+async function sendAdminStartupNotification(
+  adminNpub: string,
+  nostrDmHandler: NostrDmHandler
+): Promise<void> {
+  try {
+    const localIPs = getLocalIPs();
+    const publicIP = await getPublicIP();
+    const networkInfo = getNetworkInfo();
+    const host = hostname();
+    const timestamp = new Date().toISOString();
+
+    // Format network info with type indicator
+    let networkLine: string | null = null;
+    if (networkInfo) {
+      const typeLabel = networkInfo.type === 'wifi' ? 'WiFi' : 'Ethernet';
+      networkLine = `Network: ${networkInfo.name} (${typeLabel})`;
+    }
+
+    const message = [
+      `PipeliNostr started`,
+      ``,
+      `Hostname: ${host}`,
+      ...(networkLine ? [networkLine] : []),
+      `Local IP: ${localIPs.length > 0 ? localIPs.join(', ') : 'N/A'}`,
+      `Public IP: ${publicIP ?? 'N/A'}`,
+      `Time: ${timestamp}`,
+    ].join('\n');
+
+    await nostrDmHandler.execute({
+      to: adminNpub,
+      content: message,
+    }, {});
+
+    logger.info({ adminNpub: adminNpub.slice(0, 20) + '...' }, 'Admin startup notification sent');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn({ error: errorMessage }, 'Failed to send admin startup notification');
+  }
+}
+
 async function main(): Promise<void> {
   logger.info('Starting PipeliNostr...');
 
@@ -1824,6 +1951,12 @@ async function main(): Promise<void> {
       },
       'PipeliNostr started successfully'
     );
+
+    // Send admin startup notification if configured
+    if (config.nostr.admin_npub && state.handlers.nostrDm) {
+      // Don't await - let it run in background to not block startup
+      sendAdminStartupNotification(config.nostr.admin_npub, state.handlers.nostrDm);
+    }
 
     // Keep process running
     await new Promise(() => {});
