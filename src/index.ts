@@ -1664,6 +1664,22 @@ function getNetworkInfo(): { type: 'wifi' | 'ethernet'; name: string } | null {
 }
 
 /**
+ * Get git version info (branch + short commit hash)
+ */
+function getGitVersion(): { branch: string; commit: string } | null {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD 2>/dev/null', { encoding: 'utf8', timeout: 2000 }).trim();
+    const commit = execSync('git rev-parse --short HEAD 2>/dev/null', { encoding: 'utf8', timeout: 2000 }).trim();
+    if (branch && commit) {
+      return { branch, commit };
+    }
+  } catch {
+    // Git not available or not a git repo
+  }
+  return null;
+}
+
+/**
  * Get public IP address via external API
  */
 async function getPublicIP(): Promise<string | null> {
@@ -1690,6 +1706,7 @@ async function sendAdminStartupNotification(
     const localIPs = getLocalIPs();
     const publicIP = await getPublicIP();
     const networkInfo = getNetworkInfo();
+    const gitVersion = getGitVersion();
     const host = hostname();
     const timestamp = new Date().toISOString();
 
@@ -1700,10 +1717,17 @@ async function sendAdminStartupNotification(
       networkLine = `Network: ${networkInfo.name} (${typeLabel})`;
     }
 
+    // Format git version
+    let versionLine: string | null = null;
+    if (gitVersion) {
+      versionLine = `Version: ${gitVersion.branch}@${gitVersion.commit}`;
+    }
+
     const message = [
       `PipeliNostr started`,
       ``,
       `Hostname: ${host}`,
+      ...(versionLine ? [versionLine] : []),
       ...(networkLine ? [networkLine] : []),
       `Local IP: ${localIPs.length > 0 ? localIPs.join(', ') : 'N/A'}`,
       `Public IP: ${publicIP ?? 'N/A'}`,
