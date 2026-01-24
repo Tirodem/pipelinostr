@@ -31,8 +31,18 @@ export class ExpressionEvaluator {
       // Check if it's a simple Handlebars expression
       const handlebarsMatch = expression.match(/^\{\{\s*(.+?)\s*\}\}$/);
       if (handlebarsMatch) {
-        const value = this.resolveValue(handlebarsMatch[1] as string, context);
-        return this.toBoolean(value);
+        const innerExpr = handlebarsMatch[1] as string;
+        // Check if it's a helper call (contains spaces, like "lt a b" or "gte x y")
+        // vs a simple path like "actions.send-email.success"
+        if (innerExpr.includes(' ')) {
+          // It's a helper call - use template engine to evaluate
+          const rendered = templateEngine.render(expression, context as unknown as Record<string, unknown>);
+          return this.toBoolean(rendered);
+        } else {
+          // Simple path - use resolveValue
+          const value = this.resolveValue(innerExpr, context);
+          return this.toBoolean(value);
+        }
       }
 
       // Otherwise, evaluate as expression
