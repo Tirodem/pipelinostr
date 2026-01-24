@@ -7,7 +7,7 @@ Guide de cablage pour un distributeur de boissons avec 3 pompes et 1 gyrophare, 
 ### Composants electroniques
 | Composant | Quantite | Specification | Usage |
 |-----------|----------|---------------|-------|
-| Transistor NPN | 3 | 2N2222 ou BC547 | Interrupteurs (3 pompes) |
+| Transistor NPN | 3 | 2N2222 (TO-92) | Interrupteurs (3 pompes) |
 | Resistance | 3 | 330 ohms (330R) | Protection base transistors |
 | Diode | 3 | 1N4007 (optionnel) | Protection flyback moteurs |
 | Fils dupont | ~20 | Male-femelle | Connexions GPIO |
