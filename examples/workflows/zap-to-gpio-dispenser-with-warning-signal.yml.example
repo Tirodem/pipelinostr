@@ -43,6 +43,9 @@ variables:
   # Pourboire
   tip_vat: 0                 # TVA pourboire en %
 
+  # Mention si TVA a 0% (ex: auto-entrepreneur)
+  vat_exemption_text: "TVA non applicable - Art. 293B du CGI"
+
   # GPIO
   gpio_warning: 18       # Pin GPIO du gyrophare (BCM)
   gpio_motor: 17         # Pin GPIO du moteur (BCM)
@@ -125,6 +128,10 @@ actions:
         Merci pour le pourboire !
         {{else}}
         Merci et a bientot !
+        {{/if}}
+        {{#if (eq variables.product_vat 0) }}
+
+        {{ variables.vat_exemption_text }}
         {{/if}}
         ================================
 
