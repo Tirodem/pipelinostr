@@ -44,7 +44,7 @@ export interface GpioStep {
 
 export interface GpioActionConfig extends HandlerConfig {
   pin: number | string;
-  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo' | 'morse';
+  action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo' | 'morse' | 'sequence';
   duration?: number | undefined;
   duty_cycle?: number | undefined;
   pwm_frequency?: number | undefined;
