@@ -1,0 +1,77 @@
+# Workflow: Zap to GPIO Dispenser with Warning Signal
+# Declenche un gyrophare puis un distributeur via GPIO sur reception d'un zap
+#
+# Sequence:
+#   1. Gyrophare s'allume (signal d'avertissement)
+#   2. Attente X secondes (suspense)
+#   3. Moteur s'allume (versement) - gyrophare toujours allume
+#   4. Moteur s'eteint apres Y secondes
+#   5. Attente Z secondes (gyrophare toujours allume)
+#   6. Gyrophare s'eteint
+#
+# Cablage:
+#   - Gyrophare: GPIO 18 (pin 12) -> transistor NPN -> gyrophare 5V
+#   - Moteur:    GPIO 17 (pin 11) -> transistor NPN -> moteur 5V
+#   - Voir zap-to-gpio-dispenser.yml.example pour le schema de cablage
+#
+# Prerequis:
+#   - sudo apt install pigpio && sudo systemctl enable pigpiod
+#   - Handler GPIO active dans config/handlers/gpio.yml
+#
+# Multi-bouteilles:
+#   - Utiliser zap_event_id pour filtrer sur une note specifique
+#   - Chaque bouteille = une note = un workflow avec son zap_event_id
+#   - Le gyrophare est commun a toutes les bouteilles (meme pin)
+
+id: zap-to-gpio-dispenser-with-warning-signal
+name: Zap to GPIO Dispenser with Warning Signal
+enabled: false
+description: Gyrophare + distributeur GPIO sur reception d'un zap
+
+# Variables configurables
+variables:
+  gpio_warning: 18       # Pin GPIO du gyrophare (BCM)
+  gpio_motor: 17         # Pin GPIO du moteur (BCM)
+  delay_before: 3000     # Delai avant versement (ms) - suspense!
+  pour_duration: 2000    # Duree du versement (ms)
+  delay_after: 2000      # Delai apres versement, gyrophare encore allume (ms)
+
+trigger:
+  type: zap
+  filters:
+    # Npubs autorisees a recevoir des zaps pour ce workflow
+    zap_recipients:
+      - "npub1..."     # Remplacer par ta npub
+    # Montant minimum en sats
+    zap_min_amount: 21
+    # Optionnel: ne declencher que pour les zaps sur une note specifique
+    # Utile pour multi-bouteilles: chaque note = une bouteille
+    # zap_event_id: "note1..."  # ou ID hex
+
+actions:
+  # Sequence GPIO: gyrophare -> attente -> moteur -> attente -> extinction
+  - id: dispense_sequence
+    type: gpio
+    config:
+      # pin/action ignores quand sequence est present
+      pin: 0
+      action: set
+      sequence:
+        # 1. Gyrophare ON
+        - { pin: "{{ variables.gpio_warning }}", action: set }
+        # 2. Attente avant versement (suspense)
+        - { delay: "{{ variables.delay_before }}" }
+        # 3. Moteur ON pendant X ms (versement)
+        - { pin: "{{ variables.gpio_motor }}", action: pulse, duration: "{{ variables.pour_duration }}" }
+        # 4. Attente apres versement (gyrophare toujours allume)
+        - { delay: "{{ variables.delay_after }}" }
+        # 5. Gyrophare OFF
+        - { pin: "{{ variables.gpio_warning }}", action: clear }
+
+  # Confirmation DM
+  - id: confirm
+    type: nostr_dm
+    config:
+      to: "{{ trigger.zap.sender }}"
+      content: |
+        Zap de {{ trigger.zap.amount }} sats recu ! Distribution effectuee.

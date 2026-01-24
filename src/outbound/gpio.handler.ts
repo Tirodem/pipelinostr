@@ -34,6 +34,14 @@ interface GpioHandlerConfig {
   port?: number | undefined;  // pigpiod port (default: 8888)
 }
 
+// Single GPIO step (used in sequences)
+export interface GpioStep {
+  pin?: number | string | undefined;  // GPIO pin (required for gpio actions)
+  action?: 'set' | 'clear' | 'toggle' | 'pulse' | undefined;  // GPIO action
+  duration?: number | undefined;      // For pulse action
+  delay?: number | undefined;         // Delay in ms (standalone delay step)
+}
+
 export interface GpioActionConfig extends HandlerConfig {
   pin: number | string;
   action: 'set' | 'clear' | 'toggle' | 'pulse' | 'read' | 'pwm' | 'blink' | 'servo' | 'morse';
@@ -49,6 +57,8 @@ export interface GpioActionConfig extends HandlerConfig {
   text?: string | undefined;       // Text to convert to Morse code
   unit_ms?: number | undefined;    // Base unit duration in ms (default: 100ms)
   tone_freq?: number | undefined;  // Buzzer tone frequency in Hz (for passive buzzer, default: 800)
+  // Sequence of GPIO actions with delays (if present, pin/action are ignored)
+  sequence?: GpioStep[] | undefined;
 }
 
 export class GpioHandler implements Handler {
@@ -147,6 +157,11 @@ export class GpioHandler implements Handler {
     const params = config as GpioActionConfig;
 
     try {
+      // Handle sequence action (multiple steps with delays)
+      if (params.action === 'sequence' || params.sequence) {
+        return this.executeSequence(params.sequence || []);
+      }
+
       const pinNumber = this.resolvePin(params.pin);
 
       switch (params.action) {
@@ -193,6 +208,68 @@ export class GpioHandler implements Handler {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: errorMessage };
     }
+  }
+
+  /**
+   * Execute a sequence of GPIO actions with delays.
+   * Each step can be either a GPIO action (set, clear, toggle, pulse) or a delay.
+   */
+  private async executeSequence(steps: GpioStep[]): Promise<HandlerResult> {
+    if (!steps || steps.length === 0) {
+      return { success: false, error: 'Sequence is empty' };
+    }
+
+    const results: Array<{ step: number; action: string; pin?: number; duration?: number }> = [];
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]!;
+
+      // Delay step
+      if (step.delay !== undefined) {
+        console.log(`[GPIO] Sequence step ${i + 1}: delay ${step.delay}ms`);
+        await this.delay(step.delay);
+        results.push({ step: i + 1, action: 'delay', duration: step.delay });
+        continue;
+      }
+
+      // GPIO action step
+      if (!step.pin || !step.action) {
+        return { success: false, error: `Sequence step ${i + 1}: missing pin or action` };
+      }
+
+      const pinNumber = this.resolvePin(step.pin);
+
+      switch (step.action) {
+        case 'set':
+          await this.setPin(pinNumber, 1);
+          results.push({ step: i + 1, action: 'set', pin: pinNumber });
+          break;
+        case 'clear':
+          await this.setPin(pinNumber, 0);
+          results.push({ step: i + 1, action: 'clear', pin: pinNumber });
+          break;
+        case 'toggle':
+          await this.togglePin(pinNumber);
+          results.push({ step: i + 1, action: 'toggle', pin: pinNumber });
+          break;
+        case 'pulse':
+          await this.pulsePin(pinNumber, step.duration || 100);
+          results.push({ step: i + 1, action: 'pulse', pin: pinNumber, duration: step.duration || 100 });
+          break;
+        default:
+          return { success: false, error: `Sequence step ${i + 1}: unknown action ${step.action}` };
+      }
+    }
+
+    console.log(`[GPIO] Sequence complete: ${results.length} steps executed`);
+
+    return {
+      success: true,
+      data: {
+        action: 'sequence',
+        steps: results,
+      },
+    };
   }
 
   private async setPin(pinNumber: number, value: 0 | 1): Promise<HandlerResult> {
