@@ -49,6 +49,14 @@ trigger:
     # zap_event_id: "note1..."  # ou ID hex
 
 actions:
+  # Notification de reception
+  - id: notify
+    type: nostr_dm
+    config:
+      to: "{{ trigger.zap.sender }}"
+      content: |
+        Zap de {{ trigger.zap.amount }} sats recu ! Distribution en cours...
+
   # Sequence GPIO: gyrophare -> attente -> moteur -> attente -> extinction
   - id: dispense_sequence
     type: gpio
