@@ -193,6 +193,24 @@ export class TemplateEngine {
       const w = Number(width) || 0;
       return str.padEnd(w, ' ');
     });
+
+    // Format sats with automatic mSats conversion for sub-sat values
+    // Usage: {{ format_sats 0.18 }} -> "180 mSats"
+    // Usage: {{ format_sats 5.5 }} -> "5.50 sats"
+    this.handlebars.registerHelper('format_sats', (value: unknown, options: unknown) => {
+      if (typeof value === 'object' && value !== null && 'hash' in value) return '0 sats';
+      const num = Number(value) || 0;
+      if (num < 1 && num > 0) {
+        // Convert to mSats (millisatoshis)
+        const msats = Math.round(num * 1000);
+        return `${msats} mSats`;
+      }
+      // Regular sats with 2 decimals if needed
+      if (num === Math.floor(num)) {
+        return `${num} sats`;
+      }
+      return `${num.toFixed(2)} sats`;
+    });
   }
 
   compile(template: string): HandlebarsTemplateDelegate {
