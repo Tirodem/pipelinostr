@@ -59,11 +59,12 @@ trigger:
     # Npubs autorisees a recevoir des zaps pour ce workflow
     zap_recipients:
       - "npub1..."     # Remplacer par ta npub
-    # Montant minimum en sats - mettre a 1 pour accepter tous les zaps (y compris dons)
-    zap_min_amount: 1
     # Optionnel: ne declencher que pour les zaps sur une note specifique
     # Utile pour multi-bouteilles: chaque note = une bouteille
     # zap_event_id: "note1..."  # ou ID hex
+    #
+    # Note: pas de zap_min_amount ici, le seuil est gere par product_price
+    # dans les conditions 'when' des actions (permet d'accepter les dons)
 
 actions:
   # Notification de reception
