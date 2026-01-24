@@ -1,5 +1,6 @@
 # Workflow: Zap to GPIO Dispenser with Warning Signal
 # Declenche un gyrophare puis un distributeur via GPIO sur reception d'un zap
+# Envoie un ticket de caisse ASCII en DM
 #
 # Sequence:
 #   1. Gyrophare s'allume (signal d'avertissement)
@@ -30,6 +31,19 @@ description: Gyrophare + distributeur GPIO sur reception d'un zap
 
 # Variables configurables
 variables:
+  # Affichage ticket
+  bar_name: "PIPELINOSTR BAR"
+
+  # Produit
+  product_name: "1 verre de vin rouge"
+  product_volume: "12.5 cL"
+  product_price: 21          # Seuil en sats = prix TTC
+  product_vat: 20            # TVA produit en %
+
+  # Pourboire
+  tip_vat: 0                 # TVA pourboire en %
+
+  # GPIO
   gpio_warning: 18       # Pin GPIO du gyrophare (BCM)
   gpio_motor: 17         # Pin GPIO du moteur (BCM)
   delay_before: 3000     # Delai avant versement (ms) - suspense!
@@ -42,8 +56,8 @@ trigger:
     # Npubs autorisees a recevoir des zaps pour ce workflow
     zap_recipients:
       - "npub1..."     # Remplacer par ta npub
-    # Montant minimum en sats
-    zap_min_amount: 21
+    # Montant minimum en sats - mettre a 1 pour accepter tous les zaps (y compris dons)
+    zap_min_amount: 1
     # Optionnel: ne declencher que pour les zaps sur une note specifique
     # Utile pour multi-bouteilles: chaque note = une bouteille
     # zap_event_id: "note1..."  # ou ID hex
@@ -58,10 +72,11 @@ actions:
         Zap de {{ trigger.zap.amount }} sats recu ! Distribution en cours...
 
   # Sequence GPIO: gyrophare -> attente -> moteur -> attente -> extinction
+  # Seulement si le montant >= prix du produit
   - id: dispense_sequence
     type: gpio
+    when: "{{ gte trigger.zap.amount variables.product_price }}"
     config:
-      # pin/action ignores quand sequence est present
       pin: 0
       action: set
       sequence:
@@ -76,10 +91,65 @@ actions:
         # 5. Gyrophare OFF
         - { pin: "{{ variables.gpio_warning }}", action: clear }
 
-  # Confirmation DM
-  - id: confirm
+  # Ticket de caisse - montant suffisant
+  - id: receipt_ok
     type: nostr_dm
+    when: "{{ gte trigger.zap.amount variables.product_price }}"
     config:
       to: "{{ trigger.zap.sender }}"
       content: |
-        Zap de {{ trigger.zap.amount }} sats recu ! Distribution effectuee.
+        ================================
+                {{ variables.bar_name }}
+        ================================
+        Date: {{ date trigger.timestamp }}
+
+        --------------------------------
+        ARTICLE                    SATS
+        --------------------------------
+        {{ variables.product_name }}
+        ({{ variables.product_volume }}){{ pad_left variables.product_price 21 }}
+          TVA {{ variables.product_vat }}%: {{ fixed (divide (multiply variables.product_price variables.product_vat) (add 100 variables.product_vat)) 2 }} sats
+        {{#if (gt trigger.zap.amount variables.product_price) }}
+
+        Pourboire{{ pad_left (subtract trigger.zap.amount variables.product_price) 23 }}
+          TVA {{ variables.tip_vat }}%: {{ fixed (divide (multiply (subtract trigger.zap.amount variables.product_price) variables.tip_vat) (add 100 variables.tip_vat)) 2 }} sats
+        {{/if}}
+
+        --------------------------------
+        TOTAL TTC{{ pad_left trigger.zap.amount 23 }}
+          dont TVA{{ pad_left (fixed (add (divide (multiply variables.product_price variables.product_vat) (add 100 variables.product_vat)) (divide (multiply (subtract trigger.zap.amount variables.product_price) variables.tip_vat) (add 100 variables.tip_vat))) 2) 18 }}
+        --------------------------------
+
+        Paiement: Zap Lightning
+        {{#if (gt trigger.zap.amount variables.product_price) }}
+        Merci pour le pourboire !
+        {{else}}
+        Merci et a bientot !
+        {{/if}}
+        ================================
+
+  # Ticket de caisse - montant insuffisant (don sans distribution)
+  - id: receipt_insufficient
+    type: nostr_dm
+    when: "{{ lt trigger.zap.amount variables.product_price }}"
+    config:
+      to: "{{ trigger.zap.sender }}"
+      content: |
+        ================================
+                {{ variables.bar_name }}
+        ================================
+        Date: {{ date trigger.timestamp }}
+
+        --------------------------------
+        Don recu: {{ trigger.zap.amount }} sats
+        Merci pour votre generosite !
+
+        Seuil pour {{ variables.product_name }}:
+        {{ variables.product_price }} sats
+        ({{ subtract variables.product_price trigger.zap.amount }} sats manquants)
+        --------------------------------
+
+        Aucune distribution effectuee.
+        Zappez a nouveau pour
+        completer votre commande !
+        ================================

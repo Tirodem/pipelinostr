@@ -166,6 +166,33 @@ export class TemplateEngine {
       if (typeof b === 'object' && b !== null && 'hash' in b) b = Infinity;
       return Math.min(Number(a) || 0, Number(b) || Infinity);
     });
+
+    // Format number with fixed decimal places
+    // Usage: {{ fixed 3.5 2 }} -> "3.50"
+    this.handlebars.registerHelper('fixed', (value: unknown, decimals: unknown) => {
+      if (typeof decimals === 'object' && decimals !== null && 'hash' in decimals) decimals = 2;
+      const num = Number(value) || 0;
+      const dec = Number(decimals) || 2;
+      return num.toFixed(dec);
+    });
+
+    // Pad string to fixed width (left pad with spaces)
+    // Usage: {{ pad_left "21" 5 }} -> "   21"
+    this.handlebars.registerHelper('pad_left', (value: unknown, width: unknown) => {
+      if (typeof width === 'object' && width !== null && 'hash' in width) width = 0;
+      const str = String(value ?? '');
+      const w = Number(width) || 0;
+      return str.padStart(w, ' ');
+    });
+
+    // Pad string to fixed width (right pad with spaces)
+    // Usage: {{ pad_right "Vin" 20 }} -> "Vin                 "
+    this.handlebars.registerHelper('pad_right', (value: unknown, width: unknown) => {
+      if (typeof width === 'object' && width !== null && 'hash' in width) width = 0;
+      const str = String(value ?? '');
+      const w = Number(width) || 0;
+      return str.padEnd(w, ' ');
+    });
   }
 
   compile(template: string): HandlebarsTemplateDelegate {
