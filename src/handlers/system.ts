@@ -24,26 +24,35 @@ export class SystemHandler extends BaseHandler {
       const mem = process.memoryUsage();
       const uptime = process.uptime();
 
+      const uptimeStr = this.formatUptime(uptime);
+      const rssMb = Math.round(mem.rss / 1024 / 1024);
+      const heapMb = Math.round(mem.heapUsed / 1024 / 1024);
+      const totalMem = Math.round(os.totalmem() / 1024 / 1024);
+      const freeMem = Math.round(os.freemem() / 1024 / 1024);
+      const load = os.loadavg().map((l) => Math.round(l * 100) / 100);
+
+      const formatted = [
+        `PipeliNostr v2`,
+        `Uptime: ${uptimeStr}`,
+        `Node: ${process.version} (${os.platform()} ${os.arch()})`,
+        `Host: ${os.hostname()}`,
+        `Memory: ${rssMb}MB RSS / ${heapMb}MB heap`,
+        `System: ${freeMem}MB free / ${totalMem}MB total`,
+        `Load: ${load.join(', ')}`,
+      ].join('\n');
+
       return {
         success: true,
         data: {
+          formatted,
           version: 'v2',
           platform: os.platform(),
           arch: os.arch(),
           node: process.version,
           uptime_seconds: Math.floor(uptime),
-          uptime_human: this.formatUptime(uptime),
-          memory: {
-            rss_mb: Math.round(mem.rss / 1024 / 1024),
-            heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
-            heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024),
-          },
-          os: {
-            hostname: os.hostname(),
-            total_memory_mb: Math.round(os.totalmem() / 1024 / 1024),
-            free_memory_mb: Math.round(os.freemem() / 1024 / 1024),
-            load_avg: os.loadavg().map((l) => Math.round(l * 100) / 100),
-          },
+          uptime_human: uptimeStr,
+          memory: { rss_mb: rssMb, heap_used_mb: heapMb },
+          os: { hostname: os.hostname(), total_memory_mb: totalMem, free_memory_mb: freeMem, load_avg: load },
         },
       };
     }
