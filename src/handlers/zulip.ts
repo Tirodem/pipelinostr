@@ -48,7 +48,8 @@ export class ZulipHandler extends BaseHandler {
     const content = action.content as string;
     if (!content) return { success: false, error: 'Missing content' };
 
-    const msgType = (action.type as string) ?? 'stream';
+    // 'msg_type' in v2 (since 'type' is stripped by engine as handler name)
+    const msgType = (action.msg_type as string) ?? (action.type as string) ?? 'stream';
 
     if (msgType === 'private') {
       return this.sendPrivate(action, content);

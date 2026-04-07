@@ -6,5 +6,6 @@ trigger:
   from_whitelist: true
 actions:
   - id: send_zulip
-    type: stream
+    type: zulip
+    msg_type: stream
     content: "DM de {{ trigger.from }}: {{ trigger.content }}"
