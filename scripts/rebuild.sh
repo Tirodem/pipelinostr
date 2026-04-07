@@ -24,6 +24,13 @@ npm run build || { echo -e "${RED}Build failed${NC}"; exit 1; }
 echo -e "${GREEN}Build successful${NC}"
 echo ""
 
+echo "=== Validating ==="
+if ! npm run validate; then
+    echo -e "${RED}Validation failed — not restarting${NC}"
+    exit 1
+fi
+echo ""
+
 echo "=== Restarting PipeliNostr ==="
 
 # Stop existing process if running

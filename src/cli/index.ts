@@ -32,6 +32,11 @@ async function main(): Promise<void> {
       await runSetup();
       break;
     }
+    case 'validate': case '--validate': case '--dry-run': {
+      const { runValidate } = await import('./validate.js');
+      await runValidate();
+      break;
+    }
     case 'workflow': await handleWorkflow(subcommand, args); break;
     case 'handler': await handleHandler(subcommand, args); break;
     case 'queue': await handleQueue(subcommand, args); break;
@@ -522,6 +527,7 @@ Usage: pipelinostr <command> [options]
 
 Commands:
   setup                                   Interactive first-run wizard
+  validate                                Validate config, handlers, workflows (dry-run)
 
   workflow list [all|enabled|disabled]    List workflows
   workflow enable <id|pattern|all>        Enable workflow(s)
