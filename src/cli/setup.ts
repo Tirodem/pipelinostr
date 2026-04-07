@@ -340,20 +340,32 @@ export async function runSetup(): Promise<void> {
     console.log(`  Created config/handlers/${handler.type}.yml`);
   }
 
-  // Deploy default workflows
+  // Deploy default workflows: system commands + auto-reply + dpo
   fs.mkdirSync(WORKFLOWS_DIR, { recursive: true });
 
-  const defaultWorkflows = ['auto-reply', 'dpo-command'];
-  for (const wfId of defaultWorkflows) {
-    const src = path.join(WORKFLOWS_EXAMPLES_DIR, `${wfId}.yml.example`);
+  const allExamples = fs.existsSync(WORKFLOWS_EXAMPLES_DIR)
+    ? fs.readdirSync(WORKFLOWS_EXAMPLES_DIR).filter((f) => f.endsWith('.yml.example'))
+    : [];
+
+  // System workflows (pipelinostr-*) + essential workflows deployed enabled
+  const defaultEnabled = ['auto-reply', 'dpo-command'];
+
+  for (const example of allExamples) {
+    const wfId = example.replace('.yml.example', '');
+    const isSystem = wfId.startsWith('pipelinostr-');
+    const isDefault = defaultEnabled.includes(wfId);
+
+    if (!isSystem && !isDefault) continue;
+
+    const src = path.join(WORKFLOWS_EXAMPLES_DIR, example);
     const dst = path.join(WORKFLOWS_DIR, `${wfId}.yml`);
-    if (fs.existsSync(src) && !fs.existsSync(dst)) {
-      const content = YAML.parse(fs.readFileSync(src, 'utf-8')) as Record<string, unknown>;
-      content.enabled = true;
-      fs.writeFileSync(dst, YAML.stringify(content, { lineWidth: 0 }));
-    }
+    if (fs.existsSync(dst)) continue;
+
+    const content = YAML.parse(fs.readFileSync(src, 'utf-8')) as Record<string, unknown>;
+    content.enabled = true;
+    fs.writeFileSync(dst, YAML.stringify(content, { lineWidth: 0 }));
   }
-  console.log('  Deployed default workflows (auto-reply, dpo-command)');
+  console.log('  Deployed system + default workflows');
 
   // --- Done ---
   console.log(`

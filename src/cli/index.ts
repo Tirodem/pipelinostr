@@ -123,14 +123,16 @@ function workflowRefresh(args: string[]): void {
 
     fs.copyFileSync(src, dst);
 
-    // Disable by default after refresh
+    // System workflows (pipelinostr-*) keep their template enabled state
+    // User workflows are disabled by default after refresh
     const wf = loadYaml(dst);
-    if (wf) {
+    if (wf && !id.startsWith('pipelinostr-')) {
       wf.enabled = false;
       fs.writeFileSync(dst, YAML.stringify(wf, { lineWidth: 0 }));
     }
 
-    console.log(`  Refreshed: ${id} (disabled by default)`);
+    const status = wf?.enabled !== false ? 'enabled' : 'disabled';
+    console.log(`  Refreshed: ${id} (${status})`);
     count++;
   }
 
@@ -159,14 +161,15 @@ function workflowLoadMissing(): void {
 
     fs.copyFileSync(src, dst);
 
-    // Disable by default
+    // System workflows (pipelinostr-*) keep their template enabled state
     const wf = loadYaml(dst);
-    if (wf) {
+    if (wf && !id.startsWith('pipelinostr-')) {
       wf.enabled = false;
       fs.writeFileSync(dst, YAML.stringify(wf, { lineWidth: 0 }));
     }
 
-    console.log(`  Deployed: ${id} (disabled)`);
+    const status = wf?.enabled !== false ? 'enabled' : 'disabled';
+    console.log(`  Deployed: ${id} (${status})`);
     count++;
   }
 
