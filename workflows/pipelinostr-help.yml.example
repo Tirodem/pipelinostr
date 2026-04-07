@@ -4,7 +4,7 @@ enabled: true
 trigger:
   source: nostr.dm
   from_whitelist: true
-  content_pattern: ^/pipelinostr\s+help$
+  content_pattern: ^/(help|pipelinostr\s+help)$
 actions:
   - id: reply
     type: nostr_dm
