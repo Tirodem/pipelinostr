@@ -59,7 +59,7 @@ async function handleWorkflow(sub: string | undefined, args: string[]): Promise<
 
 function workflowList(filter?: string): void {
   const files = getWorkflowFiles();
-  console.log(`\n  Workflows (${files.length}):\n`);
+  const lines: string[] = [];
 
   for (const file of files) {
     const wf = loadYaml(file);
@@ -72,8 +72,12 @@ function workflowList(filter?: string): void {
     const status = enabled ? '\x1b[32m[ON]\x1b[0m ' : '\x1b[31m[OFF]\x1b[0m';
     const trigger = wf.trigger as Record<string, unknown> | undefined;
     const source = trigger?.source ?? 'unknown';
-    console.log(`  ${status} ${wf.id ?? path.basename(file)}  (${source})`);
+    lines.push(`  ${status} ${wf.id ?? path.basename(file)}  (${source})`);
   }
+
+  const label = filter ?? 'all';
+  console.log(`\n  Workflows — ${label} (${lines.length}):\n`);
+  for (const line of lines) console.log(line);
   console.log('');
 }
 
@@ -214,7 +218,7 @@ async function handleHandler(sub: string | undefined, args: string[]): Promise<v
 
 function handlerList(filter?: string): void {
   const files = getHandlerFiles();
-  console.log(`\n  Handlers (${files.length}):\n`);
+  const lines: string[] = [];
 
   for (const file of files) {
     const cfg = loadYaml(file);
@@ -226,8 +230,12 @@ function handlerList(filter?: string): void {
     if (filter === 'disabled' && enabled) continue;
 
     const status = enabled ? '\x1b[32m[ON]\x1b[0m ' : '\x1b[31m[OFF]\x1b[0m';
-    console.log(`  ${status} ${name}`);
+    lines.push(`  ${status} ${name}`);
   }
+
+  const label = filter ?? 'all';
+  console.log(`\n  Handlers — ${label} (${lines.length}):\n`);
+  for (const line of lines) console.log(line);
   console.log('');
 }
 
