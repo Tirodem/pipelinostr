@@ -31,6 +31,11 @@ const [,, command, subcommand, ...args] = process.argv;
 
 async function main(): Promise<void> {
   switch (command) {
+    case 'setup': {
+      const { runSetup } = await import('./setup.js');
+      await runSetup();
+      break;
+    }
     case 'workflow': await handleWorkflow(subcommand, args); break;
     case 'handler': await handleHandler(subcommand, args); break;
     case 'queue': await handleQueue(subcommand, args); break;
@@ -511,6 +516,8 @@ PipeliNostr v2 CLI
 Usage: pipelinostr <command> [options]
 
 Commands:
+  setup                                   Interactive first-run wizard
+
   workflow list [all|enabled|disabled]    List workflows
   workflow enable <id|pattern|all>        Enable workflow(s)
   workflow disable <id|pattern|all>       Disable workflow(s)
