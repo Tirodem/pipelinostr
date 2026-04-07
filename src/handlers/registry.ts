@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BaseHandler } from './base.js';
 import { Secret } from '../config/secrets.js';
+import { ensureSystemDeps, type SystemDependency } from '../utils/system-deps.js';
 import type { Logger } from 'pino';
 
 /** Constructor type that includes static properties from BaseHandler */
@@ -18,7 +19,7 @@ interface HandlerConstructor {
   type: string;
   configSchema?: import('zod').ZodType<unknown>;
   npmDependencies?: string[];
-  systemDependencies?: string[];
+  systemDeps?: SystemDependency[];
   platforms?: string[];
 }
 
@@ -109,6 +110,29 @@ export class HandlerRegistry {
         }
       }
 
+      // Check and auto-install system dependencies
+      if (HandlerClass.systemDeps?.length) {
+        const autoInstall = (config.auto_install as boolean) ?? false;
+        const { missing, installed } = await ensureSystemDeps(HandlerClass.systemDeps, autoInstall, this.logger);
+
+        if (installed.length > 0) {
+          this.logger.info({ type, installed }, 'System dependencies installed');
+        }
+
+        // Only block if non-optional deps are missing
+        const requiredMissing = missing.filter((bin) =>
+          HandlerClass.systemDeps!.find((d) => d.binary === bin && !d.optional)
+        );
+        if (requiredMissing.length > 0) {
+          const errorMsg = `Missing system dependencies: ${requiredMissing.join(', ')}. Set auto_install: true in handler config or install manually.`;
+          this.logger.warn({ type, missing: requiredMissing }, errorMsg);
+          registered.status = 'unavailable';
+          registered.error = errorMsg;
+          unavailable.push(type);
+          continue;
+        }
+      }
+
       try {
         // Unwrap secrets for handler initialization — libraries need plain strings
         // (e.g. nodemailer's DNS resolver does typeof === 'string' checks)
@@ -131,7 +155,9 @@ export class HandlerRegistry {
 
       const Ctor = registered.instance.constructor as HandlerConstructor;
       if (Ctor.npmDependencies?.length) continue;
-      if (Ctor.systemDependencies?.length) continue;
+      // Skip auto-init for handlers with required system deps
+      const hasRequiredSystemDeps = Ctor.systemDeps?.some((d) => !d.optional);
+      if (hasRequiredSystemDeps) continue;
 
       // Check if schema accepts minimal config (no required fields beyond enabled)
       if (Ctor.configSchema) {

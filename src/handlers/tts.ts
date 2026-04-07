@@ -11,6 +11,7 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BaseHandler, type HandlerResult, type ActionContext } from './base.js';
+import type { SystemDependency } from '../utils/system-deps.js';
 
 const ALLOWED_FORMATS = ['wav', 'ogg', 'mp3'] as const;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 min
@@ -26,6 +27,10 @@ export class TtsHandler extends BaseHandler {
     output_dir: z.string().optional(),
     enabled: z.boolean().optional(),
   });
+
+  static systemDeps: SystemDependency[] = [
+    { binary: 'espeak-ng', packages: { apt: 'espeak-ng', apk: 'espeak-ng', pacman: 'espeak-ng', brew: 'espeak' } },
+  ];
 
   readonly name = 'TTS';
   readonly type = 'tts';
@@ -47,10 +52,6 @@ export class TtsHandler extends BaseHandler {
     this.outputDir = parsed.output_dir ?? './data/tts';
 
     await fs.mkdir(this.outputDir, { recursive: true });
-
-    // Verify binary exists
-    const binary = this.engine === 'piper' ? this.piperPath : 'espeak-ng';
-    await this.checkBinary(binary);
 
     // Start cleanup timer
     this.cleanupTimer = setInterval(() => { this.cleanupOldFiles(); }, CLEANUP_INTERVAL_MS);
@@ -98,17 +99,6 @@ export class TtsHandler extends BaseHandler {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
-  }
-
-  private async checkBinary(binary: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const proc = spawn('which', [binary], { stdio: 'ignore' });
-      proc.on('error', () => reject(new Error(`"which" command not found`)));
-      proc.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`${binary} not found. Install it: sudo apt install ${binary === 'espeak-ng' ? 'espeak-ng' : 'piper-tts'}`));
-      });
-    });
   }
 
   private async cleanupOldFiles(): Promise<void> {

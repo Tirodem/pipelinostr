@@ -8,11 +8,15 @@
 
 import { z } from 'zod';
 import { BaseHandler, type HandlerResult, type ActionContext } from './base.js';
+import type { SystemDependency } from '../utils/system-deps.js';
 
 export class GpioHandler extends BaseHandler {
   static type = 'gpio';
   static npmDependencies = ['pigpio-client'];
   static platforms = ['linux/arm', 'linux/arm64'];
+  static systemDeps: SystemDependency[] = [
+    { binary: 'pigpiod', packages: { apt: 'pigpio', apk: 'pigpio' }, optional: true },
+  ];
   static configSchema = z.object({
     host: z.string().optional(),
     port: z.number().optional(),

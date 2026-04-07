@@ -10,6 +10,7 @@
  */
 
 import type { z } from 'zod';
+import type { SystemDependency } from '../utils/system-deps.js';
 
 export interface HandlerResult {
   success: boolean;
@@ -35,8 +36,8 @@ export abstract class BaseHandler {
   /** Optional npm dependencies this handler requires (ADR-015) */
   static npmDependencies?: string[];
 
-  /** Optional system dependencies (ADR-015) */
-  static systemDependencies?: string[];
+  /** Optional system dependencies with auto-install support */
+  static systemDeps?: SystemDependency[];
 
   /** Optional platform restrictions (ADR-015) */
   static platforms?: string[];
