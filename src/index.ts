@@ -6,7 +6,11 @@
  */
 
 import fs from 'node:fs';
+import dotenv from 'dotenv';
 import { createLogger } from './utils/logger.js';
+
+// Load .env before anything else
+dotenv.config();
 import { loadConfig, loadHandlerConfigs } from './config/loader.js';
 import { SqliteStorage } from './storage/sqlite.storage.js';
 import { HandlerRegistry } from './handlers/registry.js';
@@ -31,11 +35,17 @@ fs.mkdirSync(path.join(PROJECT_ROOT, 'logs'), { recursive: true });
 
 // --- Bootstrap ---
 
-const logger = createLogger(process.env.LOG_LEVEL ?? 'info');
+// Use a temporary logger for startup, reconfigure after config loads
+let logger = createLogger(process.env.LOG_LEVEL ?? 'info');
 logger.info('PipeliNostr v2 starting...');
 
 // 1. Load config
 const config = loadConfig(CONFIG_PATH, logger);
+
+// Reconfigure logger with config level
+if (config.log_level) {
+  logger = createLogger(config.log_level as string);
+}
 
 // 2. Init storage (ADR-002, ADR-003, ADR-005)
 const dbPath = config.database?.path ? String(config.database.path) : DB_PATH;
