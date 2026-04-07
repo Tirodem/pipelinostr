@@ -1,29 +1,5 @@
-# Configuration TTS (Text-to-Speech) Handler
-tts:
-  enabled: true
-
-  # Moteur TTS: "espeak" (simple) ou "piper" (qualite)
-  # espeak: leger, voix robotique, installation: sudo apt install espeak-ng
-  # piper: haute qualite, voix naturelle, installation: pip install piper-tts
-  engine: espeak
-
-  # === Configuration espeak (recommande) ===
-  # Voix espeak (fr-fr, en-us, de, es, etc.) - voir: espeak-ng --voices
-  espeak_voice: fr-fr
-
-  # === Configuration Piper (optionnel) ===
-  # Chemin vers l'executable piper (defaut: "piper" dans le PATH)
-  # piper_path: /usr/local/bin/piper
-  # Modele vocal - liste: https://rhasspy.github.io/piper-samples/
-  # piper_model: fr_FR-siwis-medium
-
-  # === General ===
-  # Repertoire de sortie pour les fichiers audio
-  output_dir: ./data/tts
-
-# Installation espeak (recommande):
-# sudo apt install espeak-ng
-#
-# Installation Piper (optionnel, meilleure qualite):
-# pip install piper-tts
-# sudo apt install ffmpeg  # pour conversion OGG
+enabled: true
+auto_install: true
+engine: espeak
+espeak_voice: fr-fr
+output_dir: ./data/tts
