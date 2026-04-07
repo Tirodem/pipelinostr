@@ -50,7 +50,7 @@ actions:
         - **ID:** {{ parent.id }}
         - **Name:** {{ parent.name }}
         - **Actions:** {{ parent.actionsExecuted }} executed, {{ parent.actionsSkipped }} skipped
-        - **Trigger:** {{ trigger.from | truncate:20 }}
+        - **Trigger:** {{ truncate trigger.from 20 }}
 
   # Post failure notification
   - id: notify_failure

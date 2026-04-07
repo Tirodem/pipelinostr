@@ -24,7 +24,7 @@ actions:
   - id: send_email
     type: email
     config:
-      to: "{{ match.to | trim }}"
+      to: "{{ trim match.to }}"
       subject: "Message from Nostr"
       body: "{{ match.message }}"
       html: |
