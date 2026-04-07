@@ -10,7 +10,6 @@ import { BaseHandler, type HandlerResult, type ActionContext } from './base.js';
 
 export class RedisHandler extends BaseHandler {
   static type = 'redis';
-  static npmDependencies = ['redis'];
   static configSchema = z.object({
     url: z.string().optional(),
     enabled: z.boolean().optional(),

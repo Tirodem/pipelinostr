@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class FtpHandler extends BaseHandler {
   static type = 'ftp';
-  static npmDependencies = ['basic-ftp'];
   static configSchema = z.object({
     host: z.string(),
     port: z.number().optional(),

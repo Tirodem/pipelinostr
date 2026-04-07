@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class CalendarHandler extends BaseHandler {
   static type = 'calendar';
-  static npmDependencies = ['nodemailer'];
   static configSchema = z.object({
     host: z.string(),
     port: z.number(),

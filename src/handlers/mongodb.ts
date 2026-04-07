@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class MongodbHandler extends BaseHandler {
   static type = 'mongodb';
-  static npmDependencies = ['mongodb'];
   static configSchema = z.object({
     connection_string: z.union([z.string(), z.instanceof(Secret)]),
     database: z.string(),

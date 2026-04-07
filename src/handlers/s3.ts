@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class S3Handler extends BaseHandler {
   static type = 's3';
-  static npmDependencies = ['@aws-sdk/client-s3'];
   static configSchema = z.object({
     endpoint: z.string().optional(),
     region: z.string().optional(),

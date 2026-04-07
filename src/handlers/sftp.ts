@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class SftpHandler extends BaseHandler {
   static type = 'sftp';
-  static npmDependencies = ['ssh2-sftp-client'];
   static configSchema = z.object({
     host: z.string(),
     port: z.number().optional(),

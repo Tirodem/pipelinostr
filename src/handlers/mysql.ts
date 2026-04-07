@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class MysqlHandler extends BaseHandler {
   static type = 'mysql';
-  static npmDependencies = ['mysql2'];
   static configSchema = z.object({
     host: z.string(),
     port: z.number().optional(),

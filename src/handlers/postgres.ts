@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class PostgresHandler extends BaseHandler {
   static type = 'postgres';
-  static npmDependencies = ['pg'];
   static configSchema = z.object({
     connection_string: z.union([z.string(), z.instanceof(Secret)]),
     database: z.string().optional(),

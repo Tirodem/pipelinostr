@@ -212,7 +212,9 @@ export class HandlerRegistry {
     const missing: string[] = [];
     for (const dep of deps) {
       try {
-        require.resolve(dep);
+        // ESM-compatible: check if package directory exists in node_modules
+        const depPath = path.join(process.cwd(), 'node_modules', dep);
+        if (!fs.existsSync(depPath)) missing.push(dep);
       } catch {
         missing.push(dep);
       }

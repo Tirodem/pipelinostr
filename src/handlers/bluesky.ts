@@ -11,7 +11,6 @@ import { Secret } from '../config/secrets.js';
 
 export class BlueskyHandler extends BaseHandler {
   static type = 'bluesky';
-  static npmDependencies = ['@atproto/api'];
   static configSchema = z.object({
     service: z.string().optional(),
     identifier: z.string(),
