@@ -7,7 +7,7 @@
  */
 
 import { Relay } from 'nostr-tools/relay';
-import type { Event as NostrEvent } from 'nostr-tools/pure';
+import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools/pure';
 import type { Filter } from 'nostr-tools/filter';
 import type { Logger } from 'pino';
 import type { NormalizedEvent } from '../core/types.js';
@@ -105,6 +105,49 @@ export class NostrInboundListener {
       } catch (err) {
         this.logger.warn({ relay: url, error: (err as Error).message }, 'Failed to connect to relay');
       }
+    }
+
+    // Publish relay lists so other clients know where to send DMs
+    await this.publishRelayLists();
+  }
+
+  /**
+   * Publish NIP-65 (kind 10002) and NIP-17 inbox (kind 10050) relay lists.
+   * Both are replaceable events — re-publishing at startup keeps them fresh.
+   */
+  private async publishRelayLists(): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+
+    // Kind 10002: NIP-65 general relay list (read+write)
+    const nip65Event = finalizeEvent({
+      kind: 10002,
+      created_at: now,
+      tags: this.config.relays.map((url) => ['r', url]),
+      content: '',
+    }, this.crypto.getPrivateKeyBytes());
+
+    // Kind 10050: NIP-17 DM inbox relays
+    const nip17InboxEvent = finalizeEvent({
+      kind: 10050,
+      created_at: now,
+      tags: this.config.relays.map((url) => ['relay', url]),
+      content: '',
+    }, this.crypto.getPrivateKeyBytes());
+
+    // Publish to all connected relays in parallel
+    const results = await Promise.allSettled(
+      this.relays.map(async (relay) => {
+        await relay.publish(nip65Event);
+        await relay.publish(nip17InboxEvent);
+      })
+    );
+
+    const published = results.filter((r) => r.status === 'fulfilled').length;
+
+    if (published === 0) {
+      this.logger.warn('Failed to publish relay lists to any relay — NIP-17 DMs may not be deliverable');
+    } else {
+      this.logger.info({ published, relays: this.config.relays }, 'Published relay lists (NIP-65 + NIP-17 inbox)');
     }
   }
 
