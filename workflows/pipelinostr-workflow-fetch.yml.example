@@ -17,11 +17,11 @@ actions:
       - wss://relay.nostr.band
   - id: reply_success
     type: nostr_dm
-    when: "{{ actions.fetch.success }}"
+    when: actions.fetch.success
     to: "{{ trigger.from }}"
     content: "{{ actions.fetch.response.formatted }}"
   - id: reply_error
     type: nostr_dm
-    when: "{{ not actions.fetch.success }}"
+    when: "!actions.fetch.success"
     to: "{{ trigger.from }}"
     content: "Error: {{ actions.fetch.error }}"

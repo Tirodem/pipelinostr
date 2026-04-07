@@ -9,7 +9,7 @@ trigger:
 actions:
   - id: generate
     type: claude
-    action: generate
+    action: chat
     prompt: "{{ match.description }}"
   - id: reply_success
     type: nostr_dm
@@ -18,7 +18,7 @@ actions:
     content: |
       Workflow genere: {{ actions.generate.response.workflowId }}
 
-      {{ actions.generate.response.fullResponse }}
+      {{ actions.generate.response.response }}
 
       Pour activer: /activate {{ actions.generate.response.workflowId }}
       Pour annuler: /cancel {{ actions.generate.response.workflowId }}

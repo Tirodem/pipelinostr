@@ -18,7 +18,7 @@ actions:
     type: telegram
     when: "!match.speed && actions.generate_audio_normal.success"
     action: voice
-    voice_files: "{{ actions.generate_audio_normal.response.files }}"
+    voice_file: "{{ actions.generate_audio_normal.response.file_path }}"
   - id: confirm_normal
     type: nostr_dm
     when: "!match.speed"
@@ -28,7 +28,7 @@ actions:
 
       {{ actions.generate_audio_normal.response.morse }}
 
-      ({{ actions.generate_audio_normal.response.total_chunks }} partie(s))
+      ({{ actions.generate_audio_normal.response.length }} octets)
   - id: generate_audio_slow
     type: morse_audio
     when: match.speed === 'slow'
@@ -40,7 +40,7 @@ actions:
     type: telegram
     when: match.speed === 'slow' && actions.generate_audio_slow.success
     action: voice
-    voice_files: "{{ actions.generate_audio_slow.response.files }}"
+    voice_file: "{{ actions.generate_audio_slow.response.file_path }}"
   - id: confirm_slow
     type: nostr_dm
     when: match.speed === 'slow'
@@ -50,7 +50,7 @@ actions:
 
       {{ actions.generate_audio_slow.response.morse }}
 
-      ({{ actions.generate_audio_slow.response.total_chunks }} partie(s))
+      ({{ actions.generate_audio_slow.response.length }} octets)
   - id: generate_audio_fast
     type: morse_audio
     when: match.speed === 'fast'
@@ -62,7 +62,7 @@ actions:
     type: telegram
     when: match.speed === 'fast' && actions.generate_audio_fast.success
     action: voice
-    voice_files: "{{ actions.generate_audio_fast.response.files }}"
+    voice_file: "{{ actions.generate_audio_fast.response.file_path }}"
   - id: confirm_fast
     type: nostr_dm
     when: match.speed === 'fast'
@@ -72,4 +72,4 @@ actions:
 
       {{ actions.generate_audio_fast.response.morse }}
 
-      ({{ actions.generate_audio_fast.response.total_chunks }} partie(s))
+      ({{ actions.generate_audio_fast.response.length }} octets)

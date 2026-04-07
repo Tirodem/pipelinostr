@@ -6,7 +6,7 @@ trigger:
 actions:
   - id: poll
     type: wallet
-    action: poll_monitor
+    operation: poll_monitor
     address: "{{ trigger.address }}"
   - id: notify
     type: nostr_dm

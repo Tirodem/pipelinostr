@@ -19,7 +19,7 @@ actions:
     method: GET
     timeout_ms: 15000
   - id: parse_bebop_data
-    type: bebop_parser
+    type: bebop
     when: actions.fetch_order_page.success
     html: "{{ actions.fetch_order_page.response.body }}"
   - id: create_odoo_order
@@ -30,8 +30,11 @@ actions:
       backoff:
         type: fixed
         initial_delay_ms: 2000
-    action: create_sale_order
-    data: "{{ actions.parse_bebop_data.response }}"
+    action: execute
+    model: sale.order
+    method: create
+    args:
+      - - name: "Order #{{ match.order_number }}"
   - id: notify_success
     type: nostr_dm
     when: actions.create_odoo_order.success

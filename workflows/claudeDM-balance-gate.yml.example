@@ -15,8 +15,7 @@ actions:
       workflow: claudeDM-insufficient-balance
       pass_context: true
     action: check
-    workflow_id: zap-balance-tracker
-    namespace: balances
+    namespace: zap-balance-tracker.balances
     key: balance:{{ trigger.from }}
     operator: gte
     compare_value: "{{ variables.min_balance_sats }}"

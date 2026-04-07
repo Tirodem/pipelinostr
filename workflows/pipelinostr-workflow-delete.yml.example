@@ -12,11 +12,11 @@ actions:
     workflow_id: "{{ match.$1 }}"
   - id: reply_success
     type: nostr_dm
-    when: "{{ actions.delete.success }}"
+    when: actions.delete.success
     to: "{{ trigger.from }}"
     content: "{{ actions.delete.response.formatted }}"
   - id: reply_error
     type: nostr_dm
-    when: "{{ not actions.delete.success }}"
+    when: "!actions.delete.success"
     to: "{{ trigger.from }}"
     content: "Error: {{ actions.delete.error }}"

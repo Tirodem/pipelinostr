@@ -26,7 +26,7 @@ actions:
     type: telegram
     when: "!match.speed && actions.generate_audio_normal.success"
     action: voice
-    voice_files: "{{ actions.generate_audio_normal.response.files }}"
+    voice_file: "{{ actions.generate_audio_normal.response.file_path }}"
   - id: confirm_normal
     type: nostr_dm
     when: "!match.speed"
@@ -56,7 +56,7 @@ actions:
     type: telegram
     when: match.speed === 'slow' && actions.generate_audio_slow.success
     action: voice
-    voice_files: "{{ actions.generate_audio_slow.response.files }}"
+    voice_file: "{{ actions.generate_audio_slow.response.file_path }}"
   - id: confirm_slow
     type: nostr_dm
     when: match.speed === 'slow'
@@ -86,7 +86,7 @@ actions:
     type: telegram
     when: match.speed === 'fast' && actions.generate_audio_fast.success
     action: voice
-    voice_files: "{{ actions.generate_audio_fast.response.files }}"
+    voice_file: "{{ actions.generate_audio_fast.response.file_path }}"
   - id: confirm_fast
     type: nostr_dm
     when: match.speed === 'fast'

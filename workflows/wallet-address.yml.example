@@ -8,7 +8,7 @@ trigger:
 actions:
   - id: get_addresses
     type: wallet
-    action: get_addresses
+    operation: get_addresses
     start_index: "{{ match.$1 }}"
     count: "{{ match.$2 }}"
   - id: reply

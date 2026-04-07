@@ -1,5 +1,5 @@
-id: email-command
-name: Send Email via DM
+id: nostr-to-email
+name: Nostr DM to Email
 enabled: true
 trigger:
   source: nostr.dm

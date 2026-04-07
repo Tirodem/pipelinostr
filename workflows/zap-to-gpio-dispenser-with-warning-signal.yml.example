@@ -27,7 +27,7 @@ actions:
       Zap de {{ trigger.zap.amount }} sats recu ! Distribution en cours...
   - id: dispense_sequence
     type: gpio
-    when: "{{ gte trigger.zap.amount variables.product_price }}"
+    when: trigger.zap.amount >= variables.product_price
     pin: 0
     action: set
     sequence:
@@ -42,7 +42,7 @@ actions:
         action: clear
   - id: receipt_ok
     type: nostr_dm
-    when: "{{ gte trigger.zap.amount variables.product_price }}"
+    when: trigger.zap.amount >= variables.product_price
     to: "{{ trigger.zap.sender }}"
     content: |
       ----------------------------
@@ -79,7 +79,7 @@ actions:
       {{/if}}
   - id: receipt_insufficient
     type: nostr_dm
-    when: "{{ lt trigger.zap.amount variables.product_price }}"
+    when: trigger.zap.amount < variables.product_price
     to: "{{ trigger.zap.sender }}"
     content: |
       ----------------------------

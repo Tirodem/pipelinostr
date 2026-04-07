@@ -13,7 +13,7 @@ variables:
 actions:
   - id: start_monitor
     type: wallet
-    action: start_monitor
+    operation: start_monitor
     address: "{{ match.$1 }}"
     target_pubkey: "{{ trigger.from }}"
     confirmations_notify: "{{ variables.confirmations_notify }}"

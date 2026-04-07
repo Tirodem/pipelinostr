@@ -8,7 +8,7 @@ trigger:
 actions:
   - id: check_tx
     type: wallet
-    action: check_transaction
+    operation: check_transaction
     txid: "{{ match.$1 }}"
   - id: reply
     type: nostr_dm

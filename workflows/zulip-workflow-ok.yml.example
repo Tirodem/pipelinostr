@@ -7,7 +7,7 @@ trigger:
     - 99990
 actions:
   - id: send_zulip
-    type: stream
+    type: zulip
     stream: 🧪protos
     topic: 🦚 Pipelinostr
     content: |

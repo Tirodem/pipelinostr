@@ -7,8 +7,7 @@ actions:
   - id: get_balance
     type: workflow_db
     action: get
-    workflow_id: zap-balance-tracker
-    namespace: balances
+    namespace: zap-balance-tracker.balances
     key: balance:{{ trigger.from }}
   - id: reply
     type: nostr_dm

@@ -11,6 +11,7 @@ actions:
   - id: publish
     type: nostr_note
     content: "{{ match.note_content }}"
+    # tags are optional - passed to nostr event as-is
     tags:
       - - client
         - PipeliNostr

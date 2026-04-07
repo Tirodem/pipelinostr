@@ -1,6 +1,6 @@
 id: zap-to-usb-dispenser
 name: Zap to USB Dispenser
-enabled: true
+enabled: false
 description: Déclenche le distributeur USB quand un zap >= seuil est reçu
 variables:
   min_sats: 21

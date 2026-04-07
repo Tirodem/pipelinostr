@@ -1,6 +1,6 @@
 id: usb-power-on
 name: USB Power On
-enabled: true
+enabled: false
 description: Réallume tous les ports USB sur commande "get up stand up"
 variables:
   hub: 1-1

@@ -16,6 +16,6 @@ actions:
   - id: upload_to_ftp
     type: ftp
     operation: upload
-    local_path: ./data/files/logs/dm-{date}.log
     remote_path: /logs/nostr-dm-{date}.log
-    create_dirs: true
+    content: |
+      [{{ trigger.timestamp }}] {{ trigger.from }}: {{ match.message }}

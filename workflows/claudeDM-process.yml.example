@@ -7,8 +7,7 @@ actions:
   - id: get_balance_before
     type: workflow_db
     action: get
-    workflow_id: zap-balance-tracker
-    namespace: balances
+    namespace: zap-balance-tracker.balances
     key: balance:{{ trigger.from }}
   - id: claude_request
     type: claude
@@ -22,8 +21,7 @@ actions:
   - id: debit_balance
     type: workflow_db
     action: decrement
-    workflow_id: zap-balance-tracker
-    namespace: balances
+    namespace: zap-balance-tracker.balances
     key: balance:{{ trigger.from }}
     amount: "{{ token_cost actions.claude_request.response.tokens_used }}"
     min_value: 0
@@ -31,8 +29,7 @@ actions:
   - id: get_balance_after
     type: workflow_db
     action: get
-    workflow_id: zap-balance-tracker
-    namespace: balances
+    namespace: zap-balance-tracker.balances
     key: balance:{{ trigger.from }}
   - id: reply
     type: nostr_dm

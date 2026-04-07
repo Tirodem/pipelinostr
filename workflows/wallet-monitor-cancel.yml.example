@@ -8,7 +8,7 @@ trigger:
 actions:
   - id: cancel
     type: wallet
-    action: cancel_monitor
+    operation: cancel_monitor
     address: "{{ match.$1 }}"
   - id: reply
     type: nostr_dm

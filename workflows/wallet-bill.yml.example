@@ -13,13 +13,13 @@ variables:
 actions:
   - id: create_bill
     type: wallet
-    action: generate_bill
+    operation: generate_bill
     address_index: "{{ match.$1 }}"
     amount: "{{ match.$2 }}"
     currency: "{{ match.$3 }}"
   - id: start_monitor
     type: wallet
-    action: start_monitor
+    operation: start_monitor
     address: "{{ actions.create_bill.response.address }}"
     target_pubkey: "{{ trigger.from }}"
     confirmations_notify: "{{ variables.confirmations_notify }}"

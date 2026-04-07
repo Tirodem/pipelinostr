@@ -1,6 +1,6 @@
 id: dm-to-usb-dispenser
 name: DM to USB Dispenser
-enabled: true
+enabled: false
 description: Déclenche le distributeur USB quand un DM "Zapoï !" est reçu
 variables:
   hub: 1-1

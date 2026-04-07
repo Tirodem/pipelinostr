@@ -31,4 +31,4 @@ actions:
       - **Name:** {{ parent.name }}
       - **Failed actions:** {{ parent.actionsFailed }}
       - **Error:** {{ default parent.error "No error message" }}
-      - **Trigger:** {{ truncate trigger.from 20 }}
+      - **Trigger:** {{ trigger.from | truncate:20 }}
