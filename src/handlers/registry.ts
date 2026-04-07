@@ -1,0 +1,196 @@
+/**
+ * Handler registry (ADR-010)
+ *
+ * Instance-based (not singleton). Owned by the app, not global.
+ * Auto-discovers handlers by scanning the handlers directory.
+ * Graceful degradation: one handler failure doesn't crash the app.
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { BaseHandler } from './base.js';
+import type { Logger } from 'pino';
+
+/** Constructor type that includes static properties from BaseHandler */
+interface HandlerConstructor {
+  new (): BaseHandler;
+  type: string;
+  configSchema?: import('zod').ZodType<unknown>;
+  npmDependencies?: string[];
+  systemDependencies?: string[];
+  platforms?: string[];
+}
+
+export type HandlerStatus = 'available' | 'unavailable' | 'disabled';
+
+export interface RegisteredHandler {
+  instance: BaseHandler;
+  status: HandlerStatus;
+  error?: string;
+}
+
+export class HandlerRegistry {
+  private handlers = new Map<string, RegisteredHandler>();
+
+  constructor(private logger: Logger) {}
+
+  /**
+   * Load all handler modules from a directory.
+   * Handlers that fail to import are skipped with a warning.
+   */
+  async discoverHandlers(handlersDir: string): Promise<void> {
+    const files = fs.readdirSync(handlersDir)
+      .filter((f) => f.endsWith('.ts') || f.endsWith('.js'))
+      .filter((f) => f !== 'base.ts' && f !== 'base.js' && f !== 'registry.ts' && f !== 'registry.js' && f !== 'index.ts' && f !== 'index.js');
+
+    for (const file of files) {
+      const modulePath = path.join(handlersDir, file);
+      try {
+        const mod = await import(modulePath);
+        const HandlerClass = this.findHandlerClass(mod);
+        if (HandlerClass) {
+          const type = HandlerClass.type;
+          if (!type) {
+            this.logger.warn({ file }, 'Handler class missing static type property, skipping');
+            continue;
+          }
+          const instance = new HandlerClass() as BaseHandler;
+          this.handlers.set(type, { instance, status: 'disabled' });
+          this.logger.debug({ type, file }, 'Handler discovered');
+        }
+      } catch (err) {
+        this.logger.warn({ file, error: (err as Error).message }, 'Failed to import handler, skipping');
+      }
+    }
+  }
+
+  /**
+   * Initialize enabled handlers with their configs.
+   * Failed inits mark the handler as unavailable, not crash the app.
+   */
+  async initializeAll(handlerConfigs: Record<string, Record<string, unknown>>): Promise<string[]> {
+    const unavailable: string[] = [];
+
+    for (const [type, config] of Object.entries(handlerConfigs)) {
+      const registered = this.handlers.get(type);
+      if (!registered) {
+        this.logger.warn({ type }, 'Handler config found but no handler implementation discovered');
+        unavailable.push(type);
+        continue;
+      }
+
+      // Validate config with Zod schema if available
+      const HandlerClass = registered.instance.constructor as HandlerConstructor;
+      if (HandlerClass.configSchema) {
+        const result = HandlerClass.configSchema.safeParse(config);
+        if (!result.success) {
+          const errorMsg = `Config validation failed: ${result.error.message}`;
+          this.logger.warn({ type, error: errorMsg }, 'Handler config invalid, marking unavailable');
+          registered.status = 'unavailable';
+          registered.error = errorMsg;
+          unavailable.push(type);
+          continue;
+        }
+      }
+
+      // Check npm dependencies
+      if (HandlerClass.npmDependencies) {
+        const missing = this.checkDependencies(HandlerClass.npmDependencies);
+        if (missing.length > 0) {
+          const errorMsg = `Missing packages: ${missing.join(', ')}. Run: npm install ${missing.join(' ')}`;
+          this.logger.warn({ type, missing }, errorMsg);
+          registered.status = 'unavailable';
+          registered.error = errorMsg;
+          unavailable.push(type);
+          continue;
+        }
+      }
+
+      try {
+        await registered.instance.initialize(config);
+        registered.status = 'available';
+        this.logger.info({ type }, 'Handler initialized');
+      } catch (err) {
+        const errorMsg = (err as Error).message;
+        this.logger.warn({ type, error: errorMsg }, 'Handler failed to initialize, marking unavailable');
+        registered.status = 'unavailable';
+        registered.error = errorMsg;
+        unavailable.push(type);
+      }
+    }
+
+    return unavailable;
+  }
+
+  /**
+   * Get a handler by type. Returns undefined if not found or unavailable.
+   */
+  get(type: string): BaseHandler | undefined {
+    const registered = this.handlers.get(type);
+    if (!registered || registered.status !== 'available') return undefined;
+    return registered.instance;
+  }
+
+  /**
+   * Get handler status info (for admin/status commands).
+   */
+  getStatus(type: string): RegisteredHandler | undefined {
+    return this.handlers.get(type);
+  }
+
+  /**
+   * List all registered handlers with their status.
+   */
+  listAll(): Map<string, RegisteredHandler> {
+    return new Map(this.handlers);
+  }
+
+  /**
+   * Shutdown all initialized handlers (ADR-014).
+   * Each handler gets its own timeout. One stuck handler doesn't block others.
+   */
+  async shutdownAll(timeoutMs = 5000): Promise<void> {
+    const shutdownPromises = Array.from(this.handlers.entries())
+      .filter(([, h]) => h.status === 'available')
+      .map(async ([type, handler]) => {
+        try {
+          await Promise.race([
+            handler.instance.shutdown(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Shutdown timeout')), timeoutMs)
+            ),
+          ]);
+          this.logger.debug({ type }, 'Handler shut down');
+        } catch (err) {
+          this.logger.warn({ type, error: (err as Error).message }, 'Handler shutdown failed or timed out');
+        }
+      });
+
+    await Promise.all(shutdownPromises);
+  }
+
+  private findHandlerClass(mod: Record<string, unknown>): HandlerConstructor | null {
+    for (const exported of Object.values(mod)) {
+      if (
+        typeof exported === 'function' &&
+        exported.prototype instanceof BaseHandler &&
+        'type' in (exported as unknown as Record<string, unknown>)
+      ) {
+        return exported as unknown as HandlerConstructor;
+      }
+    }
+    return null;
+  }
+
+  private checkDependencies(deps: string[]): string[] {
+    const missing: string[] = [];
+    for (const dep of deps) {
+      try {
+        require.resolve(dep);
+      } catch {
+        missing.push(dep);
+      }
+    }
+    return missing;
+  }
+}

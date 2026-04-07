@@ -1,0 +1,21 @@
+id: dm-to-ftp-with-local-storage
+name: DM to FTP with Local Storage
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Ff][Tt][Pp]:\s*(?<message>.+)
+actions:
+  - id: append_local
+    type: file
+    filename: logs/dm-{date}.log
+    format: text
+    content: |
+      [{{ trigger.timestamp }}] {{ trigger.from }}: {{ match.message }}
+    append: true
+  - id: upload_to_ftp
+    type: ftp
+    operation: upload
+    local_path: ./data/files/logs/dm-{date}.log
+    remote_path: /logs/nostr-dm-{date}.log
+    create_dirs: true

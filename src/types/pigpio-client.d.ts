@@ -1,26 +1,17 @@
 declare module 'pigpio-client' {
-  interface PigpioGpio {
-    modeSet(mode: 'input' | 'output'): void;
-    write(value: number): void;
-    read(): Promise<number>;
-    setServoPulsewidth(width: number): void;
-    setPWMdutycycle(dutyCycle: number): void;
-    setPWMfrequency(frequency: number): void;
-  }
+  export function pigpio(options?: { host?: string; port?: number }): PigpioClient;
 
   interface PigpioClient {
-    gpio(pin: number): PigpioGpio;
+    gpio(pin: number): GpioPin;
+    once(event: 'connected' | 'error', callback: (...args: unknown[]) => void): void;
     end(): void;
-    once(event: 'connected', callback: () => void): void;
-    once(event: 'error', callback: (error: Error) => void): void;
   }
 
-  interface PigpioOptions {
-    host?: string;
-    port?: number;
+  interface GpioPin {
+    modeSet(mode: 'input' | 'output'): void;
+    write(value: number): void;
+    read(): number;
+    analogWrite(value: number): void;
+    servoWrite(pulseWidth: number): void;
   }
-
-  function pigpio(options?: PigpioOptions): PigpioClient;
-
-  export { pigpio, PigpioClient, PigpioGpio, PigpioOptions };
 }

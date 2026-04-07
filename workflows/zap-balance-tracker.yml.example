@@ -1,0 +1,25 @@
+id: zap-balance-tracker
+name: Zap Balance Tracker
+enabled: false
+trigger:
+  source: nostr.zap
+  min_amount: 1
+actions:
+  - id: increment_balance
+    type: workflow_db
+    action: increment
+    namespace: balances
+    key: balance:{{ trigger.zap.sender }}
+    amount: "{{ trigger.zap.amount }}"
+    create_if_missing: true
+    default_value: 0
+    track_history: true
+  - id: get_balance
+    type: workflow_db
+    action: get
+    namespace: balances
+    key: balance:{{ trigger.zap.sender }}
+hooks:
+  on_complete:
+    - workflow_id: zap-balance-tracker-notification
+      pass_context: true

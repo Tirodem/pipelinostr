@@ -1,0 +1,17 @@
+id: claudeDM-error-response
+name: ClaudeDM - Error Response
+enabled: false
+trigger:
+  source: nostr.dm
+actions:
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      Erreur lors du traitement de votre requête ClaudeDM.
+
+      Votre solde n'a pas été débité.
+
+      Veuillez réessayer plus tard ou reformuler votre question.
+
+      Si le problème persiste, contactez l'administrateur.

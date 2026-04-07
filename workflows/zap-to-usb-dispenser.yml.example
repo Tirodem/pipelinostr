@@ -1,0 +1,32 @@
+id: zap-to-usb-dispenser
+name: Zap to USB Dispenser
+enabled: true
+description: Déclenche le distributeur USB quand un zap >= seuil est reçu
+variables:
+  min_sats: 21
+  hub: 1-1
+  port: 1
+  cycle_delay: 2000
+trigger:
+  source: nostr.dm
+  zap_recipients:
+    - npub1...
+  min_amount_sats: "{{ variables.min_sats }}"
+actions:
+  - id: notify
+    type: nostr_dm
+    params:
+      recipient: "{{ trigger.sender_npub }}"
+      message: Zap de {{ trigger.amount_sats }} sats reçu ! Distributeur en cours...
+  - id: dispense
+    type: usb_power
+    params:
+      hub: "{{ variables.hub }}"
+      port: "{{ variables.port }}"
+      action: cycle
+      delay: "{{ variables.cycle_delay }}"
+  - id: confirm
+    type: nostr_dm
+    params:
+      recipient: "{{ trigger.sender_npub }}"
+      message: Distribution effectuée ! Merci pour votre zap.

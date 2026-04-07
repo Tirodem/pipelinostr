@@ -1,0 +1,26 @@
+id: dm-to-usb-dispenser
+name: DM to USB Dispenser
+enabled: true
+description: Déclenche le distributeur USB quand un DM "Zapoï !" est reçu
+variables:
+  hub: 1-1
+  port: all
+  cycle_delay: 2000
+trigger:
+  source: nostr.dm
+  content_pattern: (?i)^zapoi\s*!?$
+actions:
+  - id: notify
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: Commande Zapoï reçue ! Distributeur en cours...
+  - id: dispense
+    type: usb_power
+    hub: "{{ variables.hub }}"
+    port: "{{ variables.port }}"
+    action: pulse
+    delay: "{{ variables.cycle_delay }}"
+  - id: confirm
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: Distribution effectuée ! Zapoï !

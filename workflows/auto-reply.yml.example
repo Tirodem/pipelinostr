@@ -1,0 +1,18 @@
+# PipeliNostr v2 — Auto reply to greetings
+
+id: auto-reply
+name: Auto Reply
+description: Replies to hello/bonjour messages
+multiple: true
+
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: "^(?:hello|bonjour|salut|hi|hey)$"
+
+actions:
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: "Hello! I'm PipeliNostr, a Nostr event router. Send /help for available commands."

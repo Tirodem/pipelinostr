@@ -1,0 +1,17 @@
+id: dm-to-bluesky
+name: Post to Bluesky via DM
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Bb]luesky:\s*(?<message>.+)
+actions:
+  - id: post_bluesky
+    type: bluesky
+    text: |-
+      (ceci est un message automatique posté depuis un DM Nostr via PipeliNostr)
+
+      {{ match.message }}
+    langs:
+      - fr
+    facets: true

@@ -1,0 +1,15 @@
+id: pipelinostr-workflow-list
+name: PipeliNostr Workflow List
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^/pipelinostr\s+workflow\s+list$
+actions:
+  - id: list
+    type: system
+    action: workflow_list
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: "{{ actions.list.response.formatted }}"

@@ -1,0 +1,99 @@
+id: nostr-to-morse
+name: Morse Code Buzzer
+description: Play Nostr DM content as Morse code on a buzzer and send to Telegram
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^morse:(?:(?<speed>slow|fast):)?\s*(?<text>.+)$
+actions:
+  - id: play_morse_normal
+    type: gpio
+    when: "!match.speed"
+    pin: 27
+    action: morse
+    text: "{{ match.text }}"
+    unit_ms: 100
+    tone_freq: 800
+  - id: generate_audio_normal
+    type: morse_audio
+    when: "!match.speed"
+    text: "{{ match.text }}"
+    unit_ms: 100
+    frequency: 700
+    format: ogg
+  - id: send_telegram_normal
+    type: telegram
+    when: "!match.speed && actions.generate_audio_normal.success"
+    action: voice
+    voice_files: "{{ actions.generate_audio_normal.response.files }}"
+  - id: confirm_normal
+    type: nostr_dm
+    when: "!match.speed"
+    to: "{{ trigger.from }}"
+    content: |
+      Morse (~12 WPM): "{{ match.text }}"
+
+      {{ actions.play_morse_normal.response.morse }}
+
+      ({{ actions.play_morse_normal.response.total_dots }} points, {{ actions.play_morse_normal.response.total_dashes }} traits)
+  - id: play_morse_slow
+    type: gpio
+    when: match.speed === 'slow'
+    pin: 27
+    action: morse
+    text: "{{ match.text }}"
+    unit_ms: 200
+    tone_freq: 800
+  - id: generate_audio_slow
+    type: morse_audio
+    when: match.speed === 'slow'
+    text: "{{ match.text }}"
+    unit_ms: 200
+    frequency: 700
+    format: ogg
+  - id: send_telegram_slow
+    type: telegram
+    when: match.speed === 'slow' && actions.generate_audio_slow.success
+    action: voice
+    voice_files: "{{ actions.generate_audio_slow.response.files }}"
+  - id: confirm_slow
+    type: nostr_dm
+    when: match.speed === 'slow'
+    to: "{{ trigger.from }}"
+    content: |
+      Morse lent (~6 WPM): "{{ match.text }}"
+
+      {{ actions.play_morse_slow.response.morse }}
+
+      ({{ actions.play_morse_slow.response.total_dots }} points, {{ actions.play_morse_slow.response.total_dashes }} traits)
+  - id: play_morse_fast
+    type: gpio
+    when: match.speed === 'fast'
+    pin: 27
+    action: morse
+    text: "{{ match.text }}"
+    unit_ms: 60
+    tone_freq: 800
+  - id: generate_audio_fast
+    type: morse_audio
+    when: match.speed === 'fast'
+    text: "{{ match.text }}"
+    unit_ms: 60
+    frequency: 700
+    format: ogg
+  - id: send_telegram_fast
+    type: telegram
+    when: match.speed === 'fast' && actions.generate_audio_fast.success
+    action: voice
+    voice_files: "{{ actions.generate_audio_fast.response.files }}"
+  - id: confirm_fast
+    type: nostr_dm
+    when: match.speed === 'fast'
+    to: "{{ trigger.from }}"
+    content: |
+      Morse rapide (~20 WPM): "{{ match.text }}"
+
+      {{ actions.play_morse_fast.response.morse }}
+
+      ({{ actions.play_morse_fast.response.total_dots }} points, {{ actions.play_morse_fast.response.total_dashes }} traits)

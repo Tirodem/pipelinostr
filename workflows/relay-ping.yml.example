@@ -1,0 +1,12 @@
+id: relay-ping
+name: Relay Ping
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^/ping$
+actions:
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: pong

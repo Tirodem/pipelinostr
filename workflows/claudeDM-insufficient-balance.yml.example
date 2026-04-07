@@ -1,0 +1,25 @@
+id: claudeDM-insufficient-balance
+name: ClaudeDM - Insufficient Balance
+enabled: false
+trigger:
+  source: nostr.dm
+actions:
+  - id: get_balance
+    type: workflow_db
+    action: get
+    workflow_id: zap-balance-tracker
+    namespace: balances
+    key: balance:{{ trigger.from }}
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      Solde insuffisant pour utiliser ClaudeDM.
+
+      Votre solde: {{ default actions.get_balance.response.value 0 }} SATs
+      Minimum requis: {{ parent.variables.min_balance_sats }} SATs
+
+      Pour recharger votre solde, envoyez des zaps vers:
+      npub1... (configurez votre npub cible ici)
+
+      1 SAT zappe = 1 SAT de credit

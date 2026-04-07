@@ -1,0 +1,31 @@
+id: zap-to-dispenser
+name: Zap Dispenser
+description: Activate dispenser on zap, log to FTP
+enabled: true
+trigger:
+  source: nostr.zap
+  min_amount: 21
+actions:
+  - id: dispense
+    type: gpio
+    pin: 18
+    action: servo
+    angle: 180
+    duration: 1000
+    return_angle: 0
+  - id: log_to_file
+    type: file
+    path: ./logs/dispenser.log
+    content: |
+      [{{ trigger.timestamp }}] ZAP DISPENSED
+      Amount: {{ trigger.zap.amount }} sats
+      From: {{ trigger.zap.sender }}
+      Message: {{ trigger.zap.message }}
+      ---
+    append: true
+  - id: confirm_dm
+    type: nostr_dm
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      Merci pour votre zap de {{ trigger.zap.amount }} sats!
+      Votre distribution a ete activee.

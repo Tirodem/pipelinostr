@@ -1,0 +1,28 @@
+id: dm-to-mongodb
+name: Track Event to MongoDB
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Mm]ongo:(?:(?<category>\w+):\s*)?(?<data>.+)
+actions:
+  - id: save_to_mongodb
+    type: mongodb
+    operation: insert
+    collection: event_tracking
+    document:
+      event_id: "{{ trigger.event.id }}"
+      source:
+        platform: nostr
+        pubkey: "{{ trigger.pubkey }}"
+        npub: "{{ trigger.from }}"
+        relay: "{{ trigger.relayUrl }}"
+      event_type: dm_command
+      category: "{{ default match.category 'general' }}"
+      payload:
+        command: mongo
+        data: "{{ match.data }}"
+      raw_content: "{{ trigger.content }}"
+      event_timestamp: "{{ trigger.timestamp }}"
+      received_at: "{{ now }}"
+      status: processed

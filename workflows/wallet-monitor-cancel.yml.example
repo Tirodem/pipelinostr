@@ -1,0 +1,16 @@
+id: wallet-monitor-cancel
+name: Bitcoin Wallet - Cancel Monitor
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/wallet cancel\s+(bc1[a-zA-HJ-NP-Z0-9]{25,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$
+  from_whitelist: true
+actions:
+  - id: cancel
+    type: wallet
+    action: cancel_monitor
+    address: "{{ match.$1 }}"
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: "{{ actions.cancel.response.message }}"

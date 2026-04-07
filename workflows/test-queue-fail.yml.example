@@ -1,0 +1,13 @@
+id: test-queue-fail
+name: Test Queue Failure
+enabled: false
+trigger:
+  source: nostr.dm
+  starts_with: /testfail
+actions:
+  - id: force_fail
+    type: http
+    retry:
+      max_attempts: 1
+    url: https://httpstat.us/500
+    method: GET

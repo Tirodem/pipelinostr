@@ -1,0 +1,19 @@
+id: api-to-nostr-dm
+name: API to Nostr DM
+description: Forward API calls to Nostr DM
+enabled: true
+trigger:
+  source: nostr.raw
+  kinds:
+    - 20000
+actions:
+  - id: send_dm
+    type: nostr_dm
+    to: npub1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    content: |
+      Notification API recue:
+
+      {{ trigger.content }}
+
+      ---
+      Via PipeliNostr API

@@ -1,0 +1,15 @@
+id: calendar-invite
+name: Send Calendar Invite via DM
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Ii]nvite\s+(?<to>[^:]+):\s*(?<title>[^@]+)@\s*(?<start>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\s*\((?<duration>[^)]+)\)(?:\s*@\s*(?<location>.+))?$
+actions:
+  - id: send_invite
+    type: calendar
+    to: "{{ match.to | trim }}"
+    title: "{{ match.title | trim }}"
+    start: "{{ match.start | trim }}"
+    duration: "{{ match.duration | trim }}"
+    location: "{{ match.location | trim }}"

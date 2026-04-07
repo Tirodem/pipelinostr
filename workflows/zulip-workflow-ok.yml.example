@@ -1,0 +1,16 @@
+id: zulip-workflow-ok
+name: Notify workflow success to Zulip
+enabled: false
+trigger:
+  source: nostr.raw
+  kinds:
+    - 99990
+actions:
+  - id: send_zulip
+    type: stream
+    stream: 🧪protos
+    topic: 🦚 Pipelinostr
+    content: |
+      Le workflow {{ parent.id }} / {{ parent.name }} vient de se terminer !
+      Statut : {{ parent.success }}
+      Actions : {{ parent.actionsExecuted }} exécutées, {{ parent.actionsFailed }} échouées, {{ parent.actionsSkipped }} ignorées {{ default parent.error "" }}

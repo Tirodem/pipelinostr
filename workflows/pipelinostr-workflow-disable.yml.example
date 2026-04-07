@@ -1,0 +1,22 @@
+id: pipelinostr-workflow-disable
+name: PipeliNostr Workflow Disable
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^/pipelinostr\s+workflow\s+disable\s+(\S+)
+actions:
+  - id: disable
+    type: system
+    action: workflow_disable
+    workflow_id: "{{ match.$1 }}"
+  - id: reply_success
+    type: nostr_dm
+    when: "{{ actions.disable.success }}"
+    to: "{{ trigger.from }}"
+    content: "{{ actions.disable.response.formatted }}"
+  - id: reply_error
+    type: nostr_dm
+    when: "{{ not actions.disable.success }}"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.disable.error }}"

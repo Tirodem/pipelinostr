@@ -1,0 +1,22 @@
+id: pipelinostr-workflow-delete
+name: PipeliNostr Workflow Delete
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^/pipelinostr\s+workflow\s+delete\s+(\S+)
+actions:
+  - id: delete
+    type: system
+    action: workflow_delete
+    workflow_id: "{{ match.$1 }}"
+  - id: reply_success
+    type: nostr_dm
+    when: "{{ actions.delete.success }}"
+    to: "{{ trigger.from }}"
+    content: "{{ actions.delete.response.formatted }}"
+  - id: reply_error
+    type: nostr_dm
+    when: "{{ not actions.delete.success }}"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.delete.error }}"

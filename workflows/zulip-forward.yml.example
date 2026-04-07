@@ -1,0 +1,10 @@
+id: zulip-forward
+name: Forward DM to Zulip
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+actions:
+  - id: send_zulip
+    type: stream
+    content: "DM de {{ trigger.from }}: {{ trigger.content }}"

@@ -1,0 +1,46 @@
+id: claudeDM-process
+name: ClaudeDM Process
+enabled: false
+trigger:
+  source: nostr.dm
+actions:
+  - id: get_balance_before
+    type: workflow_db
+    action: get
+    workflow_id: zap-balance-tracker
+    namespace: balances
+    key: balance:{{ trigger.from }}
+  - id: claude_request
+    type: claude
+    on_fail:
+      workflow: claudeDM-error-response
+      pass_context: true
+    action: chat
+    message: "{{ match.question }}"
+    max_tokens: 1000
+    web_search: true
+  - id: debit_balance
+    type: workflow_db
+    action: decrement
+    workflow_id: zap-balance-tracker
+    namespace: balances
+    key: balance:{{ trigger.from }}
+    amount: "{{ token_cost actions.claude_request.response.tokens_used }}"
+    min_value: 0
+    track_history: true
+  - id: get_balance_after
+    type: workflow_db
+    action: get
+    workflow_id: zap-balance-tracker
+    namespace: balances
+    key: balance:{{ trigger.from }}
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      {{ actions.claude_request.response.response }}
+
+      ---
+      Tokens: {{ actions.claude_request.response.tokens_used }} (in: {{ actions.claude_request.response.input_tokens }}, out: {{ actions.claude_request.response.output_tokens }})
+      Cout: {{ token_cost actions.claude_request.response.tokens_used }} SATs
+      Solde: {{ default actions.get_balance_before.response.value 0 }} → {{ default actions.get_balance_after.response.value 0 }} SATs

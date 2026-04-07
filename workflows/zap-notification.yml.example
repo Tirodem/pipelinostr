@@ -1,0 +1,20 @@
+# PipeliNostr v2 — Zap notification workflow
+# Sends a Zulip notification when a zap is received.
+
+id: zap-notification
+name: Zap Notification
+description: Notify on incoming zaps
+
+trigger:
+  source: nostr.zap
+
+actions:
+  - id: notify_zulip
+    type: zulip
+    stream: "Pipelinostr"
+    topic: "Zaps"
+    content: |
+      Zap received!
+      Amount: {{ trigger.zap.amount }} sats
+      From: {{ trigger.zap.sender }}
+      {{#if trigger.zap.message}}Message: {{ trigger.zap.message }}{{/if}}

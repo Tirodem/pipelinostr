@@ -1,0 +1,20 @@
+id: morse-received
+name: Morse Code Received
+enabled: true
+trigger:
+  internal_source: morse_listener
+actions:
+  - id: telegram
+    type: telegram
+    chat_id: ${TELEGRAM_CHAT_ID}
+    text: |
+      Morse code received:
+
+      {{ trigger.content }}
+
+      Raw: {{ trigger.raw_morse }}
+  - id: nostr_dm
+    type: nostr_dm
+    to: ${MY_NPUB}
+    content: |
+      Morse code decoded: {{ trigger.content }}

@@ -1,0 +1,41 @@
+id: wallet-monitor
+name: Bitcoin Wallet - Start Monitor
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/wallet monitor\s+(bc1[a-zA-HJ-NP-Z0-9]{25,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$
+  from_whitelist: true
+variables:
+  confirmations_notify: 3
+  poll_interval_waiting_ms: 15000
+  poll_interval_mempool_ms: 600000
+  max_waiting_polls: 10
+actions:
+  - id: start_monitor
+    type: wallet
+    action: start_monitor
+    address: "{{ match.$1 }}"
+    target_pubkey: "{{ trigger.from }}"
+    confirmations_notify: "{{ variables.confirmations_notify }}"
+    poll_interval_waiting_ms: "{{ variables.poll_interval_waiting_ms }}"
+    poll_interval_mempool_ms: "{{ variables.poll_interval_mempool_ms }}"
+    max_waiting_polls: "{{ variables.max_waiting_polls }}"
+  - id: schedule_first_poll
+    type: queue
+    action: enqueue
+    poll_type: address_monitor
+    address: "{{ match.$1 }}"
+    target_pubkey: "{{ trigger.from }}"
+    delay_ms: "{{ variables.poll_interval_waiting_ms }}"
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      Monitoring started for address:
+      {{ match.$1 }}
+
+      You will receive notifications:
+      - When a transaction is detected in mempool
+      - At each confirmation up to {{ variables.confirmations_notify }}
+
+      To cancel: /wallet cancel {{ match.$1 }}

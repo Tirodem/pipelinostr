@@ -1,0 +1,23 @@
+id: wallet-monitor-poll
+name: Bitcoin Wallet - Monitor Poll
+enabled: false
+trigger:
+  internal_source: internal_poll
+actions:
+  - id: poll
+    type: wallet
+    action: poll_monitor
+    address: "{{ trigger.address }}"
+  - id: notify
+    type: nostr_dm
+    when: actions.poll.response.notification_message
+    to: "{{ actions.poll.response.target_pubkey }}"
+    content: "{{ actions.poll.response.notification_message }}"
+  - id: reschedule
+    type: queue
+    when: actions.poll.response.should_continue
+    action: enqueue
+    poll_type: address_monitor
+    address: "{{ trigger.address }}"
+    target_pubkey: "{{ actions.poll.response.target_pubkey }}"
+    delay_ms: "{{ actions.poll.response.next_poll_delay_ms }}"
