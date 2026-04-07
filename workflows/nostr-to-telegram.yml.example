@@ -13,5 +13,8 @@ trigger:
 actions:
   - id: send_telegram
     type: telegram
-    text: "{{ match.message }}"
+    text: |
+      New DM from {{ trigger.sender }}:
+
+      {{ match.message }}
     parse_mode: HTML
