@@ -2,7 +2,7 @@
  * TTS handler (v2)
  *
  * Text-to-speech via Piper or espeak-ng.
- * Ported from v1 — generates real audio, not stubs.
+ * Ported from v1. Generated files auto-cleaned after 10 minutes.
  */
 
 import { z } from 'zod';
@@ -11,6 +11,10 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BaseHandler, type HandlerResult, type ActionContext } from './base.js';
+
+const ALLOWED_FORMATS = ['wav', 'ogg', 'mp3'] as const;
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 min
+const FILE_MAX_AGE_MS = 10 * 60 * 1000; // 10 min
 
 export class TtsHandler extends BaseHandler {
   static type = 'tts';
@@ -31,30 +35,46 @@ export class TtsHandler extends BaseHandler {
   private piperModel = 'fr_FR-siwis-medium';
   private espeakVoice = 'fr-fr';
   private outputDir = './data/tts';
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   async initialize(config: Record<string, unknown>): Promise<void> {
-    this.engine = (config.engine as 'piper' | 'espeak') ?? 'espeak';
-    this.piperPath = (config.piper_path as string) ?? 'piper';
-    this.piperModel = (config.piper_model as string) ?? 'fr_FR-siwis-medium';
-    this.espeakVoice = (config.espeak_voice as string) ?? 'fr-fr';
-    this.outputDir = (config.output_dir as string) ?? './data/tts';
+    // Validate config
+    const parsed = TtsHandler.configSchema.parse(config);
+    this.engine = parsed.engine ?? 'espeak';
+    this.piperPath = parsed.piper_path ?? 'piper';
+    this.piperModel = parsed.piper_model ?? 'fr_FR-siwis-medium';
+    this.espeakVoice = parsed.espeak_voice ?? 'fr-fr';
+    this.outputDir = parsed.output_dir ?? './data/tts';
 
     await fs.mkdir(this.outputDir, { recursive: true });
+
+    // Verify binary exists
+    const binary = this.engine === 'piper' ? this.piperPath : 'espeak-ng';
+    await this.checkBinary(binary);
+
+    // Start cleanup timer
+    this.cleanupTimer = setInterval(() => { this.cleanupOldFiles(); }, CLEANUP_INTERVAL_MS);
   }
 
   async execute(action: Record<string, unknown>, _context: ActionContext): Promise<HandlerResult> {
     const text = (action.text as string)?.trim();
     if (!text) return { success: false, error: 'Missing "text" field' };
 
-    const format = (action.format as string) ?? 'wav';
+    // Validate format
+    const rawFormat = (action.format as string) ?? 'wav';
+    if (!ALLOWED_FORMATS.includes(rawFormat as typeof ALLOWED_FORMATS[number])) {
+      return { success: false, error: `Invalid format "${rawFormat}". Allowed: ${ALLOWED_FORMATS.join(', ')}` };
+    }
+    const format = rawFormat as typeof ALLOWED_FORMATS[number];
+
     const outputId = randomUUID();
     const outputFile = join(this.outputDir, `${outputId}.${format}`);
 
     try {
       if (this.engine === 'piper') {
-        await this.generateWithPiper(text, outputFile, action.voice as string, format);
+        await this.generateWithPiper(text, outputFile, action.voice as string | undefined, format);
       } else {
-        await this.generateWithEspeak(text, outputFile, action.voice as string, action.speed as number);
+        await this.generateWithEspeak(text, outputFile, action.voice as string | undefined, action.speed as number | undefined);
       }
 
       const stats = await fs.stat(outputFile);
@@ -73,7 +93,40 @@ export class TtsHandler extends BaseHandler {
     }
   }
 
-  async shutdown(): Promise<void> {}
+  async shutdown(): Promise<void> {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  private async checkBinary(binary: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn('which', [binary], { stdio: 'ignore' });
+      proc.on('error', () => reject(new Error(`"which" command not found`)));
+      proc.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`${binary} not found. Install it: sudo apt install ${binary === 'espeak-ng' ? 'espeak-ng' : 'piper-tts'}`));
+      });
+    });
+  }
+
+  private async cleanupOldFiles(): Promise<void> {
+    try {
+      const files = await fs.readdir(this.outputDir);
+      const now = Date.now();
+
+      for (const file of files) {
+        const filePath = join(this.outputDir, file);
+        try {
+          const stats = await fs.stat(filePath);
+          if (now - stats.mtimeMs > FILE_MAX_AGE_MS) {
+            await fs.unlink(filePath);
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* dir doesn't exist, ignore */ }
+  }
 
   private generateWithPiper(text: string, outputFile: string, voice?: string, format?: string): Promise<void> {
     return new Promise((resolve, reject) => {
