@@ -20,6 +20,7 @@ export const WORKFLOWS_EXAMPLES_DIR = path.join(PROJECT_ROOT, 'workflows');
 export const DATA_DIR = path.join(PROJECT_ROOT, 'data');
 export const DB_PATH = path.join(DATA_DIR, 'pipelinostr.db');
 export const CONFIG_PATH = path.join(CONFIG_DIR, 'config.yml');
+export const LOGS_DIR = path.join(PROJECT_ROOT, 'logs');
 export const ENV_PATH = path.join(PROJECT_ROOT, '.env');
 export const MIGRATIONS_DIR = path.join(__dirname, '..', 'db', 'migrations');
 export const HANDLERS_DIR = path.join(__dirname, '..', 'handlers');

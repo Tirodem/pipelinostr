@@ -11,8 +11,8 @@ import path from 'node:path';
 import readline from 'node:readline';
 import YAML from 'yaml';
 import {
-  PROJECT_ROOT, CONFIG_DIR, HANDLERS_CONFIG_DIR,
-  ENV_PATH, CONFIG_PATH, WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR, DATA_DIR,
+  CONFIG_DIR, HANDLERS_CONFIG_DIR,
+  ENV_PATH, CONFIG_PATH, WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR, DATA_DIR, LOGS_DIR,
 } from '../utils/paths.js';
 
 // --- Handler definitions ---
@@ -290,7 +290,7 @@ export async function runSetup(): Promise<void> {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.mkdirSync(HANDLERS_CONFIG_DIR, { recursive: true });
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.mkdirSync(path.join(PROJECT_ROOT, 'logs'), { recursive: true });
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
 
   // Write .env
   const envContent = Object.entries(envVars)

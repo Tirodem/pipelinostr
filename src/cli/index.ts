@@ -5,6 +5,7 @@
  * Entry point for scripts/pipelinostr.sh
  */
 
+import '../bootstrap.js'; // Load .env + ensure directories — must be first
 import path from 'node:path';
 import fs from 'node:fs';
 import YAML from 'yaml';
