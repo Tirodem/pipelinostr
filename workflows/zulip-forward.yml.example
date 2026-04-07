@@ -4,8 +4,12 @@ enabled: true
 trigger:
   source: nostr.dm
   from_whitelist: true
+  content_pattern: "^zulip:\\s*(?<message>.+)$"
 actions:
   - id: send_zulip
     type: zulip
     msg_type: stream
-    content: "DM de {{ trigger.from }}: {{ trigger.content }}"
+    content: |
+      DM de {{ trigger.sender }}:
+
+      {{ match.message }}
