@@ -10,12 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import YAML from 'yaml';
-
-const PROJECT_ROOT = path.resolve(import.meta.dirname ?? '.', '..', '..');
-const CONFIG_DIR = path.join(PROJECT_ROOT, 'config');
-const HANDLERS_DIR = path.join(CONFIG_DIR, 'handlers');
-const ENV_FILE = path.join(PROJECT_ROOT, '.env');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yml');
+import {
+  PROJECT_ROOT, CONFIG_DIR, HANDLERS_CONFIG_DIR,
+  ENV_PATH, CONFIG_PATH, WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR, DATA_DIR,
+} from '../utils/paths.js';
 
 // --- Handler definitions ---
 
@@ -208,7 +206,7 @@ export async function runSetup(): Promise<void> {
 `);
 
   // Check if already configured
-  if (fs.existsSync(CONFIG_FILE)) {
+  if (fs.existsSync(CONFIG_PATH)) {
     const overwrite = await prompt.askYesNo('  Config already exists. Overwrite?', false);
     if (!overwrite) {
       console.log('  Setup cancelled.');
@@ -290,14 +288,14 @@ export async function runSetup(): Promise<void> {
 
   // Ensure directories
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.mkdirSync(HANDLERS_DIR, { recursive: true });
-  fs.mkdirSync(path.join(PROJECT_ROOT, 'data'), { recursive: true });
+  fs.mkdirSync(HANDLERS_CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 
   // Write .env
   const envContent = Object.entries(envVars)
     .map(([key, value]) => `${key}=${value}`)
     .join('\n') + '\n';
-  fs.writeFileSync(ENV_FILE, envContent, { mode: 0o600 });
+  fs.writeFileSync(ENV_PATH, envContent, { mode: 0o600 });
   console.log('  Created .env (chmod 600)');
 
   // Write config.yml
@@ -322,13 +320,13 @@ export async function runSetup(): Promise<void> {
     config.webhook = { enabled: true, port: webhookPort };
   }
 
-  fs.writeFileSync(CONFIG_FILE, YAML.stringify(config, { lineWidth: 0 }));
+  fs.writeFileSync(CONFIG_PATH, YAML.stringify(config, { lineWidth: 0 }));
   console.log('  Created config/config.yml');
 
   // Write handler configs
   for (const type of AUTO_HANDLERS) {
     const handlerConfig = { enabled: true };
-    const filePath = path.join(HANDLERS_DIR, `${type}.yml`);
+    const filePath = path.join(HANDLERS_CONFIG_DIR, `${type}.yml`);
     if (!fs.existsSync(filePath)) {
       fs.writeFileSync(filePath, YAML.stringify(handlerConfig, { lineWidth: 0 }));
     }
@@ -336,20 +334,18 @@ export async function runSetup(): Promise<void> {
   console.log(`  Created ${AUTO_HANDLERS.length} core handler configs`);
 
   for (const handler of selectedHandlers) {
-    const filePath = path.join(HANDLERS_DIR, `${handler.type}.yml`);
+    const filePath = path.join(HANDLERS_CONFIG_DIR, `${handler.type}.yml`);
     fs.writeFileSync(filePath, YAML.stringify(handler.config, { lineWidth: 0 }));
     console.log(`  Created config/handlers/${handler.type}.yml`);
   }
 
   // Deploy default workflows
-  const workflowsDir = path.join(CONFIG_DIR, 'workflows');
-  fs.mkdirSync(workflowsDir, { recursive: true });
+  fs.mkdirSync(WORKFLOWS_DIR, { recursive: true });
 
-  const examplesDir = path.join(PROJECT_ROOT, 'workflows');
   const defaultWorkflows = ['auto-reply', 'dpo-command'];
   for (const wfId of defaultWorkflows) {
-    const src = path.join(examplesDir, `${wfId}.yml.example`);
-    const dst = path.join(workflowsDir, `${wfId}.yml`);
+    const src = path.join(WORKFLOWS_EXAMPLES_DIR, `${wfId}.yml.example`);
+    const dst = path.join(WORKFLOWS_DIR, `${wfId}.yml`);
     if (fs.existsSync(src) && !fs.existsSync(dst)) {
       const content = YAML.parse(fs.readFileSync(src, 'utf-8')) as Record<string, unknown>;
       content.enabled = true;

@@ -6,7 +6,6 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import YAML from 'yaml';
 import { createLogger } from '../utils/logger.js';
@@ -14,14 +13,10 @@ import { SqliteStorage } from '../storage/sqlite.storage.js';
 import { WorkflowLoader } from '../core/workflow-loader.js';
 import { WorkflowAuditor } from '../core/auditor.js';
 import { HandlerRegistry } from '../handlers/registry.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
-const WORKFLOWS_DIR = path.join(PROJECT_ROOT, 'config', 'workflows');
-const WORKFLOWS_V2_DIR = path.join(PROJECT_ROOT, 'workflows');
-const EXAMPLES_DIR = path.join(PROJECT_ROOT, 'examples', 'workflows');
-const HANDLERS_DIR = path.join(PROJECT_ROOT, 'config', 'handlers');
-const DB_PATH = path.join(PROJECT_ROOT, 'data', 'pipelinostr.db');
+import {
+  WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR, HANDLERS_CONFIG_DIR,
+  DB_PATH, MIGRATIONS_DIR, HANDLERS_DIR,
+} from '../utils/paths.js';
 
 const logger = createLogger('warn');
 
@@ -111,14 +106,14 @@ function workflowRefresh(args: string[]): void {
   const ids = parseIds(args);
   let count = 0;
 
-  const examples = fs.readdirSync(WORKFLOWS_V2_DIR)
+  const examples = fs.readdirSync(WORKFLOWS_EXAMPLES_DIR)
     .filter((f) => f.endsWith('.yml.example'));
 
   for (const example of examples) {
     const id = example.replace('.yml.example', '');
     if (!matchesIds(id, ids)) continue;
 
-    const src = path.join(WORKFLOWS_V2_DIR, example);
+    const src = path.join(WORKFLOWS_EXAMPLES_DIR, example);
     const dst = path.join(WORKFLOWS_DIR, `${id}.yml`);
 
     fs.copyFileSync(src, dst);
@@ -146,7 +141,7 @@ function workflowLoadMissing(): void {
     }).filter(Boolean)
   );
 
-  const examples = fs.readdirSync(WORKFLOWS_V2_DIR)
+  const examples = fs.readdirSync(WORKFLOWS_EXAMPLES_DIR)
     .filter((f) => f.endsWith('.yml.example'));
 
   let count = 0;
@@ -154,7 +149,7 @@ function workflowLoadMissing(): void {
     const id = example.replace('.yml.example', '');
     if (existing.has(id)) continue;
 
-    const src = path.join(WORKFLOWS_V2_DIR, example);
+    const src = path.join(WORKFLOWS_EXAMPLES_DIR, example);
     const dst = path.join(WORKFLOWS_DIR, `${id}.yml`);
 
     fs.copyFileSync(src, dst);
@@ -175,7 +170,7 @@ function workflowLoadMissing(): void {
 
 function workflowClean(purge: boolean): void {
   const exampleIds = new Set(
-    fs.readdirSync(WORKFLOWS_V2_DIR)
+    fs.readdirSync(WORKFLOWS_EXAMPLES_DIR)
       .filter((f) => f.endsWith('.yml.example'))
       .map((f) => f.replace('.yml.example', ''))
   );
@@ -258,14 +253,14 @@ function handlerToggle(args: string[], enable: boolean): void {
 }
 
 function handlerShow(name: string): void {
-  const file = path.join(HANDLERS_DIR, `${name}.yml`);
+  const file = path.join(HANDLERS_CONFIG_DIR, `${name}.yml`);
   if (!fs.existsSync(file)) { console.error(`  Handler not found: ${name}`); return; }
   console.log(fs.readFileSync(file, 'utf-8'));
 }
 
 function handlerRefresh(args: string[]): void {
   const ids = parseIds(args);
-  const examplesDir = path.join(PROJECT_ROOT, 'config', 'handlers');
+  const examplesDir = HANDLERS_CONFIG_DIR;
   const examples = fs.readdirSync(examplesDir).filter((f) => f.endsWith('.yml.example'));
   let count = 0;
 
@@ -274,7 +269,7 @@ function handlerRefresh(args: string[]): void {
     if (!matchesIds(name, ids)) continue;
 
     const src = path.join(examplesDir, example);
-    const dst = path.join(HANDLERS_DIR, `${name}.yml`);
+    const dst = path.join(HANDLERS_CONFIG_DIR, `${name}.yml`);
     fs.copyFileSync(src, dst);
 
     const cfg = loadYaml(dst);
@@ -292,7 +287,7 @@ function handlerRefresh(args: string[]): void {
 
 function handlerLoadMissing(): void {
   const existing = new Set(getHandlerFiles().map((f) => path.basename(f, '.yml')));
-  const examplesDir = path.join(PROJECT_ROOT, 'config', 'handlers');
+  const examplesDir = HANDLERS_CONFIG_DIR;
   const examples = fs.readdirSync(examplesDir).filter((f) => f.endsWith('.yml.example'));
   let count = 0;
 
@@ -301,7 +296,7 @@ function handlerLoadMissing(): void {
     if (existing.has(name)) continue;
 
     const src = path.join(examplesDir, example);
-    const dst = path.join(HANDLERS_DIR, `${name}.yml`);
+    const dst = path.join(HANDLERS_CONFIG_DIR, `${name}.yml`);
     fs.copyFileSync(src, dst);
 
     const cfg = loadYaml(dst);
@@ -318,7 +313,7 @@ function handlerLoadMissing(): void {
 }
 
 function handlerClean(purge: boolean): void {
-  const examplesDir = path.join(PROJECT_ROOT, 'config', 'handlers');
+  const examplesDir = HANDLERS_CONFIG_DIR;
   const exampleNames = new Set(
     fs.readdirSync(examplesDir)
       .filter((f) => f.endsWith('.yml.example'))
@@ -429,8 +424,7 @@ async function handleAudit(): Promise<void> {
   loader.loadFromDirectory(WORKFLOWS_DIR);
 
   const registry = new HandlerRegistry(logger);
-  const handlersDir = path.join(__dirname, '..', 'handlers');
-  await registry.discoverHandlers(handlersDir);
+  await registry.discoverHandlers(HANDLERS_DIR);
 
   const auditor = new WorkflowAuditor(logger);
   const results = auditor.audit(loader.getAll(), registry);
@@ -464,10 +458,10 @@ function getWorkflowFiles(): string[] {
 }
 
 function getHandlerFiles(): string[] {
-  if (!fs.existsSync(HANDLERS_DIR)) return [];
-  return fs.readdirSync(HANDLERS_DIR)
+  if (!fs.existsSync(HANDLERS_CONFIG_DIR)) return [];
+  return fs.readdirSync(HANDLERS_CONFIG_DIR)
     .filter((f) => f.endsWith('.yml') && !f.endsWith('.example') && !f.endsWith('.old'))
-    .map((f) => path.join(HANDLERS_DIR, f))
+    .map((f) => path.join(HANDLERS_CONFIG_DIR, f))
     .sort();
 }
 
@@ -505,8 +499,7 @@ function matchesIds(name: string | undefined, ids: string[]): boolean {
 }
 
 function openStorage(): SqliteStorage {
-  const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
-  return new SqliteStorage(DB_PATH, migrationsDir);
+  return new SqliteStorage(DB_PATH, MIGRATIONS_DIR);
 }
 
 function printUsage(): void {

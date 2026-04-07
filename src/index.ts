@@ -5,8 +5,7 @@
  *         load workflows → start nostr listener → start queue worker.
  */
 
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { createLogger } from './utils/logger.js';
 import { loadConfig, loadHandlerConfigs } from './config/loader.js';
 import { SqliteStorage } from './storage/sqlite.storage.js';
@@ -18,9 +17,10 @@ import { NostrInboundListener } from './inbound/nostr.js';
 import { Secret } from './config/secrets.js';
 import { WorkflowAuditor } from './core/auditor.js';
 import { WebhookInboundServer } from './inbound/webhook.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+import {
+  CONFIG_PATH, DB_PATH, MIGRATIONS_DIR, HANDLERS_DIR,
+  HANDLERS_CONFIG_DIR, WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR,
+} from './utils/paths.js';
 
 // --- Bootstrap ---
 
@@ -28,35 +28,27 @@ const logger = createLogger(process.env.LOG_LEVEL ?? 'info');
 logger.info('PipeliNostr v2 starting...');
 
 // 1. Load config
-const configPath = path.join(PROJECT_ROOT, 'config', 'config.yml');
-const config = loadConfig(configPath, logger);
+const config = loadConfig(CONFIG_PATH, logger);
 
 // 2. Init storage (ADR-002, ADR-003, ADR-005)
-const migrationsDir = path.join(__dirname, 'db', 'migrations');
-const dbPath = path.resolve(PROJECT_ROOT, config.database?.path ?? 'data/pipelinostr.db');
-const storage = new SqliteStorage(dbPath, migrationsDir);
+const dbPath = config.database?.path ? String(config.database.path) : DB_PATH;
+const storage = new SqliteStorage(dbPath, MIGRATIONS_DIR);
 logger.info({ dbPath }, 'Database initialized');
 
 // 3. Init handler registry (ADR-010)
 const registry = new HandlerRegistry(logger);
-const handlersDir = path.join(__dirname, 'handlers');
-await registry.discoverHandlers(handlersDir);
+await registry.discoverHandlers(HANDLERS_DIR);
 
-// Load handler configs — inject shared resources for nostr_dm handler
-const handlerConfigs = loadHandlerConfigs(
-  path.join(PROJECT_ROOT, 'config', 'handlers'),
-  logger,
-);
+// Load handler configs
+const handlerConfigs = loadHandlerConfigs(HANDLERS_CONFIG_DIR, logger);
 
 // 4. Load workflows (ADR-009 flat format)
 const workflowLoader = new WorkflowLoader(logger, storage.workflowTables);
-const workflowsDir = path.join(PROJECT_ROOT, 'config', 'workflows');
-workflowLoader.loadFromDirectory(workflowsDir);
+workflowLoader.loadFromDirectory(WORKFLOWS_DIR);
 
 // Also load from examples (for workflows without a config/workflows copy)
-const examplesDir = path.join(PROJECT_ROOT, 'workflows');
-if ((await import('node:fs')).existsSync(examplesDir)) {
-  workflowLoader.loadFromDirectory(examplesDir);
+if (fs.existsSync(WORKFLOWS_EXAMPLES_DIR)) {
+  workflowLoader.loadFromDirectory(WORKFLOWS_EXAMPLES_DIR);
 }
 
 // 5. Init workflow engine
