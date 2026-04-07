@@ -171,7 +171,9 @@ export class NostrInboundListener {
     filters.push({ kinds: [4], '#p': [myPubkey], ...(since && { since }) });
 
     // Gift-wrapped DMs to us (NIP-17 kind 1059)
-    filters.push({ kinds: [1059], '#p': [myPubkey], ...(since && { since }) });
+    // No 'since' filter — NIP-17 randomizes the outer created_at timestamp
+    // to protect metadata, so it may appear to be in the past
+    filters.push({ kinds: [1059], '#p': [myPubkey] });
 
     // Events where we are tagged
     filters.push({ '#p': [myPubkey], ...(since && { since }) });
@@ -203,8 +205,8 @@ export class NostrInboundListener {
       arr.slice(0, this.maxCacheSize / 2).forEach((id) => this.processedIds.delete(id));
     }
 
-    // Skip historical
-    if (!this.config.processHistorical && event.created_at < this.startTimestamp) {
+    // Skip historical — but NOT for kind 1059 (NIP-17 Gift Wrap has randomized timestamps)
+    if (!this.config.processHistorical && event.kind !== 1059 && event.created_at < this.startTimestamp) {
       this.logger.debug({ eventId: event.id.slice(0, 12), kind: event.kind }, 'Skipping historical event');
       return;
     }
