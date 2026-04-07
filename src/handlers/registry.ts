@@ -110,7 +110,10 @@ export class HandlerRegistry {
       }
 
       try {
-        await registered.instance.initialize(config);
+        // Unwrap secrets for handler initialization — libraries need plain strings
+        // (e.g. nodemailer's DNS resolver does typeof === 'string' checks)
+        const initConfig = unwrapSecrets(config) as Record<string, unknown>;
+        await registered.instance.initialize(initConfig);
         registered.status = 'available';
         this.logger.info({ type }, 'Handler initialized');
       } catch (err) {
