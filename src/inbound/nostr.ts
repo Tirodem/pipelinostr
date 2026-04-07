@@ -11,6 +11,7 @@ import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools/pure';
 import type { Filter } from 'nostr-tools/filter';
 import type { Logger } from 'pino';
 import type { NormalizedEvent } from '../core/types.js';
+import type { EventStorage } from '../storage/storage.port.js';
 import { CryptoHelper, npubToHex, hexToNpub } from '../utils/crypto.js';
 import { parseZapReceipt } from '../utils/zap-parser.js';
 import { Secret } from '../config/secrets.js';
@@ -35,6 +36,7 @@ export interface NostrListenerConfig {
   zapRecipients?: string[];
   since?: number;
   processHistorical?: boolean;
+  eventStorage?: EventStorage | undefined;
 }
 
 export class NostrInboundListener {
@@ -89,6 +91,12 @@ export class NostrInboundListener {
 
   async start(): Promise<void> {
     this.running = true;
+
+    // Seed processedIds from database to prevent duplicate processing on restart
+    if (this.config.eventStorage) {
+      this.seedProcessedIds(this.config.eventStorage);
+    }
+
     const filters = this.buildFilters();
 
     for (const url of this.config.relays) {
@@ -161,6 +169,19 @@ export class NostrInboundListener {
   }
 
   // --- Private ---
+
+  /**
+   * Seed processedIds from database to prevent duplicate processing on restart.
+   * Loads event source_ids from the last 3 days.
+   */
+  private seedProcessedIds(eventStorage: EventStorage): void {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const recentIds = eventStorage.getRecentSourceIds(threeDaysAgo);
+    for (const id of recentIds) {
+      this.processedIds.add(id);
+    }
+    this.logger.info({ count: recentIds.length }, 'Seeded processedIds from database');
+  }
 
   private buildFilters(): Filter[] {
     const myPubkey = this.crypto.getPublicKey();

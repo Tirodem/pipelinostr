@@ -74,6 +74,7 @@ const nostrListener = new NostrInboundListener({
   relays: config.nostr.relays,
   whitelist: config.nostr.whitelist ?? [],
   zapRecipients: [],
+  eventStorage: storage.events,
 }, logger);
 
 // Inject shared resources into handler configs

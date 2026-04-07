@@ -51,6 +51,7 @@ export interface EventStorage {
   log(source: string, sourceId: string | null, data: unknown): number;
   getById(id: number): StoredEvent | null;
   getBySourceId(sourceId: string): StoredEvent | null;
+  getRecentSourceIds(sinceDate: string): string[];
   deleteOlderThan(date: string): number;
 }
 

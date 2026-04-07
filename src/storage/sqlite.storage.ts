@@ -67,6 +67,7 @@ class SqliteEventStorage implements EventStorage {
     insert: BetterSqlite3.Statement;
     getById: BetterSqlite3.Statement;
     getBySourceId: BetterSqlite3.Statement;
+    getRecentSourceIds: BetterSqlite3.Statement;
     deleteOlderThan: BetterSqlite3.Statement;
   };
 
@@ -75,6 +76,7 @@ class SqliteEventStorage implements EventStorage {
       insert: db.prepare('INSERT INTO events (source, source_id, data) VALUES (?, ?, ?)'),
       getById: db.prepare('SELECT * FROM events WHERE id = ?'),
       getBySourceId: db.prepare('SELECT * FROM events WHERE source_id = ?'),
+      getRecentSourceIds: db.prepare('SELECT source_id FROM events WHERE source_id IS NOT NULL AND received_at > ?'),
       deleteOlderThan: db.prepare('DELETE FROM events WHERE received_at < ?'),
     };
   }
@@ -92,6 +94,11 @@ class SqliteEventStorage implements EventStorage {
   getBySourceId(sourceId: string): StoredEvent | null {
     const row = this.stmts.getBySourceId.get(sourceId) as Record<string, unknown> | undefined;
     return row ? this.mapRow(row) : null;
+  }
+
+  getRecentSourceIds(sinceDate: string): string[] {
+    const rows = this.stmts.getRecentSourceIds.all(sinceDate) as { source_id: string }[];
+    return rows.map((r) => r.source_id);
   }
 
   deleteOlderThan(date: string): number {
