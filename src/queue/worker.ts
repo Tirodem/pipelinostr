@@ -94,9 +94,22 @@ export class QueueWorker {
    * Enqueue an event for async processing.
    */
   enqueue(event: NormalizedEvent, whitelist?: string[]): void {
-    const eventId = this.storage.events.log(event.source, event.metadata.id as string ?? null, event);
+    const sourceId = (event.metadata.id as string) ?? null;
+
+    // Skip if this event was already processed (prevents replay on restart)
+    if (sourceId && this.storage.events.getBySourceId(sourceId)) {
+      this.logger.debug({ sourceId }, 'Event already processed, skipping');
+      return;
+    }
+
+    const eventId = this.storage.events.log(event.source, sourceId, event);
 
     const matches = findMatchingWorkflows(event, this.workflowLoader.getAll(), whitelist);
+
+    if (matches.length === 0) {
+      this.logger.info({ eventId, source: event.source, matchCount: 0 }, 'No workflow matched');
+      return;
+    }
 
     this.logger.info({ eventId, source: event.source, matchCount: matches.length }, 'Event enqueued');
 
