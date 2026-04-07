@@ -35,6 +35,7 @@ export interface PipelinostrConfig {
     enabled?: boolean;
     port?: number;
     host?: string;
+    secret?: unknown;
   };
   log_level?: string;
   max_hook_depth?: number;

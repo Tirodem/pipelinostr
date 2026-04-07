@@ -122,6 +122,7 @@ if (config.webhook?.enabled) {
   webhookServer = new WebhookInboundServer({
     port: config.webhook.port ?? 3000,
     host: config.webhook.host,
+    secret: config.webhook.secret as string | Secret | undefined,
   }, logger);
 
   webhookServer.onEvent(async (event) => {

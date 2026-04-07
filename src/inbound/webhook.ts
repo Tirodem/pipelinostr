@@ -31,9 +31,13 @@ export class WebhookInboundServer {
     private config: WebhookServerConfig,
     private logger: Logger,
   ) {
-    this.secret = config.secret
-      ? (config.secret instanceof Secret ? config.secret.unwrap() : config.secret)
-      : null;
+    // Duck-type check: Secret Proxy fails instanceof, so check for unwrap method
+    const rawSecret = config.secret;
+    if (rawSecret && typeof (rawSecret as unknown as Record<string, unknown>).unwrap === 'function') {
+      this.secret = (rawSecret as Secret).unwrap();
+    } else {
+      this.secret = rawSecret ? String(rawSecret) : null;
+    }
     // CORS: single origin or *, not comma-separated (devB feedback)
     this.corsOrigin = config.cors_origin ?? '*';
   }
@@ -170,10 +174,19 @@ export class WebhookInboundServer {
     );
   }
 
-  private readBody(req: IncomingMessage): Promise<string> {
+  private readBody(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      let size = 0;
+      req.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          req.destroy();
+          reject(new Error('Body too large'));
+          return;
+        }
+        chunks.push(chunk);
+      });
       req.on('end', () => resolve(Buffer.concat(chunks).toString()));
       req.on('error', reject);
     });
