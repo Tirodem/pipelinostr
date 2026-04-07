@@ -10,21 +10,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // --- Opaque Secret type ---
+//
+// A Secret behaves like a string for all operations (.replace(), .trim(),
+// .startsWith(), etc.) but serializes to [REDACTED] in logs and JSON.
+// Handlers never need to know about Secret — they just use it as a string.
 
 export class Secret {
-  private readonly value: string;
+  private readonly _value: string;
 
   constructor(value: string) {
-    this.value = value;
-    // Freeze to prevent tampering
-    Object.freeze(this);
+    this._value = value;
   }
 
-  /** Get the real secret value. Only call inside handler execute(). */
+  /** Get the real secret value explicitly. */
   unwrap(): string {
-    return this.value;
+    return this._value;
   }
 
+  /** Serializes to [REDACTED] — prevents leaks in logs/JSON. */
   toString(): string {
     return '[REDACTED]';
   }
@@ -33,9 +36,34 @@ export class Secret {
     return '[REDACTED]';
   }
 
-  // Prevent leaking via template literals
   [Symbol.toPrimitive](): string {
     return '[REDACTED]';
+  }
+
+  /**
+   * Create a Secret that behaves like a string via Proxy.
+   * All string methods (.replace, .trim, .startsWith, etc.) work transparently.
+   * toString/toJSON/template literals return [REDACTED].
+   */
+  static create(value: string): Secret {
+    const secret = new Secret(value);
+    return new Proxy(secret, {
+      get(target, prop) {
+        // Redaction
+        if (prop === 'toString' || prop === 'toJSON') return () => '[REDACTED]';
+        if (prop === Symbol.toPrimitive) return () => '[REDACTED]';
+        // Secret API
+        if (prop === 'unwrap') return () => target._value;
+        if (prop === '_value') return target._value;
+        // instanceof support
+        if (prop === Symbol.hasInstance) return undefined;
+        // Delegate string methods to the underlying value
+        const val = target._value as unknown as Record<string | symbol, unknown>;
+        const member = val[prop];
+        if (typeof member === 'function') return (member as Function).bind(target._value);
+        return member;
+      },
+    });
   }
 }
 
@@ -127,7 +155,7 @@ export class SecretResolver {
         `Add ${name}=<value> to your .env file or environment.`
       );
     }
-    return new Secret(value);
+    return Secret.create(value);
   }
 
   private resolveFile(filePath: string): Secret {
@@ -157,6 +185,6 @@ export class SecretResolver {
       );
     }
 
-    return new Secret(value);
+    return Secret.create(value);
   }
 }
