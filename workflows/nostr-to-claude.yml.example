@@ -20,7 +20,11 @@ actions:
     when: "actions.ask_claude.success"
     to: "{{ trigger.sender }}"
     dm_format: "{{ trigger.dm_format }}"
-    content: "{{ actions.ask_claude.response.response }}"
+    content: |
+      {{ actions.ask_claude.response.response }}
+
+      ---
+      Tokens: {{ actions.ask_claude.response.input_tokens }} in / {{ actions.ask_claude.response.output_tokens }} out ({{ actions.ask_claude.response.model }})
 
   - id: reply_error
     type: nostr_dm
