@@ -37,6 +37,7 @@ export class ClaudeHandler extends BaseHandler {
 
     switch (op) {
       case 'chat':
+      case 'generate':
         return this.chat(action);
       default:
         return { success: false, error: `Unknown claude action: ${op}` };

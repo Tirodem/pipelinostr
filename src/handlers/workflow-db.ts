@@ -25,7 +25,10 @@ export class WorkflowDbHandler extends BaseHandler {
 
   async execute(action: Record<string, unknown>, _context: ActionContext): Promise<HandlerResult> {
     const op = action.action as string;
-    const namespace = (action.namespace as string) ?? 'default';
+    // Support workflow_id as namespace prefix (v1 compat)
+    const workflowId = action.workflow_id as string | undefined;
+    const rawNamespace = (action.namespace as string) ?? 'default';
+    const namespace = workflowId ? `${workflowId}.${rawNamespace}` : rawNamespace;
     const key = action.key as string;
 
     switch (op) {

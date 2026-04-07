@@ -36,7 +36,7 @@ export class NostrNoteHandler extends BaseHandler {
       const event = finalizeEvent({
         kind: 1,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [],
+        tags: (action.tags as string[][] | undefined) ?? [],
         content,
       }, this.crypto.getPrivateKeyBytes());
 
