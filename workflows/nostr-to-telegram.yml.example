@@ -8,12 +8,10 @@ description: Forward all DMs to Telegram
 trigger:
   source: nostr.dm
   from_whitelist: true
+  content_pattern: "^tg:\\s*(?<message>.+)$"
 
 actions:
   - id: send_telegram
     type: telegram
-    text: |
-      New DM from {{ trigger.sender }}:
-
-      {{ trigger.content }}
+    text: "{{ match.message }}"
     parse_mode: HTML
