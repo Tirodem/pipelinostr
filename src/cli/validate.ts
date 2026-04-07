@@ -235,8 +235,10 @@ export async function runValidate(): Promise<void> {
     process.exit(1);
   } else if (warnings > 0) {
     console.log(`\n  \x1b[33mValidation passed with ${warnings} warning(s).\x1b[0m\n`);
+    process.exit(0);
   } else {
     console.log(`\n  \x1b[32mValidation passed.\x1b[0m\n`);
+    process.exit(0);
   }
 }
 
