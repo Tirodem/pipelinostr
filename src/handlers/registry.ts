@@ -122,6 +122,29 @@ export class HandlerRegistry {
       }
     }
 
+    // Auto-initialize zero-config handlers (no YAML config file needed)
+    for (const [type, registered] of this.handlers) {
+      if (registered.status !== 'disabled') continue;
+
+      const Ctor = registered.instance.constructor as HandlerConstructor;
+      if (Ctor.npmDependencies?.length) continue;
+      if (Ctor.systemDependencies?.length) continue;
+
+      // Check if schema accepts minimal config (no required fields beyond enabled)
+      if (Ctor.configSchema) {
+        const result = Ctor.configSchema.safeParse({ enabled: true });
+        if (!result.success) continue;
+      }
+
+      try {
+        await registered.instance.initialize({ enabled: true });
+        registered.status = 'available';
+        this.logger.info({ type }, 'Handler auto-initialized (zero-config)');
+      } catch {
+        // Silent — handler not needed, just couldn't auto-init
+      }
+    }
+
     return unavailable;
   }
 
