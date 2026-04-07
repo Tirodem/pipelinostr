@@ -286,8 +286,17 @@ export class NostrInboundListener {
     try {
       const unwrapped = this.crypto.unwrapGiftWrap(event);
 
+      this.logger.info({
+        eventId: event.id.slice(0, 12),
+        innerKind: unwrapped.kind,
+        sender: hexToNpub(unwrapped.senderPubkey).slice(0, 20),
+      }, 'NIP-17 Gift Wrap unwrapped');
+
       // Whitelist check on real sender
-      if (!this.isWhitelisted(unwrapped.senderPubkey)) return null;
+      if (!this.isWhitelisted(unwrapped.senderPubkey)) {
+        this.logger.info({ sender: hexToNpub(unwrapped.senderPubkey).slice(0, 20) }, 'NIP-17 sender not whitelisted');
+        return null;
+      }
 
       return {
         source: 'nostr.dm',
