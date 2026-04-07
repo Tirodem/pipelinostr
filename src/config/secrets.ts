@@ -137,7 +137,7 @@ export class SecretResolver {
     if (Array.isArray(obj)) {
       return obj.map((item) => this.resolveAll(item));
     }
-    if (obj !== null && typeof obj === 'object') {
+    if (obj !== null && typeof obj === 'object' && Object.getPrototypeOf(obj) === Object.prototype) {
       const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         result[key] = this.resolveAll(value);

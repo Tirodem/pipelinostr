@@ -233,7 +233,11 @@ export class HandlerRegistry {
 function unwrapSecrets(obj: unknown): unknown {
   if (obj instanceof Secret) return obj.unwrap();
   if (Array.isArray(obj)) return obj.map(unwrapSecrets);
-  if (obj !== null && typeof obj === 'object') {
+  // Only recurse into plain objects ({}).
+  // Class instances (_crypto, _stateStorage, etc.) are passed through untouched —
+  // they can't contain secrets and reconstructing them via Object.entries()
+  // would destroy their prototype chain and methods.
+  if (obj !== null && typeof obj === 'object' && Object.getPrototypeOf(obj) === Object.prototype) {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       result[key] = unwrapSecrets(value);
