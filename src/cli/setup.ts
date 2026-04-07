@@ -290,6 +290,7 @@ export async function runSetup(): Promise<void> {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.mkdirSync(HANDLERS_CONFIG_DIR, { recursive: true });
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(path.join(PROJECT_ROOT, 'logs'), { recursive: true });
 
   // Write .env
   const envContent = Object.entries(envVars)

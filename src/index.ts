@@ -22,6 +22,13 @@ import {
   HANDLERS_CONFIG_DIR, WORKFLOWS_DIR, WORKFLOWS_EXAMPLES_DIR,
 } from './utils/paths.js';
 
+import { DATA_DIR, PROJECT_ROOT } from './utils/paths.js';
+import path from 'node:path';
+
+// --- Ensure directories exist ---
+fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(path.join(PROJECT_ROOT, 'logs'), { recursive: true });
+
 // --- Bootstrap ---
 
 const logger = createLogger(process.env.LOG_LEVEL ?? 'info');

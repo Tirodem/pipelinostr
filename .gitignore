@@ -17,11 +17,13 @@ config/workflows/*.yml
 !config/workflows/*.yml.example
 
 # Logs
-logs/
+logs/*
+!logs/.gitkeep
 *.log
 
 # Database
-data/
+data/*
+!data/.gitkeep
 *.db
 
 # IDE
