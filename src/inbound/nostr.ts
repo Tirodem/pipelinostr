@@ -49,6 +49,7 @@ export class NostrInboundListener {
   private startTimestamp: number;
   private handlers: EventHandler[] = [];
   private running = false;
+  private eoseReceived = new Set<string>(); // relays that sent EOSE
 
   constructor(
     private config: NostrListenerConfig,
@@ -106,7 +107,10 @@ export class NostrInboundListener {
 
         relay.subscribe(filters, {
           onevent: (event) => { this.handleEvent(event, url); },
-          oneose: () => { this.logger.debug({ relay: url }, 'EOSE received'); },
+          oneose: () => {
+            this.eoseReceived.add(url);
+            this.logger.info({ relay: url }, 'EOSE received — now processing live events');
+          },
         });
 
         this.logger.info({ relay: url }, 'Connected to relay');
@@ -215,6 +219,13 @@ export class NostrInboundListener {
   }
 
   private async handleEvent(event: NostrEvent, relayUrl: string): Promise<void> {
+    // Skip events received before EOSE (historical replay from relay)
+    // Kind 1059 has no since filter, so all old gift wraps arrive before EOSE
+    if (!this.eoseReceived.has(relayUrl)) {
+      this.logger.debug({ eventId: event.id.slice(0, 12), kind: event.kind, relay: relayUrl }, 'Pre-EOSE event skipped');
+      return;
+    }
+
     // Dedup
     if (this.processedIds.has(event.id)) {
       this.logger.debug({ eventId: event.id.slice(0, 12) }, 'Event deduplicated');
