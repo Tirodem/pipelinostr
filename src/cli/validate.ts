@@ -240,7 +240,5 @@ export async function runValidate(): Promise<void> {
   }
 }
 
-runValidate().catch((err) => {
-  console.error(`Validation crashed: ${(err as Error).message}`);
-  process.exit(1);
-});
+// Exported only — called by cli/index.ts via import + explicit call.
+// No self-executing code here.
