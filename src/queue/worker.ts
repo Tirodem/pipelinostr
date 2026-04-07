@@ -11,7 +11,7 @@ import type { Storage } from '../storage/storage.port.js';
 import type { WorkflowEngine } from '../core/engine.js';
 import type { WorkflowLoader } from '../core/workflow-loader.js';
 import type { NormalizedEvent } from '../core/types.js';
-import { findMatchingWorkflows } from '../core/matcher.js';
+import { findMatchingWorkflows, matchTrigger } from '../core/matcher.js';
 
 export interface QueueWorkerOptions {
   pollIntervalMs?: number;
@@ -151,10 +151,13 @@ export class QueueWorker {
 
     const event = storedEvent.data as NormalizedEvent;
 
+    // Re-match to get capture groups (not stored in queue)
+    const matchResult = matchTrigger(event, workflow.trigger);
+
     // Execute with timeout (ADR-014)
     try {
       const result = await Promise.race([
-        this.engine.execute(workflow, event, { matched: true, groups: {} }),
+        this.engine.execute(workflow, event, matchResult.matched ? matchResult : { matched: true, groups: {} }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Execution timeout')), this.itemTimeoutMs)
         ),
