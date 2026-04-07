@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { BaseHandler } from './base.js';
+import { Secret } from '../config/secrets.js';
 import type { Logger } from 'pino';
 
 /** Constructor type that includes static properties from BaseHandler */
@@ -80,9 +81,11 @@ export class HandlerRegistry {
       }
 
       // Validate config with Zod schema if available
+      // Unwrap Secret values for validation (schemas expect strings)
       const HandlerClass = registered.instance.constructor as HandlerConstructor;
       if (HandlerClass.configSchema) {
-        const result = HandlerClass.configSchema.safeParse(config);
+        const configForValidation = unwrapSecrets(config);
+        const result = HandlerClass.configSchema.safeParse(configForValidation);
         if (!result.success) {
           const errorMsg = `Config validation failed: ${result.error.message}`;
           this.logger.warn({ type, error: errorMsg }, 'Handler config invalid, marking unavailable');
@@ -193,4 +196,21 @@ export class HandlerRegistry {
     }
     return missing;
   }
+}
+
+/**
+ * Unwrap Secret values in a config object for Zod validation.
+ * Schemas expect plain strings, not Secret wrappers.
+ */
+function unwrapSecrets(obj: unknown): unknown {
+  if (obj instanceof Secret) return obj.unwrap();
+  if (Array.isArray(obj)) return obj.map(unwrapSecrets);
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = unwrapSecrets(value);
+    }
+    return result;
+  }
+  return obj;
 }
