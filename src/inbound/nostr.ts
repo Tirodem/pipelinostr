@@ -150,7 +150,10 @@ export class NostrInboundListener {
 
   private async handleEvent(event: NostrEvent, relayUrl: string): Promise<void> {
     // Dedup
-    if (this.processedIds.has(event.id)) return;
+    if (this.processedIds.has(event.id)) {
+      this.logger.debug({ eventId: event.id.slice(0, 12) }, 'Event deduplicated');
+      return;
+    }
     this.processedIds.add(event.id);
     if (this.processedIds.size > this.maxCacheSize) {
       const arr = Array.from(this.processedIds);
@@ -158,11 +161,21 @@ export class NostrInboundListener {
     }
 
     // Skip historical
-    if (!this.config.processHistorical && event.created_at < this.startTimestamp) return;
+    if (!this.config.processHistorical && event.created_at < this.startTimestamp) {
+      this.logger.debug({ eventId: event.id.slice(0, 12), kind: event.kind }, 'Skipping historical event');
+      return;
+    }
+
+    this.logger.info({ eventId: event.id.slice(0, 12), kind: event.kind, relay: relayUrl }, 'Event received');
 
     try {
       const normalized = await this.normalizeEvent(event, relayUrl);
-      if (!normalized) return;
+      if (!normalized) {
+        this.logger.info({ eventId: event.id.slice(0, 12), kind: event.kind }, 'Event filtered out (whitelist or parse failure)');
+        return;
+      }
+
+      this.logger.info({ source: normalized.source, sender: normalized.sender.slice(0, 20), content: normalized.content.slice(0, 50) }, 'Event normalized');
 
       for (const handler of this.handlers) {
         try { await handler(normalized); }

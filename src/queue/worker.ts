@@ -67,15 +67,17 @@ export class QueueWorker {
     const eventId = this.storage.events.log(event.source, event.metadata.id as string ?? null, event);
 
     // Find matching workflows
+    this.logger.info({ source: event.source, sender: event.sender.slice(0, 20), workflows: this.workflowLoader.getAll().size }, 'Processing event');
+
     const matches = findMatchingWorkflows(event, this.workflowLoader.getAll(), whitelist);
 
     if (matches.length === 0) {
-      this.logger.debug({ source: event.source, sender: event.sender }, 'No workflow matched');
+      this.logger.info({ source: event.source, sender: event.sender.slice(0, 20) }, 'No workflow matched');
       return;
     }
 
     for (const { workflow, match } of matches) {
-      this.logger.info({ workflowId: workflow.id, sender: event.sender }, 'Workflow matched');
+      this.logger.info({ workflowId: workflow.id, sender: event.sender.slice(0, 20), groups: match.groups }, 'Workflow matched');
 
       const result = await this.engine.execute(workflow, event, match);
 
@@ -96,9 +98,11 @@ export class QueueWorker {
 
     const matches = findMatchingWorkflows(event, this.workflowLoader.getAll(), whitelist);
 
+    this.logger.info({ eventId, source: event.source, matchCount: matches.length }, 'Event enqueued');
+
     for (const { workflow } of matches) {
       this.storage.queue.enqueue(eventId, workflow.id);
-      this.logger.debug({ workflowId: workflow.id, eventId }, 'Event enqueued');
+      this.logger.info({ workflowId: workflow.id, eventId }, 'Queued for workflow');
     }
   }
 
