@@ -9,6 +9,8 @@ actions:
   - id: send_zulip
     type: zulip
     msg_type: stream
+    stream: PipeliNostr
+    topic: DM Forwarding
     content: |
       DM de {{ trigger.sender }}:
 
