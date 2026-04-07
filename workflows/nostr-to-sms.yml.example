@@ -8,5 +8,5 @@ trigger:
 actions:
   - id: send_sms
     type: traccar_sms
-    to: "{{ match.to | trim }}"
+    to: "{{ trim match.to }}"
     message: "{{ match.message }}"

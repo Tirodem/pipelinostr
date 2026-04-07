@@ -8,8 +8,8 @@ trigger:
 actions:
   - id: send_invite
     type: calendar
-    to: "{{ match.to | trim }}"
-    title: "{{ match.title | trim }}"
-    start: "{{ match.start | trim }}"
-    duration: "{{ match.duration | trim }}"
-    location: "{{ match.location | trim }}"
+    to: "{{ trim match.to }}"
+    title: "{{ trim match.title }}"
+    start: "{{ trim match.start }}"
+    duration: "{{ trim match.duration }}"
+    location: "{{ trim match.location }}"

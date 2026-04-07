@@ -18,7 +18,7 @@ actions:
       - **ID:** {{ parent.id }}
       - **Name:** {{ parent.name }}
       - **Actions:** {{ parent.actionsExecuted }} executed, {{ parent.actionsSkipped }} skipped
-      - **Trigger:** {{ trigger.from | truncate:20 }}
+      - **Trigger:** {{ truncate trigger.from 20 }}
   - id: notify_failure
     type: zulip
     when: parent.success == false
@@ -31,4 +31,4 @@ actions:
       - **Name:** {{ parent.name }}
       - **Failed actions:** {{ parent.actionsFailed }}
       - **Error:** {{ default parent.error "No error message" }}
-      - **Trigger:** {{ trigger.from | truncate:20 }}
+      - **Trigger:** {{ truncate trigger.from 20 }}

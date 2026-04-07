@@ -16,18 +16,18 @@ actions:
     when: actions.lookup_tx.success == true && actions.lookup_tx.response.response.status.confirmed == true
     to: "{{ trigger.from }}"
     content: |
-      TX {{ match.txid | truncate:12 }}
+      TX {{ truncate match.txid 12 }}
 
-      From: {{ actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.response.vin | length }} inputs)
-      To: {{ actions.lookup_tx.response.response.vout[0].scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.response.vout | length }} outputs)
-      Amount: {{ actions.lookup_tx.response.response.vout[0].value | sats_to_btc }} BTC
+      From: {{ truncate actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vin }} inputs)
+      To: {{ truncate actions.lookup_tx.response.response.vout[0].scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vout }} outputs)
+      Amount: {{ sats_to_btc actions.lookup_tx.response.response.vout[0].value }} BTC
 
-      Fee: {{ actions.lookup_tx.response.response.fee | number }} sats
+      Fee: {{ to_number actions.lookup_tx.response.response.fee }} sats
       Size: {{ actions.lookup_tx.response.response.size }} vB
 
       Status: Confirmed
-      Block: {{ actions.lookup_tx.response.response.status.block_height | number }}
-      Date: {{ actions.lookup_tx.response.response.status.block_time | date_short }}
+      Block: {{ to_number actions.lookup_tx.response.response.status.block_height }}
+      Date: {{ date_short actions.lookup_tx.response.response.status.block_time }}
 
       https://mempool.space/tx/{{ match.txid }}
   - id: reply_pending
@@ -35,13 +35,13 @@ actions:
     when: actions.lookup_tx.success == true && actions.lookup_tx.response.response.status.confirmed == false
     to: "{{ trigger.from }}"
     content: |
-      TX {{ match.txid | truncate:12 }}
+      TX {{ truncate match.txid 12 }}
 
-      From: {{ actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.response.vin | length }} inputs)
-      To: {{ actions.lookup_tx.response.response.vout[0].scriptpubkey_address | truncate:12 }} ({{ actions.lookup_tx.response.response.vout | length }} outputs)
-      Amount: {{ actions.lookup_tx.response.response.vout[0].value | sats_to_btc }} BTC
+      From: {{ truncate actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vin }} inputs)
+      To: {{ truncate actions.lookup_tx.response.response.vout[0].scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vout }} outputs)
+      Amount: {{ sats_to_btc actions.lookup_tx.response.response.vout[0].value }} BTC
 
-      Fee: {{ actions.lookup_tx.response.response.fee | number }} sats
+      Fee: {{ to_number actions.lookup_tx.response.response.fee }} sats
       Size: {{ actions.lookup_tx.response.response.size }} vB
 
       Status: Pending (unconfirmed)
@@ -54,5 +54,5 @@ actions:
     content: |
       Transaction not found or API error
 
-      TXID: {{ match.txid | truncate:16 }}
+      TXID: {{ truncate match.txid 16 }}
       Error: {{ actions.lookup_tx.error }}
