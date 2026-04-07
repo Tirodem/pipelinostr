@@ -43,6 +43,10 @@ export class WebhookInboundServer {
   }
 
   async start(): Promise<void> {
+    if (!this.secret) {
+      throw new Error('Webhook server requires a secret. Set webhook.secret in config.yml (e.g. secret: env:WEBHOOK_SECRET)');
+    }
+
     this.server = createServer((req, res) => {
       this.handleRequest(req, res);
     });
