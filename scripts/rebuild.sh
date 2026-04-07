@@ -33,32 +33,45 @@ echo ""
 
 echo "=== Restarting PipeliNostr ==="
 
-# Stop existing process if running
-PID=$(pgrep -f "node dist/index.js" || true)
-if [ -n "$PID" ]; then
-    echo "Stopping PipeliNostr (PID: $PID)..."
-    kill "$PID" 2>/dev/null || true
+# Use systemd if service is installed, otherwise nohup
+if systemctl is-active pipelinostr &>/dev/null || systemctl is-enabled pipelinostr &>/dev/null; then
+    echo "Restarting via systemd..."
+    sudo systemctl restart pipelinostr
     sleep 2
-    # Force kill if still running
-    kill -9 "$PID" 2>/dev/null || true
-fi
-
-# Start
-echo "Starting PipeliNostr..."
-nohup node dist/index.js > logs/pipelinostr.log 2>&1 &
-NEW_PID=$!
-sleep 2
-
-# Check if started
-if kill -0 "$NEW_PID" 2>/dev/null; then
-    echo -e "${GREEN}PipeliNostr started (PID: $NEW_PID)${NC}"
+    if systemctl is-active pipelinostr &>/dev/null; then
+        echo -e "${GREEN}PipeliNostr restarted via systemd${NC}"
+    else
+        echo -e "${RED}Failed to restart PipeliNostr${NC}"
+        journalctl -u pipelinostr --no-pager -n 20
+        exit 1
+    fi
+    echo ""
+    echo "=== Logs (Ctrl+C to exit) ==="
+    journalctl -u pipelinostr -f
 else
-    echo -e "${RED}Failed to start PipeliNostr${NC}"
-    echo "Last log lines:"
-    tail -20 logs/pipelinostr.log
-    exit 1
-fi
+    # Fallback: manual process management
+    PID=$(pgrep -f "node dist/index.js" || true)
+    if [ -n "$PID" ]; then
+        echo "Stopping PipeliNostr (PID: $PID)..."
+        kill "$PID" 2>/dev/null || true
+        sleep 2
+        kill -9 "$PID" 2>/dev/null || true
+    fi
 
-echo ""
-echo "=== Logs (Ctrl+C to exit) ==="
-tail -f logs/pipelinostr.log
+    echo "Starting PipeliNostr..."
+    nohup node dist/index.js > logs/pipelinostr.log 2>&1 &
+    NEW_PID=$!
+    sleep 2
+
+    if kill -0 "$NEW_PID" 2>/dev/null; then
+        echo -e "${GREEN}PipeliNostr started (PID: $NEW_PID)${NC}"
+    else
+        echo -e "${RED}Failed to start PipeliNostr${NC}"
+        tail -20 logs/pipelinostr.log
+        exit 1
+    fi
+
+    echo ""
+    echo "=== Logs (Ctrl+C to exit) ==="
+    tail -f logs/pipelinostr.log
+fi
