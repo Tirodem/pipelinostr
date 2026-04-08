@@ -1,0 +1,39 @@
+id: dm-to-voice-telegram
+name: DM to Voice Telegram
+description: Convert DM to audio and send to Telegram
+enabled: false
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^Send vocal to TG:\s*(?<message>.+)$
+actions:
+  - id: generate_audio
+    type: tts
+    text: "{{ match.message }}"
+    format: wav
+  - id: send_to_telegram
+    type: telegram
+    when: actions.generate_audio.success
+    action: voice
+    voice_file: "{{ actions.generate_audio.response.file_path }}"
+    caption: Message vocal de {{ trigger.from }}
+  - id: confirm_success
+    type: nostr_dm
+    when: actions.send_to_telegram.success
+    to: "{{ trigger.from }}"
+    content: |
+      Message vocal envoye sur Telegram!
+  - id: notify_tts_failure
+    type: nostr_dm
+    when: "!actions.generate_audio.success"
+    to: "{{ trigger.from }}"
+    content: |
+      Erreur TTS: {{ actions.generate_audio.error }}
+      Verifiez que espeak-ng est installe.
+  - id: notify_telegram_failure
+    type: nostr_dm
+    when: actions.generate_audio.success && !actions.send_to_telegram.success
+    to: "{{ trigger.from }}"
+    content: |
+      Erreur Telegram: {{ actions.send_to_telegram.error }}
+      Verifiez la configuration du bot.

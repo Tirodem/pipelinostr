@@ -1,26 +1,10 @@
-# Configuration Email Handler
-email:
-  enabled: true
-
-  # SMTP sortant
-  smtp:
-    host: "smtp.example.com"
-    port: 587
-    secure: false
-    auth:
-      user: "bot@example.com"
-      pass: ${SMTP_PASSWORD}
-
-    from:
-      name: "PipeliNostr Bot"
-      address: "bot@example.com"
-
-  # IMAP entrant (futur)
-  imap:
-    enabled: false
-    host: "imap.example.com"
-    port: 993
-    auth:
-      user: "bot@example.com"
-      pass: ${SMTP_PASSWORD}
-    poll_interval: "60s"
+enabled: true
+host: env:SMTP_HOST
+port: 587
+secure: false
+auth:
+  user: env:SMTP_USER
+  pass: env:SMTP_PASSWORD
+from:
+  name: PipeliNostr
+  address: env:SMTP_USER

@@ -1,0 +1,29 @@
+id: zap-to-usb-dispenser
+name: Zap to USB Dispenser
+enabled: false
+description: Trigger USB dispenser when a zap >= threshold is received
+variables:
+  min_sats: 21
+  hub: 1-1
+  port: 1
+  cycle_delay: 2000
+trigger:
+  source: nostr.zap
+  min_amount: "{{ variables.min_sats }}"
+actions:
+  - id: notify
+    type: nostr_dm
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: "Zap of {{ trigger.zap.amount }} sats received! Dispensing..."
+  - id: dispense
+    type: usb_power
+    hub: "{{ variables.hub }}"
+    port: "{{ variables.port }}"
+    action: cycle
+    delay: "{{ variables.cycle_delay }}"
+  - id: confirm
+    type: nostr_dm
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: "Dispensed! Thanks for your zap."

@@ -1,0 +1,24 @@
+id: email-command
+name: Send Email via DM
+enabled: false
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Ss]end email to (?<to>[^:]+):\s*(?<message>.+)
+actions:
+  - id: send_email
+    type: email
+    to: "{{ trim match.to }}"
+    subject: Message from Nostr
+    body: "{{ match.message }}"
+    html: |
+      <html>
+      <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Message from Nostr</h2>
+        <p>{{ match.message }}</p>
+        <hr style="margin-top: 30px;">
+        <p style="color: #666; font-size: 12px;">
+          Sent via PipeliNostr from {{ trigger.from }}
+        </p>
+      </body>
+      </html>

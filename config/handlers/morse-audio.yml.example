@@ -1,0 +1,4 @@
+enabled: true
+auto_install: true
+output_dir: ./data/morse
+default_frequency: 700

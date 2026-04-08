@@ -1,0 +1,16 @@
+id: pipelinostr-status
+name: PipeliNostr Status Command
+enabled: true
+trigger:
+  source: nostr.dm
+  content_pattern: (?i)^/pipelinostr\s+status$
+  from_whitelist: true
+actions:
+  - id: get_status
+    type: system
+    action: status
+    recent_executions_limit: 10
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: "{{ actions.get_status.response.formatted }}"

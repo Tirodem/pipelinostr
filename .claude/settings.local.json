@@ -63,7 +63,13 @@
       "Bash(powershell:*)",
       "Bash(type:*)",
       "Bash(npm info:*)",
-      "WebFetch(domain:nostr.build)"
+      "WebFetch(domain:nostr.build)",
+      "WebFetch(domain:developers.stoat.chat)",
+      "WebFetch(domain:api.revolt.chat)",
+      "WebFetch(domain:stoat.chat)",
+      "Bash(gh api:*)",
+      "Bash(gh pr:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

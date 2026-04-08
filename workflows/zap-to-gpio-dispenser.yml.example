@@ -1,0 +1,28 @@
+id: zap-to-gpio-dispenser
+name: Zap to GPIO Dispenser
+enabled: false
+description: Declenche le distributeur GPIO quand un zap >= seuil est recu
+variables:
+  gpio_pin: 17
+  pulse_duration: 2000
+trigger:
+  source: nostr.dm
+  zap_recipients:
+    - npub1...
+  min_amount: 21
+actions:
+  - id: notify
+    type: nostr_dm
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      Zap de {{ trigger.zap.amount }} sats recu ! Distributeur en cours...
+  - id: dispense
+    type: gpio
+    pin: "{{ variables.gpio_pin }}"
+    action: pulse
+    duration: "{{ variables.pulse_duration }}"
+  - id: confirm
+    type: nostr_dm
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      Distribution effectuee ! Merci pour ton zap de {{ trigger.zap.amount }} sats.

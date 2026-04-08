@@ -1,17 +1,3 @@
-# Traccar SMS Gateway Handler
-# Sends SMS via Traccar SMS Gateway Android app
-# Docs: https://www.traccar.org/sms-gateway/
-
-traccar_sms:
-  enabled: false
-
-  # Gateway URL - either:
-  # - Direct to phone: http://YOUR_PHONE_IP:PORT (from the app settings)
-  # - Cloud relay: https://www.traccar.org/sms/
-  gateway_url: "https://www.traccar.org/sms/"
-
-  # API token from Traccar SMS Gateway app
-  token: ${TRACCAR_SMS_TOKEN}
-
-  # Optional: default sender ID (if supported)
-  # default_sender: "PipeliNostr"
+enabled: true
+gateway_url: https://www.traccar.org/sms/
+token: env:TRACCAR_SMS_TOKEN

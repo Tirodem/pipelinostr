@@ -1,0 +1,58 @@
+id: mempool-tx-lookup
+name: Mempool Transaction Lookup
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Mm]empool:\s*(?<txid>[a-fA-F0-9]{64})$
+actions:
+  - id: lookup_tx
+    type: http
+    url: https://mempool.space/api/tx/{{ match.txid }}
+    method: GET
+    timeout_ms: 15000
+  - id: reply_confirmed
+    type: nostr_dm
+    when: actions.lookup_tx.success == true && actions.lookup_tx.response.response.status.confirmed == true
+    to: "{{ trigger.from }}"
+    content: |
+      TX {{ truncate match.txid 12 }}
+
+      From: {{ truncate actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vin }} inputs)
+      To: {{ truncate actions.lookup_tx.response.response.vout[0].scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vout }} outputs)
+      Amount: {{ sats_to_btc actions.lookup_tx.response.response.vout[0].value }} BTC
+
+      Fee: {{ to_number actions.lookup_tx.response.response.fee }} sats
+      Size: {{ actions.lookup_tx.response.response.size }} vB
+
+      Status: Confirmed
+      Block: {{ to_number actions.lookup_tx.response.response.status.block_height }}
+      Date: {{ date_short actions.lookup_tx.response.response.status.block_time }}
+
+      https://mempool.space/tx/{{ match.txid }}
+  - id: reply_pending
+    type: nostr_dm
+    when: actions.lookup_tx.success == true && actions.lookup_tx.response.response.status.confirmed == false
+    to: "{{ trigger.from }}"
+    content: |
+      TX {{ truncate match.txid 12 }}
+
+      From: {{ truncate actions.lookup_tx.response.response.vin[0].prevout.scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vin }} inputs)
+      To: {{ truncate actions.lookup_tx.response.response.vout[0].scriptpubkey_address 12 }} ({{ length actions.lookup_tx.response.response.vout }} outputs)
+      Amount: {{ sats_to_btc actions.lookup_tx.response.response.vout[0].value }} BTC
+
+      Fee: {{ to_number actions.lookup_tx.response.response.fee }} sats
+      Size: {{ actions.lookup_tx.response.response.size }} vB
+
+      Status: Pending (unconfirmed)
+
+      https://mempool.space/tx/{{ match.txid }}
+  - id: reply_error
+    type: nostr_dm
+    when: actions.lookup_tx.success == false
+    to: "{{ trigger.from }}"
+    content: |
+      Transaction not found or API error
+
+      TXID: {{ truncate match.txid 16 }}
+      Error: {{ actions.lookup_tx.error }}

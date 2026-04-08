@@ -1,0 +1,18 @@
+id: api-to-nostr-dm
+name: API to Nostr DM
+description: Forward API calls to Nostr DM
+enabled: true
+trigger:
+  source: webhook.post
+  path: /api/notify
+actions:
+  - id: send_dm
+    type: nostr_dm
+    to: npub1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    content: |
+      Notification API:
+
+      {{ trigger.content }}
+
+      ---
+      Via PipeliNostr webhook

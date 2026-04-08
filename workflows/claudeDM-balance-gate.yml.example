@@ -1,0 +1,25 @@
+id: claudeDM-balance-gate
+name: ClaudeDM Balance Gate
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/claudeDM\s+(?<question>.{1,4000})$
+variables:
+  min_balance_sats: 2500
+  sats_per_1k_tokens: 10
+  max_tokens: 1000
+actions:
+  - id: check_balance
+    type: workflow_db
+    on_fail:
+      workflow: claudeDM-insufficient-balance
+      pass_context: true
+    action: check
+    namespace: zap-balance-tracker.balances
+    key: balance:{{ trigger.from }}
+    operator: gte
+    compare_value: "{{ variables.min_balance_sats }}"
+hooks:
+  on_complete:
+    - workflow_id: claudeDM-process
+      pass_context: true

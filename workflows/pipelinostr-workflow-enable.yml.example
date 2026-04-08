@@ -1,0 +1,22 @@
+id: pipelinostr-workflow-enable
+name: PipeliNostr Workflow Enable
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^/pipelinostr\s+workflow\s+enable\s+(\S+)
+actions:
+  - id: enable
+    type: system
+    action: workflow_enable
+    workflow_id: "{{ match.$1 }}"
+  - id: reply_success
+    type: nostr_dm
+    when: actions.enable.success
+    to: "{{ trigger.from }}"
+    content: "{{ actions.enable.response.formatted }}"
+  - id: reply_error
+    type: nostr_dm
+    when: "!actions.enable.success"
+    to: "{{ trigger.from }}"
+    content: "Error: {{ actions.enable.error }}"

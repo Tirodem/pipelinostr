@@ -1,454 +1,161 @@
-# PipeliNostr - Contexte Claude Code
+# PipeliNostr v2 - Claude Code Context
 
-> **Objectif :** Fichier lu automatiquement par Claude Code pour restaurer le contexte entre sessions.
-> **Dernière mise à jour :** 2025-12-25
-> **Dernier commit :** 82dd891 - feat: add NIP-17 DM support (Gift Wrap) with NIP-04 backwards compatibility
+> **Purpose:** Auto-read by Claude Code to restore context between sessions.
+> **Last update:** 2026-04-07
+> **Branch:** v2
 
-## Projet en bref
+## Project overview
 
-**PipeliNostr** = "Le n8n de Nostr" - Routeur d'événements Nostr vers services externes.
-- Stack : TypeScript / Node.js 20+ / SQLite
-- Repo : `C:\Users\tirod\Documents\pipelinostr`
+**PipeliNostr** = "The n8n of Nostr" — Nostr event router to external services.
+- Stack: TypeScript / Node.js LTS / SQLite (better-sqlite3 + WAL)
+- Repo: `C:\Users\tirod\Documents\pipelinostr`
 
-## État actuel
+## Architecture (v2)
 
-- **Workflows testés :** 20/28 fonctionnels
-- **Workflows non testés :** publish-note, auto-reply, command-handler, email-forward, claude-workflow-generator, claude-activate, nostr-to-morse, morse-to-telegram
-- **Dernier commit :** feat: auto-split long Morse messages into chunks
+15 ADRs in `docs/architecture/` — **read README.md there for the full index.**
 
-## Fichiers clés à lire si besoin de contexte détaillé
+Key decisions:
+- **ADR-001**: Node.js LTS (not Bun)
+- **ADR-002**: better-sqlite3 + WAL (not sql.js)
+- **ADR-003**: 4 system tables, JSON columns, versioned migrations
+- **ADR-004**: Declarative `storage:` in workflow YAML
+- **ADR-005**: Storage port interface (database behind interfaces)
+- **ADR-009**: Flat workflow YAML format (no trigger.filters, no actions.config nesting)
+- **ADR-010**: Handler registry (one file per handler, auto-discovery)
+- **ADR-012**: Multi-source triggers (`source: nostr.dm`, `source: webhook.post`)
+- **ADR-013**: Secret management (`env:VAR`, `file:/path`, Secret opaque type)
+- **ADR-014**: Ordered shutdown (inbound → queue → handlers → database)
 
-| Fichier | Contenu | Quand le lire |
-|---------|---------|---------------|
-| `BACKLOG.md` | Features proposées, en cours, terminées | Avant d'implémenter une feature |
-| `specifications.md` | Architecture technique détaillée | Pour comprendre l'architecture |
-| `docs/HARDWARE.md` | Guide matériel complet (Orange Pi, RPi, Android) | Pour choix/setup hardware |
-| `docs/qa-sessions/*.md` | Historique des sessions de dev | Pour contexte historique |
-| `examples/workflows/README.md` | Variables, filtres, hooks disponibles | Pour écrire des workflows |
-| `README.md` | Vue d'ensemble, installation, usage | Pour vue globale |
-
-## Décisions d'architecture établies
-
-1. **Handlers** : Un fichier par handler dans `src/outbound/`, config YAML dans `config/handlers/`
-2. **Workflows** : YAML dans `config/workflows/`, exemples dans `examples/workflows/`
-3. **Queue** : SQLite `event_queue` table, statuts: pending → processing → completed/failed/dead
-4. **Hooks** : `on_start`, `on_complete`, `on_fail` pour chaîner workflows (voir section dédiée)
-5. **GPIO Bookworm** : Utiliser `pigpio` (pas `onoff`) pour Raspberry Pi OS Bookworm
-6. **Templates** : Handlebars avec filtres custom (`trim`, `sats_to_btc`, `date`, etc.)
-7. **Variables** : Définies par workflow, accessibles via `{{ variables.xxx }}` et `{{ parent.variables.xxx }}`
-8. **Config schema** : TOUJOURS mettre à jour les DEUX endroits dans `src/config/schema.ts` :
-   - L'interface TypeScript (`PipelinostrConfig`)
-   - Le schéma JSON Ajv (`configSchema`) - sinon erreur "must NOT have additional properties"
-
-## Logique des Hooks (IMPORTANT)
-
-Les workflows peuvent chaîner d'autres workflows via des hooks. Chaque type a un usage spécifique :
-
-### Types de hooks
-
-| Hook | Quand | Usage | Bloquant |
-|------|-------|-------|----------|
-| `on_start` | Au début du workflow | Lancer des workflows parallèles (indépendants) | Non (fire & forget) |
-| `on_complete` | Quand le workflow réussit | Chaîner séquentiellement (workflow A → workflow B) | Oui |
-| `on_fail` | Quand le workflow échoue | Gérer les erreurs, envoyer notifications | Oui |
-
-### Hook action-level `on_fail`
-
-Les actions peuvent aussi avoir un `on_fail` qui :
-1. Déclenche un workflow d'erreur
-2. **Stoppe les actions restantes** du workflow courant
-3. Le workflow parent échoue (pas de `on_complete`)
-
-### Pattern de chaînage recommandé
+## File structure
 
 ```
-workflow-gate (entry point, définit les variables/seuils)
-│ variables: { threshold: 40, ... }
-│
-├─ action: check (vérifie condition)
-│     └─ on_fail → workflow-error (envoie message erreur)
-│                   Accède aux variables via {{ parent.variables.xxx }}
-│
-└─ hooks:
-     on_complete → workflow-process (traitement principal)
-                   Accède aux variables via {{ parent.variables.xxx }}
+src/
+├── config/          loader.ts, secrets.ts
+├── core/            engine.ts, expression.ts, matcher.ts, template.ts,
+│                    types.ts, workflow-loader.ts, auditor.ts
+├── db/              migrator.ts, migrations/001-initial.sql
+├── handlers/        base.ts, registry.ts, 32 handler files
+├── inbound/         nostr.ts, webhook.ts
+├── queue/           worker.ts
+├── storage/         storage.port.ts, sqlite.storage.ts
+├── cli/             index.ts
+├── utils/           logger.ts, crypto.ts, zap-parser.ts
+└── index.ts         ~130 lines: bootstrap + shutdown
 ```
 
-### Règle d'or
+## Key files to read
 
-**Le workflow qui définit une valeur (seuil, config) doit être celui qui l'utilise ou la transmet.**
+| File | Content | When to read |
+|------|---------|-------------|
+| `docs/architecture/README.md` | All 15 ADR decisions | Before architectural changes |
+| `src/core/types.ts` | NormalizedEvent, WorkflowDefinition, all types | Before touching engine |
+| `src/handlers/base.ts` | BaseHandler interface + rules | Before writing a handler |
+| `src/storage/storage.port.ts` | Storage interfaces | Before touching database |
+| `workflows/README.md` | Workflow authoring guide | Before writing workflows |
 
-Exemple ClaudeDM :
-- `claudeDM-balance-gate` définit `min_balance_sats: 40` et fait le check
-- `claudeDM-insufficient-balance` affiche `{{ parent.variables.min_balance_sats }}`
+## Workflow format (v2 flat — ADR-009)
 
-## Conventions de code
-
-- **Handlers** : Implémenter `ActionHandler` interface
-- **Workflows** : ID en kebab-case, `enabled: true/false`
-- **Logs** : Pino logger, niveaux debug/info/warn/error
-- **Tests** : Vitest dans `src/__tests__/`
-- **Build** : `npm run build` avant `npm start`
-- **Secrets** : JAMAIS dans les fichiers YAML, toujours dans `.env` avec syntaxe `${VAR_NAME}`
-
-## Convention secrets / .env
-
-**Les secrets (API keys, mots de passe, tokens) ne doivent JAMAIS être dans les fichiers de config.**
-
-Format dans les handlers YAML :
 ```yaml
-claude:
-  enabled: true
-  api_key: ${ANTHROPIC_API_KEY}  # Référence à .env
+id: example
+name: Example Workflow
+trigger:
+  source: nostr.dm                 # origin.type notation (ADR-012)
+  from_whitelist: true
+  content_pattern: "^/command$"
+actions:
+  - id: reply                      # flattened — no config: wrapper
+    type: nostr_dm
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: "Response"
 ```
 
-Format dans `.env` :
-```
-ANTHROPIC_API_KEY=sk-ant-api03-...
-```
+### Trigger sources (ADR-012)
 
-Cette convention s'applique à TOUS les handlers (telegram, email, etc.).
+| Source | Description |
+|--------|------------|
+| `nostr.dm` | NIP-04 + NIP-17 DMs |
+| `nostr.zap` | Zap receipts (kind 9735) |
+| `nostr.note` | Text notes (kind 1) |
+| `webhook.post` | HTTP webhooks |
+| `dm` | Any DM, any platform |
 
-## Permissions Claude Code
+### Template variables
 
-Fichier `.claude/settings.local.json` contient les autorisations :
-- `Edit`, `Write` : Autorisés (pas de confirmation)
-- `Bash(npm ...)`, `Bash(git ...)` : Autorisés
-- `WebFetch` : Domaines spécifiques autorisés
+- `trigger.*` — event data (sender, content, source, dm_format, zap.amount)
+- `match.*` — regex capture groups from content_pattern
+- `actions.{id}.success` — boolean
+- `actions.{id}.response.*` — handler response data
+- `variables.*` — workflow-level variables
+- `parent.variables.*` — parent workflow variables (hooks)
 
-## Procédure de reprise de session
+## Handler registry (ADR-010)
 
-Quand l'utilisateur dit "continue" ou demande de reprendre :
-
-1. **Lire ce fichier** (automatique)
-2. **Si contexte insuffisant**, lire dans cet ordre :
-   - `BACKLOG.md` (pour savoir quoi faire)
-   - Dernière session QA dans `docs/qa-sessions/`
-3. **Demander** ce que l'utilisateur veut faire si pas clair
-
-## Historique des décisions récentes
-
-### 2025-12-25
-- **Migration NIP-17 DMs** : support complet réception et émission
-  - Réception : unwrap Gift Wrap (kind 1059 → Seal → Rumor kind 14)
-  - Émission : configurable via `nostr.dm_format` ('nip04' ou 'nip17')
-  - Nettoyage automatique préfixe Amethyst `[//]: # (nip18)`
-- Config `nostr.dm_format` ajouté à `config.yml` et schéma
-- Testé avec Amethyst : `/dpo` fonctionne
-
-### 2025-12-20
-- Ajout handler `system` pour `/pipelinostr status` via DM
-- Workflow pipelinostr-status.yml.example créé
-- Infos retournées : commit, workflows, handlers, 10 dernières exécutions, RAM/CPU/disk, OS
-- Fix workflow : `actions.*.response` (pas `data`), `from_whitelist` (pas `require_whitelist`)
-- Ajout `/claude status` : action status dans claude.handler.ts (workflow supprimé, action gardée)
-- CLI : `workflow load-missing`, `handler load-missing`, `handler refresh`
-- CLI : `workflow clean [--purge]`, `handler clean [--purge]`
-- load-missing désactive par défaut les éléments déployés
-- Backlog : ajout Claude Smart Reply + Intent Classifier, annulation Claude API Status
-- Split BACKLOG.md → backlog-old.md (archives) + script `split-backlog.cjs`
-- **Handler `workflow_db`** : persistence état workflows (balances, compteurs, flags)
-- **Workflows ClaudeDM** : zap-balance-tracker, claudeDM-entry, error handlers
-- Backlog : NIP-17 migration, workflow import via Nostr, paid video streaming
-- **Support variables workflow** : `{{ variables.xxx }}` et `{{ parent.variables.xxx }}`
-- **Action-level on_fail** : hook sur action qui stoppe le workflow et déclenche erreur
-- **Refactor ClaudeDM** : balance-gate → process → insufficient-balance (chaînage propre)
-- **Wildcards CLI** : `workflow enable claudeDM-*` avec patterns `*` et `?`
-
-### 2025-12-19
-- Ajout backlog : SMS Gateway for Android (capcom6)
-- Ajout backlog : GPIO Bouton Poussoir de Secours
-- Ajout backlog : Afficheur Digital GPIO (LCD/OLED)
-- Ajout backlog : PipeliNostr sur Téléphone (Termux)
-- Permissions Edit/Write ajoutées à settings.local.json
-- Création `docs/HARDWARE.md` : guide complet des plateformes
-- Recommandation hardware budget : **Orange Pi Zero 2W 4GB (~24€)**
-- Évaluation smartphones : Crosscall X3/X5, Nothing 3a, DOOGEE T30 Ultra
-
-### 2025-12-15
-- GPIO servo SG90 implémenté
-- Workflow zap-to-dispenser créé
-- Problème GPIO Bookworm identifié → pigpio recommandé
-- Correction regex PCRE `(?i)` → flags JS
-
-### 2025-12-11
-- Queue/hooks integration finalisée
-- Documentation hardware self-hosted créée
-
-### 2025-12-10
-- Déploiement serveur Linux
-- Bug FK SQLite corrigé
-- Handler Zulip testé et fonctionnel
-
-## Backlog prioritaire actuel
-
-| Priorité | Item | Status |
-|----------|------|--------|
-| High | Tester workflows Morse (2) | Pending |
-| Medium | SMS Gateway for Android | Proposed |
-| Medium | GPIO Bouton Poussoir | Proposed |
-| Medium | Afficheur LCD/OLED | Proposed |
-| Medium | Bitcoin/Lightning handlers | Proposed |
-| Low | PipeliNostr sur téléphone | Research |
-
-## Handlers implémentés
-
-### Messaging / Social
-| Handler | Fichier | Status | Notes |
-|---------|---------|--------|-------|
-| `email` | `email.handler.ts` | Testé | SMTP via nodemailer |
-| `nostr_dm` | `nostr.handler.ts` | Testé | NIP-04/NIP-44 |
-| `nostr_note` | `nostr.handler.ts` | Non testé | Kind 1 |
-| `telegram` | `telegram.handler.ts` | Testé | Bot API |
-| `zulip` | `zulip.handler.ts` | Testé | Stream/DM |
-| `mastodon` | `mastodon.handler.ts` | Testé | Toot |
-| `bluesky` | `bluesky.handler.ts` | Testé | AT Protocol |
-
-### Storage / Data
-| Handler | Fichier | Status | Notes |
-|---------|---------|--------|-------|
-| `http` | `http.handler.ts` | Testé | REST calls |
-| `ftp` | `ftp.handler.ts` | Testé | Upload/append |
-| `mongodb` | `mongodb.handler.ts` | Testé | Insert docs |
-| `file` | `file.handler.ts` | Testé | Local filesystem |
-
-### Hardware / IoT
-| Handler | Fichier | Status | Notes |
-|---------|---------|--------|-------|
-| `gpio` | `gpio.handler.ts` | Testé | LED, servo (pigpio) |
-| `morse_audio` | `morse-audio.handler.ts` | Non testé | TTS Morse → OGG |
-
-### Integration
-| Handler | Fichier | Status | Notes |
-|---------|---------|--------|-------|
-| `traccar_sms` | `traccar-sms.handler.ts` | Testé | SMS via Traccar |
-| `calendar` | `calendar.handler.ts` | Testé | iCal invites |
-| `bebop` | `bebop.handler.ts` | Testé | be-BOP → Odoo sync |
-| `odoo` | `odoo.handler.ts` | Testé | JSON-RPC |
-| `claude` | `claude.handler.ts` | Non testé | Workflow generator |
-| `system` | `system.handler.ts` | Non testé | System status /pipelinostr status |
-| `workflow_db` | `workflow-db.handler.ts` | Non testé | Persistent state for workflows (balances, counters) |
-
-## Workflows par catégorie
-
-### Testés et fonctionnels (20)
-```
-nostr-to-gpio.yml          gpio:green, gpio:red, gpio:servo
-zap-to-dispenser.yml       Zap >= 21 sats → servo
-dm-to-voice-telegram.yml   Send vocal to TG: <msg>
-zulip-forward.yml          Tous DMs → Zulip
-zap-notification.yml       Tous zaps → notification
-nostr-to-telegram.yml      Tous DMs → Telegram
-nostr-to-email.yml         Send email to x@y.com: <msg>
-nostr-to-calendar.yml      Invite x@y.com: Titre @ date
-nostr-to-sms.yml           Send SMS to +33...: <msg>
-dm-to-mastodon.yml         Mastodon: <msg>
-dm-to-bluesky.yml          Bluesky: <msg>
-dm-to-mongodb.yml          mongo: <data>
-dm-to-ftp.yml              ftp: <msg>
-dm-to-ftp-with-local-storage.yml
-mempool-tx-lookup.yml      mempool: <txid>
-zulip-workflow-notification.yml
-api-to-nostr-dm.yml        POST /api/notify
-webhook-notifier.yml       Forward DMs → webhook
-bebop-order-sync.yml       Payment for order #...
-dpo-command.yml            /dpo
+Adding a handler = creating one file in `src/handlers/`:
+```typescript
+export class MyHandler extends BaseHandler {
+  static type = 'my_handler'
+  static configSchema = z.object({ ... })
+  async initialize(config) { ... }
+  async execute(action, context) { ... }
+  async shutdown() { ... }
+}
 ```
 
-### Non testés (9)
-```
-publish-note.yml           /publish <content>
-auto-reply.yml             hello, bonjour, etc.
-command-handler.yml        /ping, /help, /status
-email-forward.yml          Tous DMs → email
-claude-workflow-generator.yml   /workflow <desc>
-claude-activate.yml        /activate, /cancel, /pending
-nostr-to-morse.yml         morse: <text> → buzzer
-morse-to-telegram.yml      morse:tg: <text> → audio TG
-pipelinostr-status.yml     /pipelinostr status → system info
+## Secret management (ADR-013)
+
+```yaml
+# In handler config YAML
+api_key: env:MY_API_KEY       # reads from .env / environment
+token: file:/run/secrets/token  # reads from file
 ```
 
-## Architecture simplifiée
+**Never use `${VAR}` syntax** — deprecated, will be removed.
 
+## Code conventions
+
+- **Handlers**: Extend `BaseHandler`, static type + configSchema
+- **Workflows**: ID in kebab-case, YAML in `config/workflows/`
+- **Examples**: `workflows/*.yml.example`
+- **Logs**: Pino logger (debug/info/warn/error)
+- **Tests**: Vitest in `tests/`
+- **Build**: `npm run build` before `npm start`
+- **Secrets**: NEVER in YAML files — always `env:VAR` or `file:path`
+
+## CLI
+
+```bash
+./scripts/pipelinostr.sh workflow list
+./scripts/pipelinostr.sh workflow enable <id>
+./scripts/pipelinostr.sh workflow audit
+./scripts/pipelinostr.sh handler list
+./scripts/pipelinostr.sh queue replay <id>
+./scripts/pipelinostr.sh db clean
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       PipeliNostr                            │
-├─────────────────────────────────────────────────────────────┤
-│  INBOUND                CORE                 OUTBOUND       │
-│  ┌──────────┐     ┌──────────────┐     ┌──────────────┐   │
-│  │ Nostr    │────►│ Event Queue  │────►│ Handlers     │   │
-│  │ Listener │     │ (SQLite)     │     │ (email, tg,  │   │
-│  ├──────────┤     ├──────────────┤     │  gpio, etc.) │   │
-│  │ Webhook  │────►│ Workflow     │     └──────────────┘   │
-│  │ Server   │     │ Engine       │                         │
-│  └──────────┘     └──────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
+
+IDs: comma-separated, wildcards (*/?), or `all`.
+
+## After push — server commands
+
+```bash
+./scripts/rebuild.sh                                    # git pull + npm install + build
+./scripts/pipelinostr.sh workflow refresh <ids>          # refresh from examples
+./scripts/pipelinostr.sh workflow enable <ids>           # MUST enable after refresh
+./scripts/pipelinostr.sh handler refresh <ids>           # refresh handler config
+./scripts/pipelinostr.sh handler enable <ids>            # MUST enable after refresh
 ```
 
-## Backlog par catégorie
+## Rules for Claude
 
-### Done
-- DPO/RGPD Report, Relay Discovery, Meta-Workflows, Hardware Testing
-- Zap Listener, Event Queue, Calendar, Hardware Self-Hosted Guide
-
-### Proposed - Hardware/GPIO
-- Bouton poussoir de secours (zap-to-dispenser fallback)
-- Afficheur LCD/OLED pour pseudonyme Nostr
-- Morse Code Listener (micro → texte → DM)
-
-### Proposed - Integrations
-- SMS Gateway for Android (capcom6) - bidirectionnel
-- Dolibarr ERP Handler
-- Bitcoin/Lightning handlers (mempool xpub, phoenixd)
-
-### Proposed - Platform
-- PipeliNostr sur téléphone (Termux)
-- Web Dashboard monitoring
-
-### Proposed - AI/Voice
-- LLM Agent (langage naturel)
-- Voice Handlers (STT/TTS)
-- Claude Workflow Explainer (/explain)
-
-## Conventions de nommage
-
-### Workflows
-- ID : `kebab-case` (ex: `zap-to-dispenser`)
-- Fichier : `{id}.yml`
-- Commande DM : Préfixe descriptif (ex: `morse:`, `gpio:`, `Send email to`)
-
-### Handlers
-- Fichier : `{type}.handler.ts` (ex: `telegram.handler.ts`)
-- Config : `config/handlers/{type}.yml`
-- Type dans workflow : `type: {type}` (ex: `type: telegram`)
-
-### Variables template
-- `trigger.*` : Données de l'événement déclencheur (héritées du parent via hooks)
-- `match.*` : Groupes capturés par regex (hérités du parent via hooks)
-- `actions.{id}.response.*` : Résultats des actions précédentes (contient directement `data` du handler)
-  - `actions.{id}.success` : boolean (succès de l'action)
-  - `actions.{id}.response.*` : données retournées par le handler (ex: `.response.morse`, `.response.files`)
-  - `actions.{id}.response.found` : pour workflow_db get
-- `variables.*` : Variables définies dans le workflow courant
-- `parent.*` : Métadonnées du workflow parent (hooks uniquement)
-  - `parent.id`, `parent.name` : Identifiants du parent
-  - `parent.success`, `parent.error` : Résultat du parent
-  - `parent.variables.*` : Variables définies par le parent
-
-**IMPORTANT:**
-- Dans les workflows enfants (hooks), `trigger.*` et `match.*` sont directement accessibles (pas via `parent.*`). Seules les `variables` du parent nécessitent le préfixe `parent.`.
-- Le chemin pour les données d'action est `actions.*.response.value` (PAS `actions.*.response.data.value`).
-
-## Problèmes connus
-
-1. **GPIO sur Bookworm** : `onoff` ne fonctionne pas, utiliser `pigpio`
-2. **Regex PCRE** : `(?i)` converti automatiquement en flags JS
-3. **Claude handler** : Non testé, nécessite API key Anthropic
-
-## Notes pour Claude
-
-- L'utilisateur parle français
-- Préférer les réponses concises
-- Utiliser TodoWrite pour tâches complexes (3+ étapes)
-
-### RÈGLE ABSOLUE : Demander confirmation avant les choix
-
-**Quand plusieurs options sont possibles (ex: librairie A vs B, approche X vs Y) :**
-1. Présenter les options avec leurs avantages/inconvénients
-2. **ATTENDRE la confirmation de l'utilisateur** avant d'agir
-3. Ne JAMAIS commencer une implémentation sans aval explicite
-
-**Violation = perte de temps et frustration.**
-
-### RÈGLE ABSOLUE : Vérifier avant d'affirmer
-
-**AVANT de mentionner un fichier, une commande ou un chemin :**
-1. **Fichiers** : Utiliser `Glob` ou `Read` pour vérifier l'existence
-2. **Commandes CLI** : Vérifier dans `scripts/` ou `package.json`
-3. **Config** : Le fichier principal est `config/config.yml` (PAS `pipelinostr.yml`)
-4. **Chemins** : Ne JAMAIS inventer un chemin sans l'avoir vérifié
-
-**Fichiers de config connus :**
-- Config principale : `config/config.yml`
-- Handlers : `config/handlers/*.yml`
-- Workflows : `config/workflows/*.yml`
-- Exemples workflows : `examples/workflows/*.yml.example`
-
-**Si incertain :** Utiliser Glob/Grep pour trouver le bon fichier AVANT de répondre.
-
-### RÈGLE ABSOLUE : Distinguer repo local vs serveur de production
-
-**Le repo local contient des TEMPLATES. Le serveur de production a sa propre config.**
-
-1. **Ne JAMAIS conclure** sur l'état du serveur en lisant les fichiers du repo
-2. **Les fichiers `config/*.yml` dans le repo** sont des templates/exemples
-3. **Pour connaître l'état réel du serveur** : demander à l'utilisateur ou lui donner une commande à exécuter
-4. **Ne JAMAIS dire "X n'est pas activé"** en se basant sur le repo local
-
-**Exemple d'erreur à NE PAS reproduire :**
-- ❌ Lire `config/config.yml` du repo → conclure "la queue n'est pas activée"
-- ✅ Demander : "Peux-tu vérifier sur le serveur avec `grep queue config/config.yml` ?"
-
-**Violation = conclusions fausses et perte de temps.**
-- **PipeliNostr n'est PAS un service systemd** : Ne JAMAIS utiliser `systemctl` ou `journalctl`. L'utilisateur lance le processus manuellement.
-- **COMMIT AUTOMATIQUE** : Quand une tâche est terminée, faire `git add`, `git commit` et `git push` automatiquement avant d'annoncer la fin
-- **APRÈS PUSH** : Toujours donner les commandes serveur complètes :
-  ```bash
-  ./scripts/rebuild.sh  # fait git pull + npm install + build (PAS BESOIN de git pull séparé !)
-  ./scripts/pipelinostr.sh workflow refresh <ids>  # si workflow .example créé/modifié
-  ./scripts/pipelinostr.sh workflow enable <ids>   # OBLIGATOIRE après refresh (désactivé par défaut)
-  ./scripts/pipelinostr.sh handler refresh <ids>   # si handler .example créé/modifié
-  ./scripts/pipelinostr.sh handler enable <ids>    # OBLIGATOIRE après refresh
-  ```
-  **NE JAMAIS OUBLIER** les commandes `enable` après `refresh` !
-
-  **SI UN .yml.example EST SUPPRIMÉ** : Toujours le signaler à l'utilisateur pour qu'il lance :
-  ```bash
-  ./scripts/pipelinostr.sh workflow clean  # supprime les workflows orphelins de la DB
-  ```
-
-  **ATTENTION CLI** : Les IDs multiples sont séparés par des **VIRGULES**, pas des espaces !
-  - ✅ `./scripts/pipelinostr.sh workflow refresh wallet-address,wallet-bill,wallet-check`
-  - ❌ `./scripts/pipelinostr.sh workflow refresh wallet-address wallet-bill wallet-check`
-  - Alternative avec wildcard : `./scripts/pipelinostr.sh workflow refresh "wallet-*"`
-- **VÉRIFICATION** : Ne jamais demander "as-tu fait X ?". Toujours donner une commande de vérification :
-  ```bash
-  # Vérifier schéma DB
-  sqlite3 data/pipelinostr.db ".schema workflow_state"
-  # Vérifier données
-  sqlite3 data/pipelinostr.db "SELECT * FROM workflow_state WHERE namespace='balances';"
-  # Vérifier workflow actif
-  ./scripts/pipelinostr.sh workflow list | grep <id>
-  ```
-- **DEBUG** : Ne JAMAIS retirer les logs de debug tant que l'utilisateur n'a pas confirmé que tout fonctionne
-- Le projet tourne sur Windows (dev) et Linux (prod/RPi)
-- Permissions Edit/Write dans `.claude/settings.local.json`
-
-## Historique des prompts (OBLIGATOIRE)
-
-**Dossier :** `prompt_history/` - Un fichier par jour `YYYY-MM-DD.md`
-
-**À chaque session :**
-1. Lire le dernier fichier pour contexte
-2. Ajouter les prompts utilisateur au fil de l'eau
-3. Format : résumé concis de la demande + décisions prises
-
-**À enregistrer :**
-- Demandes fonctionnelles (features, bugs, refactoring)
-- Décisions d'architecture
-- Choix techniques validés
-
-**À NE PAS enregistrer :**
-- Logs copiés-collés
-- Messages de debug/diagnostic
-- Questions techniques ponctuelles sans impact
-
-**Ce dossier est public** - ne contient que les intentions, pas de données sensibles.
-
-## Procédure de mise à jour de ce fichier
-
-Après chaque session significative :
-1. Mettre à jour "Dernière mise à jour" en haut
-2. Ajouter entrée dans "Historique des décisions récentes"
-3. Mettre à jour "Backlog prioritaire actuel" si changé
-4. Mettre à jour les listes de handlers/workflows si ajoutés
+- User speaks English (switched from French for better AI reasoning)
+- Prefer concise responses
+- **RULE: Present options, wait for confirmation before implementing**
+- **RULE: Verify files exist before mentioning them** (use Glob/Grep)
+- **RULE: One topic at a time** — only user switches topics
+- **RULE: Preview before writing** — show drafts in chat, get approval
+- **RULE: Use devC (external agent) for peer review** of ADRs
+- **RULE: Don't flip-flop** — give a real recommendation, stand by it
+- **RULE: Anonymize reviewers** — devA/devB/devC in public docs
+- **COMMIT: Auto commit + push when task is done**
+- **DEBUG: Don't remove debug logs until user confirms everything works**
+- **NEVER conclude about server state from repo files** — repo has templates, server has live config

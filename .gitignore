@@ -17,12 +17,20 @@ config/workflows/*.yml
 !config/workflows/*.yml.example
 
 # Logs
-logs/
+logs/*
+!logs/.gitkeep
 *.log
 
 # Database
-data/
+data/*
+!data/.gitkeep
 *.db
+
+# Architecture Decision Records (local only)
+docs/architecture/
+
+# QA sessions (local only)
+docs/qa-sessions/
 
 # IDE
 .idea/

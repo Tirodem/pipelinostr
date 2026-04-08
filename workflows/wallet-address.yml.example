@@ -1,0 +1,17 @@
+id: wallet-address
+name: Bitcoin Wallet - Show Addresses
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/wallet address (\d+)\s+(\d+)$
+  from_whitelist: true
+actions:
+  - id: get_addresses
+    type: wallet
+    operation: get_addresses
+    start_index: "{{ match.$1 }}"
+    count: "{{ match.$2 }}"
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: "{{ actions.get_addresses.response.formatted }}"

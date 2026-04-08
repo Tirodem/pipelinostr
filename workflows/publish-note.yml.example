@@ -1,0 +1,31 @@
+id: publish-note
+name: Publish Note
+description: Publish a public note based on DM command
+enabled: false
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  starts_with: "/publish "
+  content_pattern: ^/publish\s+(?<note_content>.+)$
+actions:
+  - id: publish
+    type: nostr_note
+    content: "{{ match.note_content }}"
+    # tags are optional - passed to nostr event as-is
+    tags:
+      - - client
+        - PipeliNostr
+  - id: confirm
+    type: nostr_dm
+    when: actions.publish.success
+    to: "{{ trigger.from }}"
+    content: |
+      Note published successfully!
+      Event ID: {{ actions.publish.response.event_id }}
+  - id: notify_failure
+    type: nostr_dm
+    when: "!actions.publish.success"
+    to: "{{ trigger.from }}"
+    content: |
+      Failed to publish note.
+      Error: {{ actions.publish.error }}

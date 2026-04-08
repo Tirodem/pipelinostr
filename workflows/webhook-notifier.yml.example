@@ -1,0 +1,31 @@
+id: webhook-notifier
+name: Webhook Notifier
+description: Forward events to external HTTP endpoint
+enabled: false
+multiple: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+actions:
+  - id: notify_webhook
+    type: http
+    retry:
+      max_attempts: 3
+      backoff:
+        type: exponential
+        initial_delay_ms: 500
+        max_delay_ms: 5000
+    url: https://api.example.com/webhook/nostr
+    method: POST
+    headers:
+      Authorization: Bearer your-api-key
+      Content-Type: application/json
+    body:
+      event_id: "{{ trigger.event.id }}"
+      from: "{{ trigger.from }}"
+      pubkey: "{{ trigger.pubkey }}"
+      content: "{{ trigger.content }}"
+      kind: "{{ trigger.kind }}"
+      timestamp: "{{ trigger.timestamp }}"
+      relay: "{{ trigger.relayUrl }}"
+    timeout_ms: 10000

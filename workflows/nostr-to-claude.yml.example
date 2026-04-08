@@ -1,0 +1,34 @@
+id: nostr-to-claude
+name: Ask Claude via DM
+description: Send a question, get a Claude AI response
+enabled: false
+
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: "^claude:\\s*(?<question>.+)$"
+
+actions:
+  - id: ask_claude
+    type: claude
+    action: chat
+    message: "{{ match.question }}"
+    system_prompt: "You are a helpful assistant answering via Nostr DM. Keep responses concise."
+
+  - id: reply
+    type: nostr_dm
+    when: "actions.ask_claude.success"
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: |
+      {{ actions.ask_claude.response.response }}
+
+      ---
+      Tokens: {{ actions.ask_claude.response.input_tokens }} in / {{ actions.ask_claude.response.output_tokens }} out ({{ actions.ask_claude.response.model }})
+
+  - id: reply_error
+    type: nostr_dm
+    when: "!actions.ask_claude.success"
+    to: "{{ trigger.sender }}"
+    dm_format: "{{ trigger.dm_format }}"
+    content: "Claude error: {{ actions.ask_claude.error }}"

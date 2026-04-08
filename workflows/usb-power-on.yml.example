@@ -1,0 +1,19 @@
+id: usb-power-on
+name: USB Power On
+enabled: false
+description: Réallume tous les ports USB sur commande "get up stand up"
+variables:
+  hub: 1-1
+trigger:
+  source: nostr.dm
+  content_pattern: (?i)^get up stand up$
+actions:
+  - id: power_on
+    type: usb_power
+    hub: "{{ variables.hub }}"
+    port: all
+    action: on
+  - id: confirm
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: USB ports rallumés ! Stand up for your rights.

@@ -1,0 +1,100 @@
+id: zap-to-gpio-dispenser-with-warning-signal
+name: Zap to GPIO Dispenser with Warning Signal
+enabled: false
+description: Gyrophare + distributeur GPIO sur reception d'un zap
+variables:
+  bar_name: PIPELINOSTR BAR
+  product_name: 1 verre de vin rouge
+  product_volume: 12.5 cL
+  product_price: 21
+  product_vat: 20
+  tip_vat: 0
+  vat_exemption_text: TVA non applicable - Art. 293B du CGI
+  gpio_warning: 18
+  gpio_motor: 17
+  delay_before: 3000
+  pour_duration: 2000
+  delay_after: 2000
+trigger:
+  source: nostr.dm
+  zap_recipients:
+    - npub1...
+actions:
+  - id: notify
+    type: nostr_dm
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      Zap de {{ trigger.zap.amount }} sats recu ! Distribution en cours...
+  - id: dispense_sequence
+    type: gpio
+    when: trigger.zap.amount >= variables.product_price
+    pin: 0
+    action: set
+    sequence:
+      - pin: "{{ variables.gpio_warning }}"
+        action: set
+      - delay: "{{ variables.delay_before }}"
+      - pin: "{{ variables.gpio_motor }}"
+        action: pulse
+        duration: "{{ variables.pour_duration }}"
+      - delay: "{{ variables.delay_after }}"
+      - pin: "{{ variables.gpio_warning }}"
+        action: clear
+  - id: receipt_ok
+    type: nostr_dm
+    when: trigger.zap.amount >= variables.product_price
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      ----------------------------
+          {{ variables.bar_name }}
+      ----------------------------
+      Date: {{ date trigger.timestamp }}
+
+      ----------------------------
+      ARTICLE                SATS
+      ----------------------------
+      {{ variables.product_name }}
+      ({{ variables.product_volume }}){{ pad_left variables.product_price 17 }}
+        TVA {{ variables.product_vat }}%: {{ format_sats (divide (multiply variables.product_price variables.product_vat) (add 100 variables.product_vat)) }}
+      {{#if (gt trigger.zap.amount variables.product_price) }}
+
+      Pourboire{{ pad_left (subtract trigger.zap.amount variables.product_price) 19 }}
+        TVA {{ variables.tip_vat }}%: {{ format_sats (divide (multiply (subtract trigger.zap.amount variables.product_price) variables.tip_vat) (add 100 variables.tip_vat)) }}
+      {{/if}}
+
+      ----------------------------
+      TOTAL TTC{{ pad_left trigger.zap.amount 19 }}
+        dont TVA: {{ format_sats (add (divide (multiply variables.product_price variables.product_vat) (add 100 variables.product_vat)) (divide (multiply (subtract trigger.zap.amount variables.product_price) variables.tip_vat) (add 100 variables.tip_vat))) }}
+      ----------------------------
+
+      Paiement: Zap Lightning
+      {{#if (gt trigger.zap.amount variables.product_price) }}
+      Merci pour le pourboire !
+      {{else}}
+      Merci et a bientot !
+      {{/if}}
+      {{#if (eq variables.product_vat 0) }}
+
+      {{ variables.vat_exemption_text }}
+      {{/if}}
+  - id: receipt_insufficient
+    type: nostr_dm
+    when: trigger.zap.amount < variables.product_price
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      ----------------------------
+          {{ variables.bar_name }}
+      ----------------------------
+      Date: {{ date trigger.timestamp }}
+
+      ----------------------------
+      Don recu: {{ trigger.zap.amount }} sats
+      Merci pour votre generosite !
+
+      Seuil: {{ variables.product_price }} sats
+      Manque: {{ subtract variables.product_price trigger.zap.amount }} sats
+      ----------------------------
+
+      Aucune distribution.
+      Zappez a nouveau pour
+      completer votre commande !

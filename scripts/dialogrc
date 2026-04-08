@@ -1,0 +1,47 @@
+# PipeliNostr dialog theme — dark with blue accents
+use_shadow = ON
+use_colors = ON
+
+# Screen: black
+screen_color = (WHITE,BLACK,OFF)
+
+# Dialog windows: grey/white
+dialog_color = (BLACK,WHITE,OFF)
+title_color = (BLUE,WHITE,ON)
+border_color = (WHITE,WHITE,ON)
+
+# Buttons: blue
+button_active_color = (WHITE,BLUE,ON)
+button_inactive_color = (BLACK,WHITE,OFF)
+button_key_active_color = (WHITE,BLUE,ON)
+button_key_inactive_color = (RED,WHITE,OFF)
+button_label_active_color = (WHITE,BLUE,ON)
+button_label_inactive_color = (BLACK,WHITE,ON)
+
+# Input boxes
+inputbox_color = (BLACK,WHITE,OFF)
+inputbox_border_color = (BLACK,WHITE,OFF)
+
+# Search
+searchbox_color = (BLACK,WHITE,OFF)
+searchbox_title_color = (BLUE,WHITE,ON)
+searchbox_border_color = (WHITE,WHITE,ON)
+
+# Menu
+menubox_color = (BLACK,WHITE,OFF)
+menubox_border_color = (WHITE,WHITE,ON)
+item_color = (BLACK,WHITE,OFF)
+item_selected_color = (WHITE,BLUE,ON)
+tag_color = (BLUE,WHITE,ON)
+tag_selected_color = (WHITE,BLUE,ON)
+tag_key_color = (RED,WHITE,OFF)
+tag_key_selected_color = (WHITE,BLUE,ON)
+check_color = (BLACK,WHITE,OFF)
+check_selected_color = (WHITE,BLUE,ON)
+
+# Misc
+position_indicator_color = (BLUE,WHITE,ON)
+uarrow_color = (BLUE,WHITE,ON)
+darrow_color = (BLUE,WHITE,ON)
+gauge_color = (WHITE,BLUE,ON)
+shadow_color = (BLACK,BLACK,ON)

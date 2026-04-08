@@ -1,0 +1,8 @@
+CLAUDE.md
+SPECIFICATIONS.md
+backlog/
+prompt_history/
+v1_examples/
+tmp/
+docs/qa-sessions/
+.claude/

@@ -1,0 +1,12 @@
+id: sms-command
+name: Send SMS via DM
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Ss]end [Ss][Mm][Ss] to (?<to>[^:]+):\s*(?<message>.+)
+actions:
+  - id: send_sms
+    type: traccar_sms
+    to: "{{ trim match.to }}"
+    message: "{{ match.message }}"

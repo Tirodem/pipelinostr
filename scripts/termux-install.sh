@@ -3,10 +3,10 @@
 # PipeliNostr - Script d'installation pour Termux (Android)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Tirodem/pipelinostr/main/scripts/termux-install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/main/scripts/termux-install.sh | bash
 #
 # Ou manuellement:
-#   curl -O https://raw.githubusercontent.com/Tirodem/pipelinostr/main/scripts/termux-install.sh
+#   curl -O https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/main/scripts/termux-install.sh
 #   chmod +x termux-install.sh
 #   ./termux-install.sh
 #
@@ -17,7 +17,7 @@ set -e
 # Configuration
 # =============================================================================
 
-REPO_URL="https://github.com/Tirodem/pipelinostr.git"
+REPO_URL="https://github.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about.git"
 INSTALL_DIR="$HOME/pipelinostr"
 NODE_MIN_VERSION="18"
 REQUIRED_SPACE_MB=500

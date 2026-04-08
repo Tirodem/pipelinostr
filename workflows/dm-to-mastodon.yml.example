@@ -1,0 +1,15 @@
+id: dm-to-mastodon
+name: Post to Mastodon via DM
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^[Mm]astodon:\s*(?<message>.+)
+actions:
+  - id: post_mastodon
+    type: mastodon
+    status: |-
+      (ceci est un message automatique posté depuis un DM Nostr via PipeliNostr)
+
+      {{ match.message }}
+    visibility: public

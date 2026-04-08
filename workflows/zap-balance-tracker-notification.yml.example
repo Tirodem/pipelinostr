@@ -1,0 +1,21 @@
+id: zap-balance-tracker-notification
+name: Zap Balance Notification
+enabled: false
+trigger:
+  source: nostr.dm
+actions:
+  - id: get_balance
+    type: workflow_db
+    action: get
+    namespace: balances
+    key: balance:{{ trigger.zap.sender }}
+  - id: send_notification
+    type: nostr_dm
+    to: "{{ trigger.zap.sender }}"
+    content: |
+      Vous avez fait un zap de {{ trigger.zap.amount }} SATs.
+
+      Votre solde a ete credite!
+      Nouveau solde: {{ actions.get_balance.response.value }} SATs
+
+      Merci pour votre soutien!

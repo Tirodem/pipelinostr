@@ -1,0 +1,16 @@
+id: wallet-check-tx
+name: Bitcoin Wallet - Check Transaction
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/wallet tx ([a-fA-F0-9]{64})$
+  from_whitelist: true
+actions:
+  - id: check_tx
+    type: wallet
+    operation: check_transaction
+    txid: "{{ match.$1 }}"
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: "{{ actions.check_tx.response.formatted }}"

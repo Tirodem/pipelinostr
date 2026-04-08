@@ -1,0 +1,29 @@
+id: nostr-to-gpio
+name: GPIO LED Control
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^gpio:(?<color>green|red|servo)$
+actions:
+  - id: green_led
+    type: gpio
+    when: match.color == 'green'
+    pin: 17
+    action: pulse
+    duration: 10000
+  - id: red_led
+    type: gpio
+    when: match.color == 'red'
+    pin: 27
+    action: blink
+    frequency: 2
+    duration: 10000
+  - id: servo_move
+    type: gpio
+    when: match.color == 'servo'
+    pin: 18
+    action: servo
+    angle: 180
+    duration: 5000
+    return_angle: 0

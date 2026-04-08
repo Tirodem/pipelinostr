@@ -1,0 +1,75 @@
+id: morse-to-telegram
+name: Morse Audio to Telegram
+description: Generate Morse code audio and send to Telegram (no hardware required)
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: ^morse:tg:(?:(?<speed>slow|fast):)?\s*(?<text>.+)$
+actions:
+  - id: generate_audio_normal
+    type: morse_audio
+    when: "!match.speed"
+    text: "{{ match.text }}"
+    unit_ms: 100
+    frequency: 700
+    format: ogg
+  - id: send_telegram_normal
+    type: telegram
+    when: "!match.speed && actions.generate_audio_normal.success"
+    action: voice
+    voice_file: "{{ actions.generate_audio_normal.response.file_path }}"
+  - id: confirm_normal
+    type: nostr_dm
+    when: "!match.speed"
+    to: "{{ trigger.from }}"
+    content: |
+      Morse envoyé sur Telegram (~12 WPM): "{{ match.text }}"
+
+      {{ actions.generate_audio_normal.response.morse }}
+
+      ({{ actions.generate_audio_normal.response.length }} octets)
+  - id: generate_audio_slow
+    type: morse_audio
+    when: match.speed === 'slow'
+    text: "{{ match.text }}"
+    unit_ms: 200
+    frequency: 700
+    format: ogg
+  - id: send_telegram_slow
+    type: telegram
+    when: match.speed === 'slow' && actions.generate_audio_slow.success
+    action: voice
+    voice_file: "{{ actions.generate_audio_slow.response.file_path }}"
+  - id: confirm_slow
+    type: nostr_dm
+    when: match.speed === 'slow'
+    to: "{{ trigger.from }}"
+    content: |
+      Morse lent envoyé sur Telegram (~6 WPM): "{{ match.text }}"
+
+      {{ actions.generate_audio_slow.response.morse }}
+
+      ({{ actions.generate_audio_slow.response.length }} octets)
+  - id: generate_audio_fast
+    type: morse_audio
+    when: match.speed === 'fast'
+    text: "{{ match.text }}"
+    unit_ms: 60
+    frequency: 700
+    format: ogg
+  - id: send_telegram_fast
+    type: telegram
+    when: match.speed === 'fast' && actions.generate_audio_fast.success
+    action: voice
+    voice_file: "{{ actions.generate_audio_fast.response.file_path }}"
+  - id: confirm_fast
+    type: nostr_dm
+    when: match.speed === 'fast'
+    to: "{{ trigger.from }}"
+    content: |
+      Morse rapide envoyé sur Telegram (~20 WPM): "{{ match.text }}"
+
+      {{ actions.generate_audio_fast.response.morse }}
+
+      ({{ actions.generate_audio_fast.response.length }} octets)

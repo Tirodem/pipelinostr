@@ -1,0 +1,17 @@
+id: zulip-forward
+name: Forward DM to Zulip
+enabled: true
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: "^zulip:\\s*(?<message>.+)$"
+actions:
+  - id: send_zulip
+    type: zulip
+    msg_type: stream
+    stream: PipeliNostr
+    topic: DM Forwarding
+    content: |
+      DM de {{ trigger.sender }}:
+
+      {{ match.message }}

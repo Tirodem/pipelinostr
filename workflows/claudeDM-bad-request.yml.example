@@ -1,0 +1,18 @@
+id: claudeDM-bad-request
+name: ClaudeDM - Bad Request
+enabled: false
+trigger:
+  source: nostr.dm
+actions:
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      Requete invalide.
+
+      Limites:
+      - Max 4000 caracteres
+      - Certains mots sont interdits
+
+      Reformulez votre question et reessayez.
+      Votre solde n'a pas ete debite.

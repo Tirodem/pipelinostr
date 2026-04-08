@@ -1,0 +1,25 @@
+id: claudeDM-check-balance
+name: ClaudeDM Check Balance
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/claudeDM:\s*solde\s*$
+actions:
+  - id: get_balance
+    type: workflow_db
+    action: get
+    namespace: balances
+    key: balance:{{ trigger.from }}
+  - id: send_balance
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      {{#if actions.get_balance.response.found}}
+      Votre solde actuel: {{ actions.get_balance.response.value }} SATs
+
+      Pour crediter votre solde, envoyez un zap a l'une des npubs surveillees.
+      {{else}}
+      Vous n'avez pas encore de solde.
+
+      Pour crediter votre compte, envoyez un zap a l'une des npubs surveillees.
+      {{/if}}

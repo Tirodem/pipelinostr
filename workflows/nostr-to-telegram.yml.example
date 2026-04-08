@@ -1,0 +1,20 @@
+# PipeliNostr v2 — Forward DMs to Telegram
+# Any DM received is forwarded to your Telegram bot.
+
+id: nostr-to-telegram
+name: Forward DM to Telegram
+description: Forward all DMs to Telegram
+
+trigger:
+  source: nostr.dm
+  from_whitelist: true
+  content_pattern: "^tg:\\s*(?<message>.+)$"
+
+actions:
+  - id: send_telegram
+    type: telegram
+    text: |
+      New DM from {{ trigger.sender }}:
+
+      {{ match.message }}
+    parse_mode: HTML

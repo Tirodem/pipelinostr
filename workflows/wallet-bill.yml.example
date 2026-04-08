@@ -1,0 +1,49 @@
+id: wallet-bill
+name: Bitcoin Wallet - Generate Bill
+enabled: false
+trigger:
+  source: nostr.dm
+  content_pattern: ^/wallet bill (\d+)\s+([\d.]+)\s+(EUR|USD|CHF|SAT|BTC)$
+  from_whitelist: true
+variables:
+  confirmations_notify: 3
+  poll_interval_waiting_ms: 15000
+  poll_interval_mempool_ms: 600000
+  max_waiting_polls: 10
+actions:
+  - id: create_bill
+    type: wallet
+    operation: generate_bill
+    address_index: "{{ match.$1 }}"
+    amount: "{{ match.$2 }}"
+    currency: "{{ match.$3 }}"
+  - id: start_monitor
+    type: wallet
+    operation: start_monitor
+    address: "{{ actions.create_bill.response.address }}"
+    target_pubkey: "{{ trigger.from }}"
+    confirmations_notify: "{{ variables.confirmations_notify }}"
+    poll_interval_waiting_ms: "{{ variables.poll_interval_waiting_ms }}"
+    poll_interval_mempool_ms: "{{ variables.poll_interval_mempool_ms }}"
+    max_waiting_polls: "{{ variables.max_waiting_polls }}"
+  - id: schedule_poll
+    type: queue
+    action: enqueue
+    poll_type: address_monitor
+    address: "{{ actions.create_bill.response.address }}"
+    target_pubkey: "{{ trigger.from }}"
+    delay_ms: "{{ variables.poll_interval_waiting_ms }}"
+  - id: reply
+    type: nostr_dm
+    to: "{{ trigger.from }}"
+    content: |
+      Demande de paiement
+
+      Adresse: {{ actions.create_bill.response.address }}
+      Montant: {{ actions.create_bill.response.amount_sats }} sats ({{ actions.create_bill.response.amount_btc }} BTC)
+
+      [Ouvrir le wallet]({{ actions.create_bill.response.bip21_uri }})
+
+      {{ actions.create_bill.response.qr_url }}
+
+      Monitoring active - vous recevrez des notifications jusqu'a {{ variables.confirmations_notify }} confirmations.
