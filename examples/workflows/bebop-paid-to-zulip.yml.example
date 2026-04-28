@@ -1,0 +1,39 @@
+# Workflow: be-BOP Paid Orders to Zulip
+# Listen to NIP-04 / NIP-17 DMs from the be-BOP nostr-bot, parse the paid order
+# notification and forward it to a Zulip stream.
+#
+# Expected DM format (from be-BOP nostr-bot):
+#   Order #25394 was fully paid, total amount 3 681,51 XPF.
+#
+# IMPORTANT: Zulip stream messages are PUBLIC to all stream subscribers.
+# Make sure the chosen stream is appropriate for order notifications.
+
+id: bebop-paid-to-zulip
+name: be-BOP Paid Orders to Zulip
+description: Forward be-BOP paid order DMs to a Zulip stream
+enabled: false  # Enable after filling in the placeholders below
+multiple: false
+
+# Variables (edit these manually)
+variables:
+  # Public URL of the be-BOP shop, displayed as plain text in the Zulip message
+  bebop_url: "https://REPLACE_ME.example.com"
+
+trigger:
+  type: nostr_event
+  filters:
+    kinds: [4, 1059]  # NIP-04 DM + NIP-17 Gift Wrap
+    # Replace with the be-BOP nostr-bot npub
+    from_npubs:
+      - "npub1REPLACE_ME"
+    # Capture order number, amount (allows spaces/dots/commas as separators) and 3-letter currency code
+    content_pattern: "Order #(?<order_number>\\d+) was fully paid, total amount (?<amount>[\\d\\s.,]+) (?<currency>[A-Z]{3})"
+
+actions:
+  - id: send_zulip
+    type: zulip
+    config:
+      type: stream         # PUBLIC: visible to all stream subscribers
+      stream: "REPLACE_ME" # e.g. "bebop" — fill in manually
+      topic: "REPLACE_ME"  # e.g. "paid-orders" — fill in manually
+      content: "Order #{{ match.order_number }} was fully paid — {{ match.amount }} {{ match.currency }} ({{ variables.bebop_url }})"
