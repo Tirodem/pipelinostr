@@ -1,9 +1,13 @@
 #!/bin/bash
 # PipeliNostr v2 — One-line installer
-# curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | bash
+# curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | sudo bash
 #
 # Or with a specific branch:
-# curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | bash -s -- --branch main
+# curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | sudo bash -s -- --branch main
+#
+# Note: `sudo` must apply to `bash`, not to `curl`. Piping `sudo curl ... | bash`
+# will NOT work — sudo only affects curl, bash still runs as the calling user
+# and the script will exit with "Error: Run as root."
 
 set -e
 

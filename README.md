@@ -26,7 +26,7 @@ Handlers are configured once (API keys, credentials via `.env`). Workflows use h
 ## Install
 
 ```bash
-curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | bash
+curl -sL https://raw.githubusercontent.com/Tirodem/the-ultra-secret-wip-side-project-we-dont-want-to-talk-about/v2/scripts/install.sh | sudo bash
 ```
 
 The setup wizard guides you through:
