@@ -40,8 +40,13 @@ fi
 git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
 
 # --- Detect existing installation ---
+# Use the systemd service file as the marker — it's the final artifact written
+# by fresh_install(). Checking for package.json was wrong: install.sh clones
+# the repo before launching the wizard, so package.json always exists at
+# wizard start, making fresh installs incorrectly route to existing_install
+# (which never calls write_config_file).
 is_installed() {
-    [ -f "$INSTALL_DIR/package.json" ]
+    [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]
 }
 
 # --- Helper: generate random string ---
