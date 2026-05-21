@@ -84,7 +84,11 @@ export class NostrInboundListener {
   getPublicKey(): string { return this.crypto.getPublicKey(); }
   getPublicKeyNpub(): string { return this.crypto.getPublicKeyNpub(); }
   getCrypto(): CryptoHelper { return this.crypto; }
-  getWhitelist(): string[] { return Array.from(this.whitelistHex).map(hexToNpub); }
+  getWhitelist(): string[] {
+    const list = Array.from(this.whitelistHex).map(hexToNpub);
+    if (this.whitelistDisabled) list.push('*');
+    return list;
+  }
 
   onEvent(handler: EventHandler): void {
     this.handlers.push(handler);

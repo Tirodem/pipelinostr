@@ -120,9 +120,11 @@ export function findMatchingWorkflows(
   for (const workflow of workflows.values()) {
     if (!workflow.enabled) continue;
 
-    // Check whitelist if required
+    // Check whitelist if required.
+    // '*' in the whitelist means "open to anyone" — propagated from the
+    // listener's whitelistDisabled flag via getWhitelist().
     if (workflow.trigger.from_whitelist && whitelist) {
-      if (!whitelist.includes(event.sender)) continue;
+      if (!whitelist.includes('*') && !whitelist.includes(event.sender)) continue;
     }
 
     // Check from_list
