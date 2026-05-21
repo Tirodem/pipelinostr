@@ -71,6 +71,8 @@ export class GpioHandler extends BaseHandler {
 
     try {
       switch (op) {
+        case 'mirror_thermometer':
+          return await this.executeMirrorThermometer(action);
         case 'set':
         case 'clear':
         case 'toggle':
@@ -88,6 +90,38 @@ export class GpioHandler extends BaseHandler {
     } catch (err) {
       return { success: false, error: (err as Error).message };
     }
+  }
+
+  private async executeMirrorThermometer(action: Record<string, unknown>): Promise<HandlerResult> {
+    const inputPins = action.input_pins;
+    const outputPins = action.output_pins;
+    if (!Array.isArray(inputPins) || !Array.isArray(outputPins)) {
+      return { success: false, error: 'mirror_thermometer requires input_pins and output_pins arrays' };
+    }
+
+    const client = this.client as {
+      gpio: (pin: number) => {
+        modeSet: (mode: string) => void;
+        read: () => number;
+        write: (value: number) => void;
+      };
+    };
+
+    let value = 0;
+    for (let i = 0; i < inputPins.length; i++) {
+      const p = client.gpio(Number(inputPins[i]));
+      p.modeSet('input');
+      value |= (p.read() & 1) << i;
+    }
+    const lit = value + 1;
+
+    for (let i = 0; i < outputPins.length; i++) {
+      const p = client.gpio(Number(outputPins[i]));
+      p.modeSet('output');
+      p.write(i < lit ? 1 : 0);
+    }
+
+    return { success: true, data: { value, lit, input_pins: inputPins, output_pins: outputPins } };
   }
 
   async shutdown(): Promise<void> {

@@ -1,0 +1,32 @@
+# PipeliNostr v2 — MD lives mirror (Dinovox)
+#
+# Real-time mirror of the Megadrive's lives bits onto 4 LEDs (thermometer).
+# Workflow 1 of the Dinovox bridge. Strictly independent from the zap→pulse
+# workflow — no shared state.
+#
+# Inputs (from EXT, through 1.8kΩ/3.3kΩ divider — Pi is not 5V tolerant):
+#   GPIO 21 (pin 40) = MD lives bit 0
+#   GPIO 20 (pin 38) = MD lives bit 1
+# Encoding: 00=1 life, 01=2, 10=3, 11=4+
+#
+# Outputs (LED vie 1..4, thermometer N lives → N LEDs lit):
+#   GPIO 12 (pin 32) = LED vie 1
+#   GPIO 25 (pin 22) = LED vie 2
+#   GPIO 24 (pin 18) = LED vie 3
+#   GPIO 23 (pin 16) = LED vie 4+
+
+id: md-lives-mirror
+name: MD Lives Mirror
+description: Mirror MD lives bits (GPIO 21/20) onto 4 LEDs (GPIO 12,25,24,23) in thermometer style.
+enabled: true
+
+trigger:
+  source: system.interval
+  every_ms: 1000
+
+actions:
+  - id: mirror
+    type: gpio
+    action: mirror_thermometer
+    input_pins: [21, 20]
+    output_pins: [12, 25, 24, 23]

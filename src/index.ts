@@ -15,6 +15,7 @@ import { WorkflowLoader } from './core/workflow-loader.js';
 import { WorkflowEngine } from './core/engine.js';
 import { QueueWorker } from './queue/worker.js';
 import { NostrInboundListener } from './inbound/nostr.js';
+import { SystemIntervalListener } from './inbound/system-interval.js';
 import { Secret } from './config/secrets.js';
 import { WorkflowAuditor } from './core/auditor.js';
 import { WebhookInboundServer } from './inbound/webhook.js';
@@ -61,6 +62,13 @@ const engine = new WorkflowEngine(registry, logger, {
   maxHookDepth: config.max_hook_depth ?? 10,
 });
 engine.setWorkflows(workflowLoader.getAll());
+
+// 5b. Init system.interval listener — drives workflows on a fixed cadence.
+// Bypasses queue + matcher (direct engine.execute on the targeted workflow).
+const systemIntervalListener = new SystemIntervalListener(workflowLoader.getAll(), logger);
+systemIntervalListener.onTick(async (workflow, event) => {
+  await engine.execute(workflow, event, { matched: true, groups: {} });
+});
 
 // 6. Init queue worker
 const queueWorker = new QueueWorker(storage, engine, workflowLoader, logger, {
@@ -138,6 +146,7 @@ if (config.webhook?.enabled) {
 
 // 10. Start services
 await nostrListener.start();
+systemIntervalListener.start();
 if (config.queue?.enabled) {
   queueWorker.start();
 }
@@ -164,6 +173,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     if (webhookServer) await webhookServer.stop();
     await nostrListener.stop();
+    await systemIntervalListener.stop();
     await queueWorker.stop();
     await registry.shutdownAll(HANDLER_TIMEOUT);
     storage.close();

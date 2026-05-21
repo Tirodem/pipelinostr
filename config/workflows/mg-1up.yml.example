@@ -1,0 +1,22 @@
+# PipeliNostr v2 — MG +1up via DM (Dinovox)
+#
+# Emit one +1-life pulse on GPIO 16 (EXT pin 3) on receipt of /mg-1up via DM.
+# Independent from md-lives-mirror (no shared state). Open to anyone — sender
+# is not whitelisted (intentional, mirrors the zap-to-+1up philosophy).
+
+id: mg-1up
+name: MG +1up via DM
+description: Emit one +1-life pulse on GPIO 16 on /mg-1up DM (NIP-04 or NIP-17).
+enabled: true
+
+trigger:
+  source: nostr.dm
+  content_pattern: "^/mg-1up$"
+  from_whitelist: false
+
+actions:
+  - id: pulse_1up
+    type: gpio
+    action: pulse
+    pin: 16
+    duration: 100
