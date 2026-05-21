@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { BaseHandler, type HandlerResult, type ActionContext } from './base.js';
 import type { SystemDependency } from '../utils/system-deps.js';
+import { createLogger } from '../utils/logger.js';
 
 export class GpioHandler extends BaseHandler {
   static type = 'gpio';
@@ -92,6 +93,9 @@ export class GpioHandler extends BaseHandler {
     }
   }
 
+  private mirrorLogger = createLogger(process.env.LOG_LEVEL ?? 'info');
+  private lastMirrorValue: number | undefined;
+
   private async executeMirrorThermometer(action: Record<string, unknown>): Promise<HandlerResult> {
     const inputPins = action.input_pins;
     const outputPins = action.output_pins;
@@ -101,27 +105,53 @@ export class GpioHandler extends BaseHandler {
 
     const client = this.client as {
       gpio: (pin: number) => {
-        modeSet: (mode: string) => void;
-        read: () => number;
-        write: (value: number) => void;
+        modeSet: (mode: string, cb: (err?: Error) => void) => void;
+        read: (cb: (err: Error | null, value: number) => void) => void;
+        write: (value: number, cb: (err?: Error) => void) => void;
       };
     };
 
+    const setMode = (pin: number, mode: 'input' | 'output'): Promise<void> =>
+      new Promise((resolve, reject) => {
+        client.gpio(pin).modeSet(mode, (err) => err ? reject(err) : resolve());
+      });
+    const readPin = (pin: number): Promise<number> =>
+      new Promise((resolve, reject) => {
+        client.gpio(pin).read((err, val) => err ? reject(err) : resolve(val & 1));
+      });
+    const writePin = (pin: number, value: number): Promise<void> =>
+      new Promise((resolve, reject) => {
+        client.gpio(pin).write(value, (err) => err ? reject(err) : resolve());
+      });
+
     let value = 0;
+    const bits: number[] = [];
     for (let i = 0; i < inputPins.length; i++) {
-      const p = client.gpio(Number(inputPins[i]));
-      p.modeSet('input');
-      value |= (p.read() & 1) << i;
+      const pin = Number(inputPins[i]);
+      await setMode(pin, 'input');
+      const bit = await readPin(pin);
+      bits.push(bit);
+      value |= bit << i;
     }
-    const lit = value + 1;
+    const lives = value + 1;
+
+    // Log on state change only — at 1 Hz, per-tick logs would flood the journal.
+    if (this.lastMirrorValue !== value) {
+      const bin = bits.slice().reverse().join('');
+      this.mirrorLogger.info(
+        { bits, bin, value, lives, input_pins: inputPins, output_pins: outputPins },
+        'MD Lives Mirror state change',
+      );
+      this.lastMirrorValue = value;
+    }
 
     for (let i = 0; i < outputPins.length; i++) {
-      const p = client.gpio(Number(outputPins[i]));
-      p.modeSet('output');
-      p.write(i < lit ? 1 : 0);
+      const pin = Number(outputPins[i]);
+      await setMode(pin, 'output');
+      await writePin(pin, i < lives ? 1 : 0);
     }
 
-    return { success: true, data: { value, lit, input_pins: inputPins, output_pins: outputPins } };
+    return { success: true, data: { value, bits, lives, input_pins: inputPins, output_pins: outputPins } };
   }
 
   async shutdown(): Promise<void> {
