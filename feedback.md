@@ -34,6 +34,18 @@ Branch: `v2-qa` — used to log issues found while testing the v2 install on a f
 - Cosmetic but spammy on startup.
 - Fix idea: in the GPIO handler init, skip connection attempts if `GPIO_DISABLED=1` or if no pigpiod socket is detected, and downgrade the warning.
 
+### 6. Workaround: forced restart every 15 min for relay disconnects
+- Symptom: `relay.snort.social` (and occasionally others) keeps disconnecting/reconnecting in the logs (`"Relay disconnected — auto-reconnect enabled"` lines). Reconnect logic exists but doesn't seem to fully recover the subscription state — long-term, the bot may stop receiving events from flapping relays.
+- Temporary workaround installed: a systemd timer that restarts the service every 15 min.
+  - `/etc/systemd/system/pipelinostr-restart.service` (oneshot, runs `systemctl restart pipelinostr.service`)
+  - `/etc/systemd/system/pipelinostr-restart.timer` (OnBootSec=15min, OnUnitActiveSec=15min)
+- Cost: every restart drops ~15-20 s of inbound events.
+- Real fix to investigate: relay reconnection logic in `src/inbound/nostr.ts` — likely needs to re-issue REQ subscriptions after a reconnect, and possibly back off failing relays instead of hammering them.
+- To remove the workaround:
+  - `sudo systemctl disable --now pipelinostr-restart.timer`
+  - `sudo rm /etc/systemd/system/pipelinostr-restart.{service,timer}`
+  - `sudo systemctl daemon-reload`
+
 ## Findings to add during this QA pass
 
 <!-- Add new findings below as you test. Suggested format:
