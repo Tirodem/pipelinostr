@@ -22,6 +22,18 @@ Branch: `v2-qa` — used to log issues found while testing the v2 install on a f
 - Skips re-running if `$INSTALL_DIR/node_modules/.package-lock.json` exists. If a prior run left a partial node_modules, this returns early without rebuilding.
 - Fix idea: also require `$INSTALL_DIR/dist/index.js` before short-circuiting.
 
+### 4. `npm run build` OOMs on small VPS — no NODE_OPTIONS heap bump
+- File: `scripts/setup-wizard.sh:1535`
+- On a 416 MB RAM VPS (with 2 GB swap correctly added by `ensure_swap`), `tsc` hit the default Node heap ceiling (~512 MB) and aborted with `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory`. Swap was barely touched — the abort came from Node's own limit, not the kernel OOM-killer.
+- Manual workaround: `NODE_OPTIONS="--max-old-space-size=1024" npm run build` succeeded.
+- Fix idea: prefix the wizard's build line with `NODE_OPTIONS="--max-old-space-size=1024"` (or 1536 to be safer). Without this, low-RAM installs silently fail and the service ends up boot-looping with `MODULE_NOT_FOUND` (see finding #2).
+
+### 5. GPIO handler logs noisy warning when no pigpiod present
+- Log line: `Unable to connect to pigpiod. No retry timeout option was specified. Verify that daemon is running from localhost:8888.`
+- Happens on any non-Raspberry-Pi host where the `gpio` handler is enabled (default in workflows that reference it).
+- Cosmetic but spammy on startup.
+- Fix idea: in the GPIO handler init, skip connection attempts if `GPIO_DISABLED=1` or if no pigpiod socket is detected, and downgrade the warning.
+
 ## Findings to add during this QA pass
 
 <!-- Add new findings below as you test. Suggested format:
