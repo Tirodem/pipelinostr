@@ -94,7 +94,6 @@ export class GpioHandler extends BaseHandler {
   }
 
   private mirrorLogger = createLogger(process.env.LOG_LEVEL ?? 'info');
-  private lastMirrorValue: number | undefined;
 
   private async executeMirrorThermometer(action: Record<string, unknown>): Promise<HandlerResult> {
     const inputPins = action.input_pins;
@@ -135,15 +134,12 @@ export class GpioHandler extends BaseHandler {
     }
     const lives = value + 1;
 
-    // Log on state change only — at 1 Hz, per-tick logs would flood the journal.
-    if (this.lastMirrorValue !== value) {
-      const bin = bits.slice().reverse().join('');
-      this.mirrorLogger.info(
-        { bits, bin, value, lives, input_pins: inputPins, output_pins: outputPins },
-        'MD Lives Mirror state change',
-      );
-      this.lastMirrorValue = value;
-    }
+    // Log every tick (user wants per-tick visibility on the MD bits).
+    const bin = bits.slice().reverse().join('');
+    this.mirrorLogger.info(
+      { bits, bin, value, lives, input_pins: inputPins, output_pins: outputPins },
+      'MD Lives Mirror tick',
+    );
 
     for (let i = 0; i < outputPins.length; i++) {
       const pin = Number(outputPins[i]);
