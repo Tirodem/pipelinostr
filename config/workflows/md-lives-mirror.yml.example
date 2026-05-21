@@ -19,6 +19,8 @@ id: md-lives-mirror
 name: MD Lives Mirror
 description: Mirror MD lives bits (GPIO 21/20) onto 4 LEDs (GPIO 12,25,24,23) in thermometer style.
 enabled: true
+# 1 Hz workflow — silence the engine wrapper logs (only the mirror state-change line stays at info).
+quiet: true
 
 trigger:
   source: system.interval

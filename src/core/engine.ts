@@ -67,7 +67,8 @@ export class WorkflowEngine {
     const visited = new Set(visitedWorkflows);
     visited.add(workflow.id);
 
-    this.logger.info({ workflowId: workflow.id, workflowName: workflow.name }, 'Executing workflow');
+    const wrapperLog = workflow.quiet ? this.logger.debug.bind(this.logger) : this.logger.info.bind(this.logger);
+    wrapperLog({ workflowId: workflow.id, workflowName: workflow.name }, 'Executing workflow');
 
     // Build context — shallow-copy variables (devB feedback)
     const context: WorkflowContext = {
@@ -146,7 +147,7 @@ export class WorkflowEngine {
       context,
     });
 
-    this.logger.info(
+    wrapperLog(
       { workflowId: workflow.id, success, actionsExecuted, actionsFailed, actionsSkipped },
       'Workflow execution complete'
     );

@@ -68,6 +68,8 @@ export interface WorkflowDefinition {
   enabled: boolean;
   /** Continue matching other workflows after this one */
   multiple?: boolean;
+  /** Demote engine wrapper logs (Executing workflow / Workflow execution complete) to debug level */
+  quiet?: boolean;
 
   trigger: WorkflowTrigger;
   actions: WorkflowAction[];
