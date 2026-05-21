@@ -48,6 +48,13 @@ Branch: `v2-qa` — used to log issues found while testing the v2 install on a f
 
 ## Findings to add during this QA pass
 
+### 7. Regression v2: no admin startup notification (present in v1)
+- File: `src/index.ts` (v2) — no `nostr.admin_npub` config field, no startup DM.
+- What happened: v2 boots silently. Admin has no way to know the bot is up unless they DM it and wait for a reply.
+- Expected: v1 had `sendAdminStartupNotification(adminNpub, nostrDmHandler)` at `src/index.ts:1699-1745` (commit `f4dff92`). At end of `main()` (v1 line 1983-1986), if `config.nostr.admin_npub` was set, it sent a fire-and-forget DM containing: hostname, git branch@commit, network type+name (WiFi SSID or Ethernet), local IPs, public IP, ISO timestamp.
+- Fix idea: port `sendAdminStartupNotification` to v2 (uses `nostr_dm` handler, no new handler needed). Helpers required: `getLocalIPs()` (`os.networkInterfaces()`), `getPublicIP()` (HTTP to e.g. `api.ipify.org`), `getNetworkInfo()` (WiFi SSID via `iw`/`nmcli` on Linux, or skip on non-WiFi), `getGitVersion()` (shell out to git in the install dir). Add `nostr.admin_npub` to the config schema. Call after `nostrListener.start()` in v2 `src/index.ts`, gated on the config field, fire-and-forget.
+- Priority: low (pure observability). Deferred to next week per user.
+
 <!-- Add new findings below as you test. Suggested format:
 
 ### N. Short title
